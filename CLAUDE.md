@@ -15,3 +15,11 @@ Each component has its own folder with an accompanying README.md file explaining
 - PHP 8.3+ with PHPDoc documentation
 - JavaScript
 - HTML
+
+## Git Remotes
+
+This project is mirrored to two repositories:
+- `Gitea/master`
+- `Github/master`
+
+Push to both remotes when publishing changes.
