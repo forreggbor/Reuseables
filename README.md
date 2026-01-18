@@ -8,8 +8,9 @@
 
 ## Components
 
-| Component                       | Version  | Description                                                                        |
-|---------------------------------|----------|------------------------------------------------------------------------------------|
-| [CodeWarden](CodeWarden/)       | v1.01.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)  |
-| [LicenseModule](LicenseModule/) | v1.00.01 | Framework-agnostic PHP module for license validation and tier-based feature gating |
+| Component                           | Version  | Description                                                                        |
+|-------------------------------------|----------|------------------------------------------------------------------------------------|
+| [CodeWarden](CodeWarden/)           | v1.01.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)  |
+| [LicenseModule](LicenseModule/)     | v1.00.01 | Framework-agnostic PHP module for license validation and tier-based feature gating |
+| [SzamlazzHuAgent](SzamlazzHuAgent/) | v1.01.00 | Framework-agnostic PHP module for Szamlazz.hu invoice integration                  |
 
