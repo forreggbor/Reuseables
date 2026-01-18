@@ -1,0 +1,48 @@
+# LicenseModule English Translations
+# Copyright (C) 2025
+# This file is distributed under the same license as the LicenseModule package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: LicenseModule 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-18 12:00+0000\n"
+"PO-Revision-Date: 2025-01-18 12:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: English\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: views/expired.php
+msgid "LICENSE_EXPIRED_TITLE"
+msgstr "License Expired"
+
+#: views/expired.php
+msgid "LICENSE_EXPIRED_MESSAGE"
+msgstr "Your license has expired. Please renew your license to continue using all features."
+
+#: views/expired.php
+msgid "LICENSE_EXPIRED_READONLY"
+msgstr "The system is currently in read-only mode. You can view data but cannot make changes."
+
+#: views/suspended.php
+msgid "LICENSE_SUSPENDED_TITLE"
+msgstr "License Suspended"
+
+#: views/suspended.php
+msgid "LICENSE_SUSPENDED_MESSAGE"
+msgstr "Your license has been suspended. Access to the system has been temporarily disabled."
+
+#: views/suspended.php
+msgid "LICENSE_SUSPENDED_NOTICE"
+msgstr "All system functionality is currently unavailable. Please contact support to resolve this issue."
+
+#: views/expired.php views/suspended.php
+msgid "LICENSE_CONTACT_SUPPORT"
+msgstr "Please contact support to restore your license."
+
+#: LicenseModule.php
+msgid "LICENSE_INVALID_MESSAGE"
+msgstr "Invalid license. Please check your license key."

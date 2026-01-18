@@ -1,0 +1,48 @@
+# LicenseModule Hungarian Translations
+# Copyright (C) 2025
+# This file is distributed under the same license as the LicenseModule package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: LicenseModule 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-18 12:00+0000\n"
+"PO-Revision-Date: 2025-01-18 12:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Hungarian\n"
+"Language: hu_HU\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: views/expired.php
+msgid "LICENSE_EXPIRED_TITLE"
+msgstr "Lejárt licenc"
+
+#: views/expired.php
+msgid "LICENSE_EXPIRED_MESSAGE"
+msgstr "A licenced lejárt. Kérjük, újítsd meg a licencedet az összes funkció használatához."
+
+#: views/expired.php
+msgid "LICENSE_EXPIRED_READONLY"
+msgstr "A rendszer jelenleg csak olvasható módban van. Az adatokat megtekintheted, de módosításokat nem végezhetsz."
+
+#: views/suspended.php
+msgid "LICENSE_SUSPENDED_TITLE"
+msgstr "Felfüggesztett licenc"
+
+#: views/suspended.php
+msgid "LICENSE_SUSPENDED_MESSAGE"
+msgstr "A licenced felfüggesztésre került. A rendszerhez való hozzáférés ideiglenesen letiltva."
+
+#: views/suspended.php
+msgid "LICENSE_SUSPENDED_NOTICE"
+msgstr "Az összes rendszerfunkció jelenleg nem elérhető. Kérjük, lépj kapcsolatba az ügyfélszolgálattal a probléma megoldásához."
+
+#: views/expired.php views/suspended.php
+msgid "LICENSE_CONTACT_SUPPORT"
+msgstr "Kérjük, lépj kapcsolatba az ügyfélszolgálattal a licenc visszaállításához."
+
+#: LicenseModule.php
+msgid "LICENSE_INVALID_MESSAGE"
+msgstr "Érvénytelen licenc. Kérjük, ellenőrizd a licenckulcsot."
