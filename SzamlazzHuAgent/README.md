@@ -4,13 +4,15 @@ Framework-agnostic PHP module for Szamlazz.hu invoice integration.
 
 ## Features
 
-- Generate e-invoices via Szamlazz.hu API
-- Preview invoices without creating them
-- Create storno (reverse) invoices
-- Uses official szamlaagent SDK when available
+- **Invoices**: Generate e-invoices, preview, and create storno (reverse) invoices
+- **Delivery Notes**: Generate szállítólevél documents
+- **Proforma Invoices**: Generate díjbekérő with deletion support
+- **Receipts**: Generate nyugta with PDF retrieval, email sending, and storno
+- Uses official szamlaagent SDK (v2.10.23)
 - cURL fallback for basic invoice generation
+- Configurable storage path for all SDK-generated files
 - Configurable payment methods, VAT rates, and seller information
-- Framework-agnostic storage adapter
+- Framework-agnostic with custom storage adapter support
 
 ## Requirements
 
