@@ -89,7 +89,7 @@ if ($result->success) {
 $agent = new SzamlazzHuAgent([
     // Required
     'api_key' => 'your-szamlazz-api-key',
-    'storage_path' => '/path/to/storage/invoices',
+    'storage_path' => '/path/to/storage/szamlaagent',  // Base path for all SDK files
 
     // Seller information (recommended)
     'seller' => [
@@ -457,6 +457,21 @@ $agent = new SzamlazzHuAgent([
     'storage_adapter' => new S3Storage($bucket),
 ]);
 ```
+
+## Storage Structure
+
+The `storage_path` configuration sets the base directory for all SDK-generated files:
+
+```
+storage_path/
+├── pdf/          # Invoice PDFs, storno PDFs, delivery notes, etc.
+├── xmls/         # XML request/response files
+├── logs/         # Log files
+├── cookie/       # Session cookies
+└── attachments/  # Invoice attachments
+```
+
+Subdirectories are created automatically as needed.
 
 ## szamlaagent SDK
 

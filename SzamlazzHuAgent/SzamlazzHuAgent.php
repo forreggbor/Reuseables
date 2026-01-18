@@ -58,11 +58,12 @@ class SzamlazzHuAgent
             'payment_methods' => [],
         ], $config);
 
-        // Initialize storage
+        // Initialize storage - PDFs go to storage_path/pdf/
         if (isset($config['storage_adapter']) && $config['storage_adapter'] instanceof StorageInterface) {
             $this->storage = $config['storage_adapter'];
         } else {
-            $this->storage = new FileSystemStorage($config['storage_path']);
+            $pdfPath = rtrim($config['storage_path'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'pdf';
+            $this->storage = new FileSystemStorage($pdfPath);
         }
 
         // Initialize builder
@@ -96,6 +97,13 @@ class SzamlazzHuAgent
         if (file_exists($autoloadPath)) {
             require_once $autoloadPath;
             $this->sdkLoaded = true;
+
+            // Configure SDK storage base path (for logs, cookies, xmls, etc.)
+            if (!empty($this->config['storage_path'])) {
+                \SzamlaAgent\SzamlaAgentUtil::setBasePath(
+                    rtrim($this->config['storage_path'], DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR
+                );
+            }
         }
     }
 
