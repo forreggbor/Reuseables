@@ -23,3 +23,8 @@ This project is mirrored to two repositories:
 - `Github/master`
 
 Push to both remotes when publishing changes.
+
+## Documentation Requirements
+
+- Update all relevant README files after any changes (main README.md and component README.md)
+- Update component CHANGELOG.md when something changes

@@ -8,7 +8,7 @@ A bash utility for project maintenance tasks, focusing on PO/MO localization fil
 - **PO Intelligence Analysis**: Detect sync issues, missing keys, unused translations, and duplicates
 - **Cleanup**: Comment out unused translation keys
 - **Ownership Management**: Set file ownership recursively
-- **Permission Fixing**: Apply standard permissions (664 for files, 775 for scripts)
+- **Permission Fixing**: Apply standard permissions (775 for directories, 664 for files, 775 for scripts)
 
 ## Requirements
 
@@ -28,6 +28,7 @@ A bash utility for project maintenance tasks, focusing on PO/MO localization fil
 |--------------------|------------------------------------------------|
 | `-d, --dir <path>` | Project base path (default: current directory) |
 | `-y, --yes`        | Auto-confirm sensitive operations              |
+| `-v, --version`    | Display version information                    |
 | `--dry-run`        | Show what would happen without making changes  |
 
 ### PO Intelligence & Localization
@@ -45,7 +46,7 @@ A bash utility for project maintenance tasks, focusing on PO/MO localization fil
 | Option                     | Description                    |
 |----------------------------|--------------------------------|
 | `-o, --owner <user:group>` | Set file ownership             |
-| `-m, --permissions`        | Fix file permissions (664/775) |
+| `-m, --permissions`        | Fix permissions (dirs: 775, files: 664, scripts: 775) |
 | `-h, --help`               | Display help message           |
 
 ## Examples

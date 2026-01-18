@@ -10,5 +10,5 @@
 
 | Component                 | Version  | Description                                                                       |
 |---------------------------|----------|-----------------------------------------------------------------------------------|
-| [CodeWarden](CodeWarden/) | v1.00.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions) |
+| [CodeWarden](CodeWarden/) | v1.01.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions) |
 
