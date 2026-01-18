@@ -57,11 +57,12 @@ class InvoiceBuilder
      */
     public function buildReverseInvoice(string $originalInvoiceNumber): \SzamlaAgent\Document\Invoice\ReverseInvoice
     {
-        $reverseInvoice = new \SzamlaAgent\Document\Invoice\ReverseInvoice();
+        $reverseInvoice = new \SzamlaAgent\Document\Invoice\ReverseInvoice(
+            \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_E_INVOICE
+        );
 
         $header = $reverseInvoice->getHeader();
         $header->setInvoiceNumber($originalInvoiceNumber);
-        $header->setEInvoice(true);
 
         // Set seller for reverse invoice
         if (!empty($this->config['seller'])) {
