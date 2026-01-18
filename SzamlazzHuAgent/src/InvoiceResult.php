@@ -90,6 +90,14 @@ class InvoiceResult
     }
 
     /**
+     * Get invoice number (alias for getDocumentNumber)
+     */
+    public function getInvoiceNumber(): ?string
+    {
+        return $this->invoiceNumber;
+    }
+
+    /**
      * Get PDF file path
      */
     public function getPdfPath(): ?string
