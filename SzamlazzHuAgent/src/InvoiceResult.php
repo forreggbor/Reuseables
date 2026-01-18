@@ -58,6 +58,54 @@ class InvoiceResult
     }
 
     /**
+     * Check if operation was successful
+     */
+    public function isSuccess(): bool
+    {
+        return $this->success;
+    }
+
+    /**
+     * Get error message
+     */
+    public function getErrorMessage(): ?string
+    {
+        return $this->errorMessage;
+    }
+
+    /**
+     * Get error code
+     */
+    public function getErrorCode(): ?int
+    {
+        return $this->errorCode;
+    }
+
+    /**
+     * Get document/invoice number
+     */
+    public function getDocumentNumber(): ?string
+    {
+        return $this->invoiceNumber;
+    }
+
+    /**
+     * Get PDF file path
+     */
+    public function getPdfPath(): ?string
+    {
+        return $this->pdfPath;
+    }
+
+    /**
+     * Get PDF content (base64 encoded)
+     */
+    public function getPdfContent(): ?string
+    {
+        return $this->pdfContent;
+    }
+
+    /**
      * Convert to array
      */
     public function toArray(): array
