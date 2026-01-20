@@ -10,6 +10,7 @@
 
 | Component                           | Version  | Description                                                                        |
 |-------------------------------------|----------|------------------------------------------------------------------------------------|
+| [ActivityLogs](ActivityLogs/)       | v1.00.00 | Framework-agnostic PHP activity logging with flexible schema and integrity checks  |
 | [CodeWarden](CodeWarden/)           | v1.01.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)  |
 | [ErrorHandling](ErrorHandling/)     | v1.00.00 | Framework-agnostic PHP error and exception logging with severity levels            |
 | [LicenseModule](LicenseModule/)     | v1.00.01 | Framework-agnostic PHP module for license validation and tier-based feature gating |
