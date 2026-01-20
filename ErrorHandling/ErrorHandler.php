@@ -11,7 +11,7 @@ namespace ErrorHandling;
  * file logging, and optional PHP error/exception handler registration.
  *
  * @package ErrorHandling
- * @version 1.0.0
+ * @version 1.0.1
  * @license MIT
  */
 class ErrorHandler
@@ -41,7 +41,6 @@ class ErrorHandler
         E_USER_ERROR => 'ERROR',
         E_USER_WARNING => 'WARNING',
         E_USER_NOTICE => 'INFO',
-        E_STRICT => 'DEBUG',
         E_RECOVERABLE_ERROR => 'ERROR',
         E_DEPRECATED => 'DEBUG',
         E_USER_DEPRECATED => 'DEBUG',
