@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 1.0.0
+ * @version 1.0.1
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -295,6 +295,9 @@ class WYSIWYGEditor {
         this.editor.className = `${this.config.classPrefix}-editor`;
         this.editor.contentEditable = 'true';
 
+        // Use <p> tags for paragraphs instead of <div>
+        document.execCommand('defaultParagraphSeparator', false, 'p');
+
         if (this.config.placeholder) {
             this.editor.dataset.placeholder = this.config.placeholder;
         }
@@ -362,6 +365,12 @@ class WYSIWYGEditor {
                 this.updateToolbarState();
             }
         });
+
+        // Sync before form submission
+        const form = this.textarea.closest('form');
+        if (form) {
+            form.addEventListener('submit', () => this.sync());
+        }
     }
 
     /**
@@ -516,6 +525,43 @@ class WYSIWYGEditor {
     }
 
     /**
+     * Normalize content - convert div tags to p tags for consistency
+     * @private
+     */
+    normalizeContent() {
+        let changed = true;
+        let iterations = 0;
+        const maxIterations = 10;
+
+        // Loop until no more changes (handles nested divs)
+        while (changed && iterations < maxIterations) {
+            changed = false;
+            iterations++;
+
+            this.editor.querySelectorAll('div').forEach(div => {
+                // Unwrap divs that contain only a single block element
+                const blockChild = div.querySelector(':scope > ul, :scope > ol, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > blockquote, :scope > p');
+                if (blockChild && div.children.length === 1 && div.textContent.trim() === blockChild.textContent.trim()) {
+                    div.replaceWith(blockChild);
+                    changed = true;
+                    return;
+                }
+
+                // Skip divs that contain nested block elements
+                if (div.querySelector('div, p, ul, ol, h1, h2, h3, h4, h5, h6, blockquote')) {
+                    return;
+                }
+
+                // Convert simple div to p
+                const p = document.createElement('p');
+                p.innerHTML = div.innerHTML;
+                div.replaceWith(p);
+                changed = true;
+            });
+        }
+    }
+
+    /**
      * Update toolbar button active states
      * @private
      */
@@ -551,6 +597,7 @@ class WYSIWYGEditor {
      * Sync editor content to the hidden textarea
      */
     sync() {
+        this.normalizeContent();
         this.textarea.value = this.editor.innerHTML;
     }
 
