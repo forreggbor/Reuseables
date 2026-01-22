@@ -24,8 +24,8 @@ class FeatureGate
         2 => ['name' => 'Standard', 'modules' => [
             'membership', 'invoicing', 'payment_methods', 'custom_attributes',
         ]],
-        3 => ['name' => 'Advanced', 'modules' => ['reports']],
-        4 => ['name' => 'Pro', 'modules' => ['delivery', 'storage_management']],
+        3 => ['name' => 'Advanced', 'modules' => ['reports', 'delivery', 'storage_management']],
+        4 => ['name' => 'Pro', 'modules' => ['supplier', 'incoming_goods', 'purchasing']],
     ];
 
     /**

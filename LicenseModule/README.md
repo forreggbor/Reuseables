@@ -174,8 +174,8 @@ The module includes default tiers based on FlowerShop:
 |-------|----------|---------|
 | 1     | Core     | catalog, orders, users, vat_validation, activity_audit, email_templates, favorites |
 | 2     | Standard | membership, invoicing, payment_methods, custom_attributes |
-| 3     | Advanced | reports |
-| 4     | Pro      | delivery, storage_management |
+| 3     | Advanced | reports, delivery, storage_management |
+| 4     | Pro      | supplier, incoming_goods, purchasing |
 
 **Note:** Tiers are hierarchical. A Pro license (level 4) includes all modules from Core, Standard, and Advanced tiers.
 

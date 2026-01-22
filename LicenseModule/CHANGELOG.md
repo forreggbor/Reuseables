@@ -5,6 +5,14 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-22
+
+### Changed
+
+- Restructured default tier configuration:
+  - Moved `delivery` and `storage_management` modules from Tier 4 (Pro) to Tier 3 (Advanced)
+  - Added new Tier 4 (Pro) modules: `supplier`, `incoming_goods`, `purchasing`
+
 ## [1.0.1] - 2025-01-18
 
 ### Fixed
