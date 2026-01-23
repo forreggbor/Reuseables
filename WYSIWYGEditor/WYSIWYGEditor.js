@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 2.0.0
+ * @version 2.2.0
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -152,6 +152,7 @@ class WYSIWYGEditor {
             background: #ccc;
         }
         .wysiwyg-editor {
+            position: relative;
             padding: 12px;
             min-height: 200px;
             outline: none;
@@ -197,6 +198,40 @@ class WYSIWYGEditor {
             border: 1px solid #ccc;
             padding: 8px;
             min-width: 40px;
+        }
+        .wysiwyg-table-selected {
+            outline: 2px solid #007bff;
+            outline-offset: 2px;
+        }
+        .wysiwyg-table-toolbar {
+            position: absolute;
+            z-index: 1000;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 4px;
+            display: flex;
+            gap: 2px;
+            flex-wrap: wrap;
+            max-width: 320px;
+        }
+        .wysiwyg-table-toolbar-btn {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .wysiwyg-table-toolbar-btn:hover {
+            background: #e0e0e0;
+        }
+        .wysiwyg-table-toolbar-separator {
+            width: 1px;
+            background: #ddd;
+            margin: 0 4px;
         }
         .wysiwyg-editor img {
             max-width: 100%;
@@ -386,6 +421,71 @@ class WYSIWYGEditor {
         .wysiwyg-modal-tab-content-active {
             display: block;
         }
+        .wysiwyg-image-selected {
+            outline: 2px solid #007bff;
+            outline-offset: 2px;
+            cursor: pointer;
+        }
+        .wysiwyg-image-toolbar {
+            position: absolute;
+            z-index: 1000;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 4px;
+            display: flex;
+            gap: 4px;
+        }
+        .wysiwyg-image-toolbar-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .wysiwyg-image-toolbar-btn:hover {
+            background: #f0f0f0;
+        }
+        .wysiwyg-image-resizer {
+            position: absolute;
+            z-index: 999;
+            border: 1px dashed #007bff;
+            pointer-events: none;
+        }
+        .wysiwyg-image-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #007bff;
+            border: 1px solid #fff;
+            pointer-events: all;
+        }
+        .wysiwyg-image-handle-se {
+            right: -5px;
+            bottom: -5px;
+            cursor: se-resize;
+        }
+        .wysiwyg-image-handle-sw {
+            left: -5px;
+            bottom: -5px;
+            cursor: sw-resize;
+        }
+        .wysiwyg-image-handle-ne {
+            right: -5px;
+            top: -5px;
+            cursor: ne-resize;
+        }
+        .wysiwyg-image-handle-nw {
+            left: -5px;
+            top: -5px;
+            cursor: nw-resize;
+        }
     `;
 
     /**
@@ -441,6 +541,24 @@ class WYSIWYGEditor {
      * @type {Function|null}
      */
     documentClickHandler = null;
+
+    /**
+     * Currently selected image element
+     * @type {HTMLImageElement|null}
+     */
+    selectedImage = null;
+
+    /**
+     * Image toolbar element
+     * @type {HTMLElement|null}
+     */
+    imageToolbar = null;
+
+    /**
+     * Image resizer overlay element
+     * @type {HTMLElement|null}
+     */
+    imageResizer = null;
 
     /**
      * Create a new WYSIWYGEditor instance
@@ -814,10 +932,37 @@ class WYSIWYGEditor {
             }
         });
 
-        // Document click handler to close popups
+        // Image click handler for editing
+        this.editor.addEventListener('click', (e) => {
+            const prefix = this.config.classPrefix;
+
+            if (e.target.tagName === 'IMG') {
+                e.preventDefault();
+                this.selectImage(e.target);
+                this.deselectTable();
+            } else if (e.target.closest('table')) {
+                const table = e.target.closest('table');
+                const cell = e.target.closest('td, th');
+                if (!e.target.closest(`.${prefix}-table-toolbar`)) {
+                    this.selectTable(table, cell);
+                    this.deselectImage();
+                }
+            } else {
+                if (!e.target.closest(`.${prefix}-image-toolbar`)) {
+                    this.deselectImage();
+                }
+                if (!e.target.closest(`.${prefix}-table-toolbar`)) {
+                    this.deselectTable();
+                }
+            }
+        });
+
+        // Document click handler to close popups and deselect images/tables
         this.documentClickHandler = (e) => {
             if (!this.wrapper.contains(e.target)) {
                 this.closeAllPopups();
+                this.deselectImage();
+                this.deselectTable();
             }
         };
         document.addEventListener('click', this.documentClickHandler);
@@ -1251,7 +1396,10 @@ class WYSIWYGEditor {
             // Setup tab switching
             const tabs = modal.querySelectorAll(`.${prefix}-modal-tab`);
             tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
+                tab.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
                     tabs.forEach(t => t.classList.remove(`${prefix}-modal-tab-active`));
                     tab.classList.add(`${prefix}-modal-tab-active`);
 
@@ -1327,6 +1475,13 @@ class WYSIWYGEditor {
         overlay.appendChild(modal);
         document.body.appendChild(overlay);
 
+        // Prevent input events from bubbling (fixes focus/click issues)
+        modal.querySelectorAll('input, textarea').forEach(input => {
+            input.addEventListener('click', (e) => e.stopPropagation());
+            input.addEventListener('mousedown', (e) => e.stopPropagation());
+            input.addEventListener('focus', (e) => e.stopPropagation());
+        });
+
         // Run setup callback if provided
         if (onSetup) {
             onSetup(modal);
@@ -1338,9 +1493,12 @@ class WYSIWYGEditor {
             firstInput.focus();
         }
 
-        // Handle button clicks
+        // Handle button clicks (only on buttons with data-action)
         modal.addEventListener('click', (e) => {
-            const action = e.target.dataset.action;
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            const action = btn.dataset.action;
             if (action === 'cancel') {
                 this.closeModal(overlay);
             } else if (action === 'insert') {
@@ -1374,6 +1532,682 @@ class WYSIWYGEditor {
      */
     closeModal(overlay) {
         overlay.remove();
+    }
+
+    /**
+     * Select an image for editing
+     *
+     * @param {HTMLImageElement} img - The image element to select
+     */
+    selectImage(img) {
+        // Deselect any previously selected image
+        this.deselectImage();
+
+        const prefix = this.config.classPrefix;
+        this.selectedImage = img;
+        img.classList.add(`${prefix}-image-selected`);
+
+        // Create and show toolbar
+        this.showImageToolbar(img);
+
+        // Create and show resizer
+        this.showImageResizer(img);
+    }
+
+    /**
+     * Deselect the currently selected image
+     */
+    deselectImage() {
+        if (!this.selectedImage) return;
+
+        const prefix = this.config.classPrefix;
+        this.selectedImage.classList.remove(`${prefix}-image-selected`);
+        this.selectedImage = null;
+
+        // Remove toolbar
+        if (this.imageToolbar) {
+            this.imageToolbar.remove();
+            this.imageToolbar = null;
+        }
+
+        // Remove resizer
+        if (this.imageResizer) {
+            this.imageResizer.remove();
+            this.imageResizer = null;
+        }
+    }
+
+    /**
+     * Show the image editing toolbar
+     *
+     * @param {HTMLImageElement} img - The image element
+     * @private
+     */
+    showImageToolbar(img) {
+        const prefix = this.config.classPrefix;
+
+        this.imageToolbar = document.createElement('div');
+        this.imageToolbar.className = `${prefix}-image-toolbar`;
+        this.imageToolbar.innerHTML = `
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="edit-alt" title="Edit alt text">Alt</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="resize-50" title="50% size">50%</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="resize-100" title="Original size">100%</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="delete" title="Delete image">&#10060;</button>
+        `;
+
+        // Position toolbar above the image
+        this.editor.appendChild(this.imageToolbar);
+        this.updateToolbarPosition(img);
+
+        // Handle toolbar button clicks
+        this.imageToolbar.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const action = btn.dataset.action;
+            this.handleImageAction(action);
+        });
+    }
+
+    /**
+     * Show the image resizer with drag handles
+     *
+     * @param {HTMLImageElement} img - The image element
+     * @private
+     */
+    showImageResizer(img) {
+        const prefix = this.config.classPrefix;
+
+        this.imageResizer = document.createElement('div');
+        this.imageResizer.className = `${prefix}-image-resizer`;
+        this.imageResizer.innerHTML = `
+            <div class="${prefix}-image-handle ${prefix}-image-handle-se" data-handle="se"></div>
+            <div class="${prefix}-image-handle ${prefix}-image-handle-sw" data-handle="sw"></div>
+            <div class="${prefix}-image-handle ${prefix}-image-handle-ne" data-handle="ne"></div>
+            <div class="${prefix}-image-handle ${prefix}-image-handle-nw" data-handle="nw"></div>
+        `;
+
+        this.updateResizerPosition(img);
+
+        // Handle resize drag
+        this.imageResizer.querySelectorAll('[data-handle]').forEach(handle => {
+            handle.addEventListener('mousedown', (e) => this.startImageResize(e, handle.dataset.handle));
+        });
+
+        this.editor.appendChild(this.imageResizer);
+    }
+
+    /**
+     * Update the resizer position to match the image
+     *
+     * @param {HTMLImageElement} img - The image element
+     * @private
+     */
+    updateResizerPosition(img) {
+        if (!this.imageResizer) return;
+
+        // Calculate position relative to the editor
+        let left = img.offsetLeft;
+        let top = img.offsetTop;
+
+        // Walk up the offset parents until we reach the editor
+        let parent = img.offsetParent;
+        while (parent && parent !== this.editor) {
+            left += parent.offsetLeft;
+            top += parent.offsetTop;
+            parent = parent.offsetParent;
+        }
+
+        this.imageResizer.style.left = `${left}px`;
+        this.imageResizer.style.top = `${top}px`;
+        this.imageResizer.style.width = `${img.offsetWidth}px`;
+        this.imageResizer.style.height = `${img.offsetHeight}px`;
+    }
+
+    /**
+     * Start resizing an image
+     *
+     * @param {MouseEvent} e - The mousedown event
+     * @param {string} handle - The handle position (se, sw, ne, nw)
+     * @private
+     */
+    startImageResize(e, handle) {
+        if (!this.selectedImage) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const img = this.selectedImage;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startWidth = img.offsetWidth;
+        const startHeight = img.offsetHeight;
+        const aspectRatio = startWidth / startHeight;
+
+        const onMouseMove = (moveEvent) => {
+            let deltaX = moveEvent.clientX - startX;
+            let deltaY = moveEvent.clientY - startY;
+
+            // Adjust delta based on handle position
+            if (handle === 'nw' || handle === 'sw') {
+                deltaX = -deltaX;
+            }
+            if (handle === 'nw' || handle === 'ne') {
+                deltaY = -deltaY;
+            }
+
+            // Calculate new size maintaining aspect ratio
+            let newWidth = startWidth + deltaX;
+            let newHeight = newWidth / aspectRatio;
+
+            // Minimum size
+            if (newWidth < 50) {
+                newWidth = 50;
+                newHeight = newWidth / aspectRatio;
+            }
+
+            // Apply new size
+            img.style.width = `${Math.round(newWidth)}px`;
+            img.style.height = 'auto';
+
+            // Update resizer position
+            this.updateResizerPosition(img);
+            this.updateToolbarPosition(img);
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            this.sync();
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    /**
+     * Update the toolbar position to match the image
+     *
+     * @param {HTMLImageElement} img - The image element
+     * @private
+     */
+    updateToolbarPosition(img) {
+        if (!this.imageToolbar) return;
+
+        // Calculate position relative to the editor
+        let left = img.offsetLeft;
+        let top = img.offsetTop;
+
+        // Walk up the offset parents until we reach the editor
+        let parent = img.offsetParent;
+        while (parent && parent !== this.editor) {
+            left += parent.offsetLeft;
+            top += parent.offsetTop;
+            parent = parent.offsetParent;
+        }
+
+        this.imageToolbar.style.left = `${left}px`;
+        this.imageToolbar.style.top = `${top - 36}px`;
+    }
+
+    /**
+     * Handle image toolbar actions
+     *
+     * @param {string} action - The action to perform
+     * @private
+     */
+    handleImageAction(action) {
+        if (!this.selectedImage) return;
+
+        const img = this.selectedImage;
+
+        switch (action) {
+            case 'edit-alt':
+                this.editImageAlt(img);
+                break;
+            case 'resize-50':
+                img.style.width = '50%';
+                img.style.height = 'auto';
+                this.updateResizerPosition(img);
+                this.updateToolbarPosition(img);
+                this.sync();
+                break;
+            case 'resize-100':
+                img.style.width = '';
+                img.style.height = '';
+                this.updateResizerPosition(img);
+                this.updateToolbarPosition(img);
+                this.sync();
+                break;
+            case 'delete':
+                this.deleteImage(img);
+                break;
+        }
+    }
+
+    /**
+     * Edit the alt text of an image
+     *
+     * @param {HTMLImageElement} img - The image element
+     */
+    editImageAlt(img) {
+        const prefix = this.config.classPrefix;
+        const currentAlt = img.alt || '';
+
+        const content = `
+            <div class="${prefix}-modal-header">Edit Alt Text</div>
+            <div class="${prefix}-modal-body">
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Alt Text</label>
+                    <input type="text" class="${prefix}-modal-input" id="${prefix}-edit-alt" value="${this.escapeHtml(currentAlt)}" placeholder="Image description">
+                </div>
+            </div>
+            <div class="${prefix}-modal-footer">
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Save</button>
+            </div>
+        `;
+
+        this.showModal(content, (modal) => {
+            const newAlt = modal.querySelector(`#${prefix}-edit-alt`).value;
+            img.alt = newAlt;
+            this.sync();
+        });
+    }
+
+    /**
+     * Delete the selected image
+     *
+     * @param {HTMLImageElement} img - The image element
+     */
+    deleteImage(img) {
+        this.deselectImage();
+        img.remove();
+        this.sync();
+    }
+
+    /**
+     * Select a table for editing
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @param {HTMLTableCellElement} cell - The clicked cell (optional)
+     */
+    selectTable(table, cell = null) {
+        // Deselect any previously selected table
+        this.deselectTable();
+
+        const prefix = this.config.classPrefix;
+        this.selectedTable = table;
+        this.selectedCell = cell;
+        table.classList.add(`${prefix}-table-selected`);
+
+        // Create and show toolbar
+        this.showTableToolbar(table);
+    }
+
+    /**
+     * Deselect the currently selected table
+     */
+    deselectTable() {
+        if (!this.selectedTable) return;
+
+        const prefix = this.config.classPrefix;
+        this.selectedTable.classList.remove(`${prefix}-table-selected`);
+        this.selectedTable = null;
+        this.selectedCell = null;
+
+        // Remove toolbar
+        if (this.tableToolbar) {
+            this.tableToolbar.remove();
+            this.tableToolbar = null;
+        }
+    }
+
+    /**
+     * Show the table editing toolbar
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @private
+     */
+    showTableToolbar(table) {
+        const prefix = this.config.classPrefix;
+
+        this.tableToolbar = document.createElement('div');
+        this.tableToolbar.className = `${prefix}-table-toolbar`;
+        this.tableToolbar.innerHTML = `
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="properties" title="Table properties">&#9881; Properties</button>
+            <span class="${prefix}-table-toolbar-separator"></span>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="row-above" title="Insert row above">&#8593; Row</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="row-below" title="Insert row below">&#8595; Row</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="col-left" title="Insert column left">&#8592; Col</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="col-right" title="Insert column right">&#8594; Col</button>
+            <span class="${prefix}-table-toolbar-separator"></span>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-row" title="Delete row">&#10060; Row</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-col" title="Delete column">&#10060; Col</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-table" title="Delete table">&#10060; Table</button>
+        `;
+
+        // Position toolbar above the table
+        this.editor.appendChild(this.tableToolbar);
+        this.updateTableToolbarPosition(table);
+
+        // Handle toolbar button clicks
+        this.tableToolbar.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const action = btn.dataset.action;
+            this.handleTableAction(action);
+        });
+    }
+
+    /**
+     * Update the table toolbar position
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @private
+     */
+    updateTableToolbarPosition(table) {
+        if (!this.tableToolbar) return;
+
+        // Calculate position relative to the editor
+        let left = table.offsetLeft;
+        let top = table.offsetTop;
+
+        // Walk up the offset parents until we reach the editor
+        let parent = table.offsetParent;
+        while (parent && parent !== this.editor) {
+            left += parent.offsetLeft;
+            top += parent.offsetTop;
+            parent = parent.offsetParent;
+        }
+
+        this.tableToolbar.style.left = `${left}px`;
+        this.tableToolbar.style.top = `${top - this.tableToolbar.offsetHeight - 5}px`;
+    }
+
+    /**
+     * Handle table toolbar actions
+     *
+     * @param {string} action - The action to perform
+     * @private
+     */
+    handleTableAction(action) {
+        const table = this.selectedTable;
+        const cell = this.selectedCell;
+
+        if (!table) return;
+
+        switch (action) {
+            case 'properties':
+                this.showTablePropertiesModal(table);
+                break;
+            case 'row-above':
+                this.insertTableRow(table, cell, 'above');
+                break;
+            case 'row-below':
+                this.insertTableRow(table, cell, 'below');
+                break;
+            case 'col-left':
+                this.insertTableColumn(table, cell, 'left');
+                break;
+            case 'col-right':
+                this.insertTableColumn(table, cell, 'right');
+                break;
+            case 'delete-row':
+                this.deleteTableRow(table, cell);
+                break;
+            case 'delete-col':
+                this.deleteTableColumn(table, cell);
+                break;
+            case 'delete-table':
+                this.deleteTable(table);
+                break;
+        }
+    }
+
+    /**
+     * Show the table properties modal
+     *
+     * @param {HTMLTableElement} table - The table element
+     */
+    showTablePropertiesModal(table) {
+        const prefix = this.config.classPrefix;
+
+        // Get current table styles
+        const computedStyle = window.getComputedStyle(table);
+        const cells = table.querySelectorAll('td, th');
+        const firstCell = cells[0];
+        const cellStyle = firstCell ? window.getComputedStyle(firstCell) : null;
+
+        // Parse current values
+        let borderWidth = '1';
+        let borderColor = '#cccccc';
+        let cellPadding = '8';
+        let tableWidth = '100';
+
+        if (cellStyle) {
+            const borderMatch = cellStyle.borderWidth.match(/(\d+)/);
+            if (borderMatch) borderWidth = borderMatch[1];
+            borderColor = this.rgbToHex(cellStyle.borderColor) || '#cccccc';
+            const paddingMatch = cellStyle.padding.match(/(\d+)/);
+            if (paddingMatch) cellPadding = paddingMatch[1];
+        }
+
+        if (table.style.width) {
+            const widthMatch = table.style.width.match(/(\d+)/);
+            if (widthMatch) tableWidth = widthMatch[1];
+        }
+
+        const content = `
+            <div class="${prefix}-modal-header">Table Properties</div>
+            <div class="${prefix}-modal-body">
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Border Width (px)</label>
+                    <input type="number" class="${prefix}-modal-input" id="${prefix}-table-border" value="${borderWidth}" min="0" max="10">
+                </div>
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Border Color</label>
+                    <input type="color" class="${prefix}-modal-input" id="${prefix}-table-border-color" value="${borderColor}" style="height: 36px; padding: 2px;">
+                </div>
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Cell Padding (px)</label>
+                    <input type="number" class="${prefix}-modal-input" id="${prefix}-table-padding" value="${cellPadding}" min="0" max="50">
+                </div>
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Table Width (%)</label>
+                    <input type="number" class="${prefix}-modal-input" id="${prefix}-table-width" value="${tableWidth}" min="10" max="100">
+                </div>
+            </div>
+            <div class="${prefix}-modal-footer">
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Apply</button>
+            </div>
+        `;
+
+        this.showModal(content, (modal) => {
+            const borderWidth = modal.querySelector(`#${prefix}-table-border`).value;
+            const borderColor = modal.querySelector(`#${prefix}-table-border-color`).value;
+            const cellPadding = modal.querySelector(`#${prefix}-table-padding`).value;
+            const tableWidth = modal.querySelector(`#${prefix}-table-width`).value;
+
+            this.applyTableProperties(table, {
+                borderWidth: parseInt(borderWidth, 10),
+                borderColor: borderColor,
+                cellPadding: parseInt(cellPadding, 10),
+                tableWidth: parseInt(tableWidth, 10)
+            });
+        });
+    }
+
+    /**
+     * Apply properties to a table
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @param {Object} props - The properties to apply
+     * @private
+     */
+    applyTableProperties(table, props) {
+        const { borderWidth, borderColor, cellPadding, tableWidth } = props;
+
+        table.style.width = `${tableWidth}%`;
+
+        // Apply border and padding to all cells
+        const cells = table.querySelectorAll('td, th');
+        cells.forEach(cell => {
+            cell.style.border = `${borderWidth}px solid ${borderColor}`;
+            cell.style.padding = `${cellPadding}px`;
+        });
+
+        this.sync();
+    }
+
+    /**
+     * Convert RGB color string to hex
+     *
+     * @param {string} rgb - RGB color string like "rgb(255, 0, 0)"
+     * @returns {string} Hex color string like "#ff0000"
+     * @private
+     */
+    rgbToHex(rgb) {
+        const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+        if (!match) return null;
+
+        const r = parseInt(match[1], 10).toString(16).padStart(2, '0');
+        const g = parseInt(match[2], 10).toString(16).padStart(2, '0');
+        const b = parseInt(match[3], 10).toString(16).padStart(2, '0');
+
+        return `#${r}${g}${b}`;
+    }
+
+    /**
+     * Insert a new row into the table
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @param {HTMLTableCellElement} cell - The reference cell
+     * @param {string} position - 'above' or 'below'
+     */
+    insertTableRow(table, cell, position) {
+        const row = cell ? cell.closest('tr') : table.querySelector('tr');
+        if (!row) return;
+
+        const colCount = row.cells.length;
+        const newRow = document.createElement('tr');
+
+        for (let i = 0; i < colCount; i++) {
+            const td = document.createElement('td');
+            td.innerHTML = '&nbsp;';
+            // Copy styles from existing cells
+            const existingCell = row.cells[0];
+            if (existingCell) {
+                td.style.border = existingCell.style.border || '';
+                td.style.padding = existingCell.style.padding || '';
+            }
+            newRow.appendChild(td);
+        }
+
+        if (position === 'above') {
+            row.parentNode.insertBefore(newRow, row);
+        } else {
+            row.parentNode.insertBefore(newRow, row.nextSibling);
+        }
+
+        this.sync();
+    }
+
+    /**
+     * Insert a new column into the table
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @param {HTMLTableCellElement} cell - The reference cell
+     * @param {string} position - 'left' or 'right'
+     */
+    insertTableColumn(table, cell, position) {
+        const cellIndex = cell ? cell.cellIndex : 0;
+        const rows = table.querySelectorAll('tr');
+
+        rows.forEach(row => {
+            const refCell = row.cells[cellIndex];
+            if (!refCell) return;
+
+            const isHeader = refCell.tagName === 'TH';
+            const newCell = document.createElement(isHeader ? 'th' : 'td');
+            newCell.innerHTML = '&nbsp;';
+            // Copy styles from existing cells
+            newCell.style.border = refCell.style.border || '';
+            newCell.style.padding = refCell.style.padding || '';
+
+            if (position === 'left') {
+                row.insertBefore(newCell, refCell);
+            } else {
+                row.insertBefore(newCell, refCell.nextSibling);
+            }
+        });
+
+        this.sync();
+    }
+
+    /**
+     * Delete a row from the table
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @param {HTMLTableCellElement} cell - A cell in the row to delete
+     */
+    deleteTableRow(table, cell) {
+        const row = cell ? cell.closest('tr') : null;
+        if (!row) return;
+
+        // Don't delete if it's the last row
+        if (table.querySelectorAll('tr').length <= 1) {
+            return;
+        }
+
+        row.remove();
+        this.sync();
+    }
+
+    /**
+     * Delete a column from the table
+     *
+     * @param {HTMLTableElement} table - The table element
+     * @param {HTMLTableCellElement} cell - A cell in the column to delete
+     */
+    deleteTableColumn(table, cell) {
+        if (!cell) return;
+
+        const cellIndex = cell.cellIndex;
+        const rows = table.querySelectorAll('tr');
+
+        // Don't delete if it's the last column
+        const firstRow = rows[0];
+        if (firstRow && firstRow.cells.length <= 1) {
+            return;
+        }
+
+        rows.forEach(row => {
+            if (row.cells[cellIndex]) {
+                row.cells[cellIndex].remove();
+            }
+        });
+
+        this.sync();
+    }
+
+    /**
+     * Delete a table
+     *
+     * @param {HTMLTableElement} table - The table element
+     */
+    deleteTable(table) {
+        this.deselectTable();
+        table.remove();
+        this.sync();
     }
 
     /**
@@ -1529,11 +2363,33 @@ class WYSIWYGEditor {
     }
 
     /**
+     * Get clean HTML content without editor UI elements
+     *
+     * @returns {string} Clean HTML content
+     * @private
+     */
+    getCleanContent() {
+        const prefix = this.config.classPrefix;
+
+        // Clone the editor content
+        const clone = this.editor.cloneNode(true);
+
+        // Remove editor UI elements (toolbars, resizers, selection classes)
+        clone.querySelectorAll(`.${prefix}-image-toolbar, .${prefix}-image-resizer, .${prefix}-table-toolbar`).forEach(el => el.remove());
+
+        // Remove selection classes from elements
+        clone.querySelectorAll(`.${prefix}-image-selected`).forEach(el => el.classList.remove(`${prefix}-image-selected`));
+        clone.querySelectorAll(`.${prefix}-table-selected`).forEach(el => el.classList.remove(`${prefix}-table-selected`));
+
+        return clone.innerHTML;
+    }
+
+    /**
      * Sync editor content to the hidden textarea
      */
     sync() {
         this.normalizeContent();
-        this.textarea.value = this.editor.innerHTML;
+        this.textarea.value = this.getCleanContent();
     }
 
     /**
@@ -1542,7 +2398,7 @@ class WYSIWYGEditor {
      * @returns {string} The editor HTML content
      */
     getContent() {
-        return this.editor.innerHTML;
+        return this.getCleanContent();
     }
 
     /**
@@ -1598,6 +2454,9 @@ class WYSIWYGEditor {
             this.documentClickHandler = null;
         }
 
+        // Deselect any image
+        this.deselectImage();
+
         // Move textarea back and show it
         this.wrapper.parentNode.insertBefore(this.textarea, this.wrapper);
         this.textarea.style.display = '';
@@ -1611,6 +2470,9 @@ class WYSIWYGEditor {
         this.editor = null;
         this.codeEditor = null;
         this.savedSelection = null;
+        this.selectedImage = null;
+        this.imageToolbar = null;
+        this.imageResizer = null;
     }
 
     /**

@@ -5,6 +5,41 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-01-23
+
+### Added
+- **Table Editing**: Click on tables to edit them
+  - Table properties modal (border width, border color, cell padding, table width)
+  - Insert row above/below current row
+  - Insert column left/right of current column
+  - Delete row, delete column, delete table
+  - Toolbar appears above selected table with all editing options
+  - New cells inherit styles from existing cells
+
+### Fixed
+- Alt text input now works correctly in all modal dialogs (insert image, edit image alt)
+- Centralized input event handling in `showModal()` for consistent behavior
+- Editor UI elements (toolbars, resizers, selection classes) are now excluded from saved content
+
+## [2.1.1] - 2026-01-23
+
+### Fixed
+- Image resize border and toolbar now correctly positioned around selected image
+- Added `position: relative` to editor container for proper absolute positioning
+
+## [2.1.0] - 2026-01-23
+
+### Added
+- **Image Editing**: Click on inserted images to edit them
+  - Resize handles for drag-to-resize with aspect ratio preservation
+  - Toolbar with quick actions (edit alt text, 50% size, 100% size, delete)
+  - Edit alt text via modal dialog
+  - Delete image button
+
+### Fixed
+- Alt text input now works correctly in image upload modal
+- Improved modal event handling to prevent input focus issues
+
 ## [2.0.0] - 2026-01-23
 
 ### Added

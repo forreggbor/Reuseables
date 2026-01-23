@@ -10,7 +10,9 @@ A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textar
 - Font size and font family selection
 - Text and background color formatting
 - Table insertion with configurable dimensions
+- Table editing: properties (border, padding, width), add/delete rows and columns
 - Image insertion via URL or file upload (base64)
+- Image editing: resize by dragging, edit alt text, delete
 - Code view for HTML source editing
 - Keyboard shortcuts (Ctrl/Cmd + B, I, U, K, Z, Y)
 - Paste as plain text option
@@ -189,7 +191,18 @@ new WYSIWYGEditor(textarea, options)
 | `sync()` | void | Manually sync content to textarea |
 | `toggleCodeView()` | void | Toggle between WYSIWYG and HTML view |
 | `insertTable(rows, cols)` | void | Insert table with dimensions |
+| `selectTable(table, cell)` | void | Select a table for editing |
+| `deselectTable()` | void | Deselect the currently selected table |
+| `insertTableRow(table, cell, pos)` | void | Insert row above/below cell |
+| `insertTableColumn(table, cell, pos)` | void | Insert column left/right of cell |
+| `deleteTableRow(table, cell)` | void | Delete row containing cell |
+| `deleteTableColumn(table, cell)` | void | Delete column containing cell |
+| `deleteTable(table)` | void | Delete the entire table |
 | `insertImageFromUrl(url, alt)` | void | Insert image from URL |
+| `selectImage(img)` | void | Select an image for editing |
+| `deselectImage()` | void | Deselect the currently selected image |
+| `editImageAlt(img)` | void | Open alt text editor for image |
+| `deleteImage(img)` | void | Delete the specified image |
 | `destroy()` | void | Remove editor and restore textarea |
 
 ### Static Methods
