@@ -585,7 +585,7 @@ class SzamlazzHuAgent
                 return new InvoiceResult(
                     success: true,
                     invoiceNumber: $receiptNumber,
-                    pdfContent: json_encode($data)
+                    pdfContent: json_encode($data, JSON_UNESCAPED_UNICODE)
                 );
             }
 

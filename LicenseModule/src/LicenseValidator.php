@@ -145,7 +145,7 @@ class LicenseValidator
             throw new \Exception('License server returned invalid JSON');
         }
 
-        $this->log('License API raw response: ' . json_encode($result), 'DEBUG');
+        $this->log('License API raw response: ' . json_encode($result, JSON_UNESCAPED_UNICODE), 'DEBUG');
 
         if (!isset($result['data']['valid'])) {
             throw new \Exception('License server returned unexpected format');
