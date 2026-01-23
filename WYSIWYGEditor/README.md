@@ -26,6 +26,7 @@ A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textar
 
 - Modern browser (Chrome, Firefox, Safari, Edge)
 - No external dependencies
+- Compatible with Bootstrap modals (focus trap aware)
 
 ## Installation
 

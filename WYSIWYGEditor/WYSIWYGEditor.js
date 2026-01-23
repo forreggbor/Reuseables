@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 2.2.0
+ * @version 2.2.2
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -334,6 +334,8 @@ class WYSIWYGEditor {
             z-index: 10000;
         }
         .wysiwyg-modal {
+            position: relative;
+            z-index: 10001;
             background: #fff;
             border-radius: 8px;
             padding: 20px;
@@ -371,6 +373,8 @@ class WYSIWYGEditor {
             border-radius: 4px;
             font-size: 14px;
             box-sizing: border-box;
+            position: relative;
+            z-index: 1;
         }
         .wysiwyg-modal-input:focus {
             outline: none;
@@ -592,9 +596,9 @@ class WYSIWYGEditor {
         this.buildCodeEditor();
         this.bindEvents();
 
-        // Set initial content from textarea
+        // Set initial content from textarea (sanitize any embedded editor UI)
         if (this.textarea.value) {
-            this.editor.innerHTML = this.textarea.value;
+            this.editor.innerHTML = this.sanitizeEditorUI(this.textarea.value);
         }
     }
 
@@ -1235,8 +1239,12 @@ class WYSIWYGEditor {
         this.isCodeView = !this.isCodeView;
 
         if (this.isCodeView) {
-            // Switch to code view
-            this.codeEditor.value = this.editor.innerHTML;
+            // Deselect any selected elements before switching
+            this.deselectImage();
+            this.deselectTable();
+
+            // Switch to code view - use clean content without UI elements
+            this.codeEditor.value = this.getCleanContent();
             this.editor.style.display = 'none';
             this.codeEditor.style.display = 'block';
             this.codeEditor.focus();
@@ -1250,8 +1258,8 @@ class WYSIWYGEditor {
                 }
             });
         } else {
-            // Switch back to WYSIWYG view
-            this.editor.innerHTML = this.codeEditor.value;
+            // Switch back to WYSIWYG view (sanitize any embedded editor UI)
+            this.editor.innerHTML = this.sanitizeEditorUI(this.codeEditor.value);
             this.codeEditor.style.display = 'none';
             this.editor.style.display = 'block';
             this.editor.focus();
@@ -1473,14 +1481,25 @@ class WYSIWYGEditor {
         modal.innerHTML = content;
 
         overlay.appendChild(modal);
-        document.body.appendChild(overlay);
 
-        // Prevent input events from bubbling (fixes focus/click issues)
+        // Append to closest Bootstrap modal if inside one (to work with Bootstrap's focus trap)
+        // Otherwise append to document.body
+        const bootstrapModal = this.wrapper.closest('.modal');
+        if (bootstrapModal) {
+            bootstrapModal.appendChild(overlay);
+        } else {
+            document.body.appendChild(overlay);
+        }
+
+        // Prevent all input events from bubbling (fixes focus/click/typing issues)
         modal.querySelectorAll('input, textarea').forEach(input => {
-            input.addEventListener('click', (e) => e.stopPropagation());
-            input.addEventListener('mousedown', (e) => e.stopPropagation());
-            input.addEventListener('focus', (e) => e.stopPropagation());
+            ['click', 'mousedown', 'mouseup', 'focus', 'keydown', 'keyup', 'keypress', 'input'].forEach(eventType => {
+                input.addEventListener(eventType, (e) => e.stopPropagation());
+            });
         });
+
+        // Prevent modal from losing focus when clicking inside
+        modal.addEventListener('mousedown', (e) => e.stopPropagation());
 
         // Run setup callback if provided
         if (onSetup) {
@@ -1596,7 +1615,7 @@ class WYSIWYGEditor {
         `;
 
         // Position toolbar above the image
-        this.editor.appendChild(this.imageToolbar);
+        this.wrapper.appendChild(this.imageToolbar);
         this.updateToolbarPosition(img);
 
         // Handle toolbar button clicks
@@ -1637,7 +1656,7 @@ class WYSIWYGEditor {
             handle.addEventListener('mousedown', (e) => this.startImageResize(e, handle.dataset.handle));
         });
 
-        this.editor.appendChild(this.imageResizer);
+        this.wrapper.appendChild(this.imageResizer);
     }
 
     /**
@@ -1660,6 +1679,10 @@ class WYSIWYGEditor {
             top += parent.offsetTop;
             parent = parent.offsetParent;
         }
+
+        // Add editor's offset within wrapper (accounts for main toolbar)
+        left += this.editor.offsetLeft;
+        top += this.editor.offsetTop;
 
         this.imageResizer.style.left = `${left}px`;
         this.imageResizer.style.top = `${top}px`;
@@ -1748,6 +1771,10 @@ class WYSIWYGEditor {
             top += parent.offsetTop;
             parent = parent.offsetParent;
         }
+
+        // Add editor's offset within wrapper (accounts for main toolbar)
+        left += this.editor.offsetLeft;
+        top += this.editor.offsetTop;
 
         this.imageToolbar.style.left = `${left}px`;
         this.imageToolbar.style.top = `${top - 36}px`;
@@ -1891,7 +1918,7 @@ class WYSIWYGEditor {
         `;
 
         // Position toolbar above the table
-        this.editor.appendChild(this.tableToolbar);
+        this.wrapper.appendChild(this.tableToolbar);
         this.updateTableToolbarPosition(table);
 
         // Handle toolbar button clicks
@@ -1927,6 +1954,10 @@ class WYSIWYGEditor {
             top += parent.offsetTop;
             parent = parent.offsetParent;
         }
+
+        // Add editor's offset within wrapper (accounts for main toolbar)
+        left += this.editor.offsetLeft;
+        top += this.editor.offsetTop;
 
         this.tableToolbar.style.left = `${left}px`;
         this.tableToolbar.style.top = `${top - this.tableToolbar.offsetHeight - 5}px`;
@@ -2385,6 +2416,29 @@ class WYSIWYGEditor {
     }
 
     /**
+     * Sanitize HTML to remove any embedded editor UI elements
+     * This cleans up content that may have been saved with toolbars accidentally
+     *
+     * @param {string} html - The HTML content to sanitize
+     * @returns {string} Sanitized HTML content
+     * @private
+     */
+    sanitizeEditorUI(html) {
+        const prefix = this.config.classPrefix;
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+
+        // Remove any editor UI elements that were accidentally saved
+        temp.querySelectorAll(`.${prefix}-image-toolbar, .${prefix}-image-resizer, .${prefix}-table-toolbar`).forEach(el => el.remove());
+
+        // Remove selection classes
+        temp.querySelectorAll(`.${prefix}-image-selected`).forEach(el => el.classList.remove(`${prefix}-image-selected`));
+        temp.querySelectorAll(`.${prefix}-table-selected`).forEach(el => el.classList.remove(`${prefix}-table-selected`));
+
+        return temp.innerHTML;
+    }
+
+    /**
      * Sync editor content to the hidden textarea
      */
     sync() {
@@ -2407,7 +2461,7 @@ class WYSIWYGEditor {
      * @param {string} html - The HTML content to set
      */
     setContent(html) {
-        this.editor.innerHTML = html;
+        this.editor.innerHTML = this.sanitizeEditorUI(html);
         this.sync();
     }
 
