@@ -6,7 +6,12 @@ A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textar
 
 - Zero dependencies - pure vanilla JavaScript
 - Transforms any textarea into a rich text editor
-- Customizable toolbar
+- Customizable toolbar with dropdowns and color pickers
+- Font size and font family selection
+- Text and background color formatting
+- Table insertion with configurable dimensions
+- Image insertion via URL or file upload (base64)
+- Code view for HTML source editing
 - Keyboard shortcuts (Ctrl/Cmd + B, I, U, K, Z, Y)
 - Paste as plain text option
 - HTML sanitization on paste
@@ -48,12 +53,15 @@ Copy `WYSIWYGEditor.js` to your project and include it:
 const editor = new WYSIWYGEditor(document.getElementById('content'), {
     toolbar: [
         'bold', 'italic', 'underline', 'strikethrough', '|',
+        'fontSize', 'fontName', '|',
+        'textColor', 'bgColor', '|',
         'h1', 'h2', 'h3', '|',
         'ul', 'ol', '|',
         'link', 'unlink', '|',
         'alignLeft', 'alignCenter', 'alignRight', '|',
+        'table', 'image', '|',
         'undo', 'redo', '|',
-        'clearFormat'
+        'clearFormat', 'codeView'
     ],
     placeholder: 'Start typing...',
     pasteAsPlainText: false,
@@ -62,6 +70,17 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
     shortcuts: true,
     classPrefix: 'wysiwyg',
     linkTargetBlank: true,
+    fontSizes: ['12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px'],
+    fontFamilies: [
+        { label: 'Arial', value: 'Arial, sans-serif' },
+        { label: 'Times New Roman', value: '"Times New Roman", serif' },
+        { label: 'Georgia', value: 'Georgia, serif' }
+    ],
+    colorPalette: ['#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00'],
+    tableDefaults: { rows: 3, cols: 3 },
+    imageUpload: true,
+    maxImageSize: 5242880,
+    allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
     onChange: function(html) {
         console.log('Content changed:', html);
     },
@@ -86,6 +105,13 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `shortcuts` | Boolean | `true` | Enable keyboard shortcuts |
 | `classPrefix` | String | `'wysiwyg'` | CSS class prefix for styling |
 | `linkTargetBlank` | Boolean | `true` | Add target="_blank" to inserted links |
+| `fontSizes` | Array | `['12px', '14px', ...]` | Available font sizes for dropdown |
+| `fontFamilies` | Array | See below | Available fonts `[{label, value}]` |
+| `colorPalette` | Array | 24 colors | Hex colors for color picker |
+| `tableDefaults` | Object | `{rows: 3, cols: 3}` | Default table dimensions |
+| `imageUpload` | Boolean | `true` | Enable file upload for images |
+| `maxImageSize` | Number | `5242880` | Max upload size in bytes (5MB) |
+| `allowedImageTypes` | Array | `['image/jpeg', ...]` | Allowed MIME types |
 | `onChange` | Function | `null` | Callback when content changes |
 | `onFocus` | Function | `null` | Callback when editor gains focus |
 | `onBlur` | Function | `null` | Callback when editor loses focus |
@@ -95,12 +121,15 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 ```javascript
 [
     'bold', 'italic', 'underline', 'strikethrough', '|',
+    'fontSize', 'fontName', '|',
+    'textColor', 'bgColor', '|',
     'h1', 'h2', 'h3', '|',
     'ul', 'ol', '|',
     'link', 'unlink', '|',
     'alignLeft', 'alignCenter', 'alignRight', '|',
+    'table', 'image', '|',
     'undo', 'redo', '|',
-    'clearFormat'
+    'clearFormat', 'codeView'
 ]
 ```
 
@@ -112,6 +141,10 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `italic` | Italic text |
 | `underline` | Underlined text |
 | `strikethrough` | Strikethrough text |
+| `fontSize` | Font size dropdown |
+| `fontName` | Font family dropdown |
+| `textColor` | Text color picker |
+| `bgColor` | Background/highlight color picker |
 | `h1` | Heading 1 |
 | `h2` | Heading 2 |
 | `h3` | Heading 3 |
@@ -122,9 +155,12 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `alignLeft` | Align text left |
 | `alignCenter` | Align text center |
 | `alignRight` | Align text right |
+| `table` | Insert table |
+| `image` | Insert image |
 | `undo` | Undo last action |
 | `redo` | Redo last action |
 | `clearFormat` | Remove all formatting |
+| `codeView` | Toggle HTML source view |
 | `\|` | Separator (vertical line) |
 
 ## API Reference
@@ -151,6 +187,9 @@ new WYSIWYGEditor(textarea, options)
 | `blur()` | void | Blur the editor |
 | `isEmpty()` | Boolean | Check if editor has no content |
 | `sync()` | void | Manually sync content to textarea |
+| `toggleCodeView()` | void | Toggle between WYSIWYG and HTML view |
+| `insertTable(rows, cols)` | void | Insert table with dimensions |
+| `insertImageFromUrl(url, alt)` | void | Insert image from URL |
 | `destroy()` | void | Remove editor and restore textarea |
 
 ### Static Methods

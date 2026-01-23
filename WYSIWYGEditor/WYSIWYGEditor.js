@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 1.0.1
+ * @version 2.0.0
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -22,12 +22,15 @@ class WYSIWYGEditor {
     static defaults = {
         toolbar: [
             'bold', 'italic', 'underline', 'strikethrough', '|',
+            'fontSize', 'fontName', '|',
+            'textColor', 'bgColor', '|',
             'h1', 'h2', 'h3', '|',
             'ul', 'ol', '|',
             'link', 'unlink', '|',
             'alignLeft', 'alignCenter', 'alignRight', '|',
+            'table', 'image', '|',
             'undo', 'redo', '|',
-            'clearFormat'
+            'clearFormat', 'codeView'
         ],
         placeholder: '',
         pasteAsPlainText: false,
@@ -38,7 +41,26 @@ class WYSIWYGEditor {
         onBlur: null,
         shortcuts: true,
         classPrefix: 'wysiwyg',
-        linkTargetBlank: true
+        linkTargetBlank: true,
+        fontSizes: ['12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px'],
+        fontFamilies: [
+            { label: 'Arial', value: 'Arial, sans-serif' },
+            { label: 'Times New Roman', value: '"Times New Roman", serif' },
+            { label: 'Georgia', value: 'Georgia, serif' },
+            { label: 'Courier New', value: '"Courier New", monospace' },
+            { label: 'Verdana', value: 'Verdana, sans-serif' },
+            { label: 'Trebuchet MS', value: '"Trebuchet MS", sans-serif' }
+        ],
+        colorPalette: [
+            '#000000', '#434343', '#666666', '#999999', '#cccccc', '#ffffff',
+            '#ff0000', '#ff9900', '#ffff00', '#00ff00', '#00ffff', '#0000ff',
+            '#9900ff', '#ff00ff', '#f4cccc', '#fce5cd', '#fff2cc', '#d9ead3',
+            '#d0e0e3', '#cfe2f3', '#d9d2e9', '#ead1dc'
+        ],
+        tableDefaults: { rows: 3, cols: 3 },
+        imageUpload: true,
+        maxImageSize: 5242880,
+        allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
     };
 
     /**
@@ -63,6 +85,13 @@ class WYSIWYGEditor {
         undo: { icon: '&#8617;', title: 'Undo (Ctrl+Z)', command: 'undo' },
         redo: { icon: '&#8618;', title: 'Redo (Ctrl+Y)', command: 'redo' },
         clearFormat: { icon: 'T&#824;', title: 'Clear Formatting', command: 'removeFormat' },
+        fontSize: { icon: 'A<small>&#9662;</small>', title: 'Font Size', command: 'fontSize', custom: true, type: 'dropdown' },
+        fontName: { icon: 'F<small>&#9662;</small>', title: 'Font Family', command: 'fontName', custom: true, type: 'dropdown' },
+        textColor: { icon: '<span style="border-bottom:3px solid #000">A</span>', title: 'Text Color', command: 'foreColor', custom: true, type: 'colorPicker' },
+        bgColor: { icon: '<span style="background:#ff0;padding:0 2px">A</span>', title: 'Background Color', command: 'backColor', custom: true, type: 'colorPicker' },
+        table: { icon: '&#9638;', title: 'Insert Table', command: 'insertTable', custom: true },
+        image: { icon: '&#128247;', title: 'Insert Image', command: 'insertImage', custom: true },
+        codeView: { icon: '&lt;/&gt;', title: 'View HTML Source', command: 'codeView', custom: true },
         '|': { type: 'separator' }
     };
 
@@ -111,6 +140,10 @@ class WYSIWYGEditor {
             background: #d0d0d0;
             border-color: #999;
         }
+        .wysiwyg-btn-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
         .wysiwyg-separator {
             display: inline-block;
             width: 1px;
@@ -155,6 +188,204 @@ class WYSIWYGEditor {
         .wysiwyg-editor a:hover {
             color: #004499;
         }
+        .wysiwyg-editor table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        .wysiwyg-editor td, .wysiwyg-editor th {
+            border: 1px solid #ccc;
+            padding: 8px;
+            min-width: 40px;
+        }
+        .wysiwyg-editor img {
+            max-width: 100%;
+            height: auto;
+        }
+        .wysiwyg-code-editor {
+            width: 100%;
+            min-height: 200px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            border: none;
+            padding: 12px;
+            resize: vertical;
+            box-sizing: border-box;
+            outline: none;
+            background: #fff;
+        }
+        .wysiwyg-dropdown-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .wysiwyg-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            min-width: 120px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: none;
+        }
+        .wysiwyg-dropdown-open {
+            display: block;
+        }
+        .wysiwyg-dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .wysiwyg-dropdown-item:hover {
+            background: #f0f0f0;
+        }
+        .wysiwyg-color-picker {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 1000;
+            padding: 8px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: none;
+        }
+        .wysiwyg-color-picker-open {
+            display: grid;
+            grid-template-columns: repeat(6, 24px);
+            gap: 4px;
+        }
+        .wysiwyg-color-swatch {
+            width: 24px;
+            height: 24px;
+            border: 1px solid #ccc;
+            border-radius: 2px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        .wysiwyg-color-swatch:hover {
+            border-color: #333;
+            transform: scale(1.1);
+        }
+        .wysiwyg-color-remove {
+            grid-column: span 6;
+            text-align: center;
+            padding: 4px;
+            cursor: pointer;
+            border-top: 1px solid #eee;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #666;
+        }
+        .wysiwyg-color-remove:hover {
+            background: #f0f0f0;
+        }
+        .wysiwyg-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        .wysiwyg-modal {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            min-width: 300px;
+            max-width: 90vw;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .wysiwyg-modal-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .wysiwyg-modal-body {
+            margin-bottom: 16px;
+        }
+        .wysiwyg-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .wysiwyg-modal-row {
+            margin-bottom: 12px;
+        }
+        .wysiwyg-modal-label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .wysiwyg-modal-input {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .wysiwyg-modal-input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .wysiwyg-modal-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .wysiwyg-modal-btn-primary {
+            background: #007bff;
+            color: #fff;
+        }
+        .wysiwyg-modal-btn-primary:hover {
+            background: #0056b3;
+        }
+        .wysiwyg-modal-btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .wysiwyg-modal-btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        .wysiwyg-modal-tabs {
+            display: flex;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 16px;
+        }
+        .wysiwyg-modal-tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+        .wysiwyg-modal-tab:hover {
+            background: #f5f5f5;
+        }
+        .wysiwyg-modal-tab-active {
+            border-bottom-color: #007bff;
+            color: #007bff;
+        }
+        .wysiwyg-modal-tab-content {
+            display: none;
+        }
+        .wysiwyg-modal-tab-content-active {
+            display: block;
+        }
     `;
 
     /**
@@ -188,6 +419,30 @@ class WYSIWYGEditor {
     editor;
 
     /**
+     * Code view textarea element
+     * @type {HTMLTextAreaElement}
+     */
+    codeEditor;
+
+    /**
+     * Whether editor is in code view mode
+     * @type {boolean}
+     */
+    isCodeView = false;
+
+    /**
+     * Saved selection range for restoring after popup interactions
+     * @type {Range|null}
+     */
+    savedSelection = null;
+
+    /**
+     * Document click handler reference for cleanup
+     * @type {Function|null}
+     */
+    documentClickHandler = null;
+
+    /**
      * Create a new WYSIWYGEditor instance
      *
      * @param {HTMLTextAreaElement|string} textarea - Textarea element or selector
@@ -216,6 +471,7 @@ class WYSIWYGEditor {
         this.buildWrapper();
         this.buildToolbar();
         this.buildEditor();
+        this.buildCodeEditor();
         this.bindEvents();
 
         // Set initial content from textarea
@@ -271,6 +527,20 @@ class WYSIWYGEditor {
                 return;
             }
 
+            // Handle dropdown type buttons
+            if (def.type === 'dropdown') {
+                const wrapper = this.createDropdownButton(item, def);
+                this.toolbar.appendChild(wrapper);
+                return;
+            }
+
+            // Handle color picker type buttons
+            if (def.type === 'colorPicker') {
+                const wrapper = this.createColorPickerButton(item, def);
+                this.toolbar.appendChild(wrapper);
+                return;
+            }
+
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = `${this.config.classPrefix}-btn`;
@@ -314,12 +584,183 @@ class WYSIWYGEditor {
     }
 
     /**
+     * Build the code editor textarea for HTML source editing
+     * @private
+     */
+    buildCodeEditor() {
+        this.codeEditor = document.createElement('textarea');
+        this.codeEditor.className = `${this.config.classPrefix}-code-editor`;
+        this.codeEditor.style.display = 'none';
+
+        if (this.config.minHeight) {
+            this.codeEditor.style.minHeight = this.config.minHeight;
+        }
+
+        if (this.config.maxHeight) {
+            this.codeEditor.style.maxHeight = this.config.maxHeight;
+        }
+
+        this.wrapper.appendChild(this.codeEditor);
+    }
+
+    /**
+     * Create a dropdown button with menu
+     *
+     * @param {string} name - Button name (e.g., 'fontSize', 'fontName')
+     * @param {Object} def - Button definition
+     * @returns {HTMLElement} Wrapper element containing button and dropdown
+     * @private
+     */
+    createDropdownButton(name, def) {
+        const prefix = this.config.classPrefix;
+        const wrapper = document.createElement('div');
+        wrapper.className = `${prefix}-dropdown-wrapper`;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `${prefix}-btn`;
+        btn.dataset.command = def.command;
+        btn.dataset.custom = 'true';
+        btn.dataset.dropdownTrigger = name;
+        btn.title = def.title;
+        btn.innerHTML = def.icon;
+
+        const dropdown = document.createElement('div');
+        dropdown.className = `${prefix}-dropdown`;
+        dropdown.dataset.dropdown = name;
+
+        // Populate dropdown items based on button type
+        if (name === 'fontSize') {
+            this.config.fontSizes.forEach(size => {
+                const item = document.createElement('div');
+                item.className = `${prefix}-dropdown-item`;
+                item.dataset.value = size;
+                item.textContent = size;
+                item.style.fontSize = size;
+                dropdown.appendChild(item);
+            });
+        } else if (name === 'fontName') {
+            this.config.fontFamilies.forEach(font => {
+                const item = document.createElement('div');
+                item.className = `${prefix}-dropdown-item`;
+                item.dataset.value = font.value;
+                item.textContent = font.label;
+                item.style.fontFamily = font.value;
+                dropdown.appendChild(item);
+            });
+        }
+
+        wrapper.appendChild(btn);
+        wrapper.appendChild(dropdown);
+
+        return wrapper;
+    }
+
+    /**
+     * Create a color picker button with palette
+     *
+     * @param {string} name - Button name (e.g., 'textColor', 'bgColor')
+     * @param {Object} def - Button definition
+     * @returns {HTMLElement} Wrapper element containing button and color picker
+     * @private
+     */
+    createColorPickerButton(name, def) {
+        const prefix = this.config.classPrefix;
+        const wrapper = document.createElement('div');
+        wrapper.className = `${prefix}-dropdown-wrapper`;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `${prefix}-btn`;
+        btn.dataset.command = def.command;
+        btn.dataset.custom = 'true';
+        btn.dataset.colorPickerTrigger = name;
+        btn.title = def.title;
+        btn.innerHTML = def.icon;
+
+        const picker = document.createElement('div');
+        picker.className = `${prefix}-color-picker`;
+        picker.dataset.colorPicker = name;
+
+        // Add color swatches
+        this.config.colorPalette.forEach(color => {
+            const swatch = document.createElement('div');
+            swatch.className = `${prefix}-color-swatch`;
+            swatch.style.backgroundColor = color;
+            swatch.dataset.color = color;
+            swatch.title = color;
+            picker.appendChild(swatch);
+        });
+
+        // Add remove color option for background color
+        if (name === 'bgColor') {
+            const remove = document.createElement('div');
+            remove.className = `${prefix}-color-remove`;
+            remove.dataset.color = 'transparent';
+            remove.textContent = 'Remove';
+            picker.appendChild(remove);
+        }
+
+        wrapper.appendChild(btn);
+        wrapper.appendChild(picker);
+
+        return wrapper;
+    }
+
+    /**
      * Bind event listeners
      * @private
      */
     bindEvents() {
+        const prefix = this.config.classPrefix;
+
         // Toolbar button clicks via event delegation
         this.toolbar.addEventListener('click', (e) => {
+            // Handle dropdown trigger clicks
+            const dropdownTrigger = e.target.closest('[data-dropdown-trigger]');
+            if (dropdownTrigger) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.saveSelection();
+                this.toggleDropdown(dropdownTrigger.dataset.dropdownTrigger);
+                return;
+            }
+
+            // Handle dropdown item clicks
+            const dropdownItem = e.target.closest(`.${prefix}-dropdown-item`);
+            if (dropdownItem) {
+                e.preventDefault();
+                e.stopPropagation();
+                const dropdown = dropdownItem.closest(`.${prefix}-dropdown`);
+                const name = dropdown.dataset.dropdown;
+                const value = dropdownItem.dataset.value;
+                this.handleDropdownSelect(name, value);
+                return;
+            }
+
+            // Handle color picker trigger clicks
+            const colorTrigger = e.target.closest('[data-color-picker-trigger]');
+            if (colorTrigger) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.saveSelection();
+                this.toggleColorPicker(colorTrigger.dataset.colorPickerTrigger);
+                return;
+            }
+
+            // Handle color swatch clicks
+            const colorSwatch = e.target.closest(`.${prefix}-color-swatch, .${prefix}-color-remove`);
+            if (colorSwatch) {
+                e.preventDefault();
+                e.stopPropagation();
+                const picker = colorSwatch.closest(`.${prefix}-color-picker`);
+                const name = picker.dataset.colorPicker;
+                const color = colorSwatch.dataset.color;
+                this.handleColorSelect(name, color);
+                return;
+            }
+
+            // Handle regular button clicks
             const btn = e.target.closest('[data-command]');
             if (!btn) return;
 
@@ -337,6 +778,13 @@ class WYSIWYGEditor {
             this.sync();
             if (this.config.onChange) {
                 this.config.onChange(this.getContent());
+            }
+        });
+
+        // Code editor sync on input
+        this.codeEditor.addEventListener('input', () => {
+            if (this.config.onChange) {
+                this.config.onChange(this.codeEditor.value);
             }
         });
 
@@ -365,6 +813,14 @@ class WYSIWYGEditor {
                 this.updateToolbarState();
             }
         });
+
+        // Document click handler to close popups
+        this.documentClickHandler = (e) => {
+            if (!this.wrapper.contains(e.target)) {
+                this.closeAllPopups();
+            }
+        };
+        document.addEventListener('click', this.documentClickHandler);
 
         // Sync before form submission
         const form = this.textarea.closest('form');
@@ -399,8 +855,19 @@ class WYSIWYGEditor {
      * @private
      */
     handleCustomCommand(command) {
-        if (command === 'link') {
-            this.insertLink();
+        switch (command) {
+            case 'link':
+                this.insertLink();
+                break;
+            case 'codeView':
+                this.toggleCodeView();
+                break;
+            case 'insertTable':
+                this.showTableModal();
+                break;
+            case 'insertImage':
+                this.showImageModal();
+                break;
         }
     }
 
@@ -439,6 +906,474 @@ class WYSIWYGEditor {
         }
 
         this.sync();
+    }
+
+    /**
+     * Save the current selection for later restoration
+     * @private
+     */
+    saveSelection() {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            this.savedSelection = selection.getRangeAt(0).cloneRange();
+        }
+    }
+
+    /**
+     * Restore the previously saved selection
+     * @private
+     */
+    restoreSelection() {
+        if (this.savedSelection) {
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(this.savedSelection);
+        }
+        this.editor.focus();
+    }
+
+    /**
+     * Toggle a dropdown menu
+     *
+     * @param {string} name - The dropdown name
+     * @private
+     */
+    toggleDropdown(name) {
+        const prefix = this.config.classPrefix;
+        const dropdown = this.toolbar.querySelector(`[data-dropdown="${name}"]`);
+
+        if (!dropdown) return;
+
+        const isOpen = dropdown.classList.contains(`${prefix}-dropdown-open`);
+
+        // Close all popups first
+        this.closeAllPopups();
+
+        if (!isOpen) {
+            dropdown.classList.add(`${prefix}-dropdown-open`);
+        }
+    }
+
+    /**
+     * Toggle a color picker
+     *
+     * @param {string} name - The color picker name
+     * @private
+     */
+    toggleColorPicker(name) {
+        const prefix = this.config.classPrefix;
+        const picker = this.toolbar.querySelector(`[data-color-picker="${name}"]`);
+
+        if (!picker) return;
+
+        const isOpen = picker.classList.contains(`${prefix}-color-picker-open`);
+
+        // Close all popups first
+        this.closeAllPopups();
+
+        if (!isOpen) {
+            picker.classList.add(`${prefix}-color-picker-open`);
+        }
+    }
+
+    /**
+     * Handle dropdown item selection
+     *
+     * @param {string} name - The dropdown name
+     * @param {string} value - The selected value
+     * @private
+     */
+    handleDropdownSelect(name, value) {
+        this.closeAllPopups();
+        this.restoreSelection();
+
+        if (name === 'fontSize') {
+            this.applyFontSize(value);
+        } else if (name === 'fontName') {
+            document.execCommand('fontName', false, value);
+        }
+
+        this.sync();
+        this.updateToolbarState();
+    }
+
+    /**
+     * Apply font size using inline style span
+     *
+     * @param {string} size - The font size value (e.g., '16px')
+     * @private
+     */
+    applyFontSize(size) {
+        const selection = window.getSelection();
+        if (!selection.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+
+        if (range.collapsed) {
+            // No selection - insert a zero-width space in a styled span
+            const span = document.createElement('span');
+            span.style.fontSize = size;
+            span.innerHTML = '&#8203;'; // Zero-width space
+            range.insertNode(span);
+
+            // Place cursor inside the span
+            range.setStart(span.firstChild, 1);
+            range.setEnd(span.firstChild, 1);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        } else {
+            // Has selection - wrap in styled span
+            const span = document.createElement('span');
+            span.style.fontSize = size;
+
+            try {
+                range.surroundContents(span);
+            } catch (e) {
+                // If surroundContents fails (e.g., partial element selection),
+                // use execCommand with insertHTML
+                const contents = range.extractContents();
+                span.appendChild(contents);
+                range.insertNode(span);
+            }
+
+            // Select the new span contents
+            range.selectNodeContents(span);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    }
+
+    /**
+     * Handle color selection
+     *
+     * @param {string} name - The color picker name ('textColor' or 'bgColor')
+     * @param {string} color - The selected color
+     * @private
+     */
+    handleColorSelect(name, color) {
+        this.closeAllPopups();
+        this.restoreSelection();
+
+        if (name === 'textColor') {
+            document.execCommand('foreColor', false, color);
+        } else if (name === 'bgColor') {
+            if (color === 'transparent') {
+                document.execCommand('removeFormat', false, null);
+            } else {
+                document.execCommand('backColor', false, color);
+            }
+        }
+
+        this.sync();
+        this.updateToolbarState();
+    }
+
+    /**
+     * Close all open dropdowns and color pickers
+     * @private
+     */
+    closeAllPopups() {
+        const prefix = this.config.classPrefix;
+        this.toolbar.querySelectorAll(`.${prefix}-dropdown-open`).forEach(el => {
+            el.classList.remove(`${prefix}-dropdown-open`);
+        });
+        this.toolbar.querySelectorAll(`.${prefix}-color-picker-open`).forEach(el => {
+            el.classList.remove(`${prefix}-color-picker-open`);
+        });
+    }
+
+    /**
+     * Toggle between WYSIWYG and code view modes
+     */
+    toggleCodeView() {
+        const prefix = this.config.classPrefix;
+        this.isCodeView = !this.isCodeView;
+
+        if (this.isCodeView) {
+            // Switch to code view
+            this.codeEditor.value = this.editor.innerHTML;
+            this.editor.style.display = 'none';
+            this.codeEditor.style.display = 'block';
+            this.codeEditor.focus();
+
+            // Disable all toolbar buttons except codeView
+            this.toolbar.querySelectorAll(`.${prefix}-btn`).forEach(btn => {
+                if (btn.dataset.command !== 'codeView') {
+                    btn.classList.add(`${prefix}-btn-disabled`);
+                } else {
+                    btn.classList.add(`${prefix}-btn-active`);
+                }
+            });
+        } else {
+            // Switch back to WYSIWYG view
+            this.editor.innerHTML = this.codeEditor.value;
+            this.codeEditor.style.display = 'none';
+            this.editor.style.display = 'block';
+            this.editor.focus();
+            this.sync();
+
+            // Enable all toolbar buttons
+            this.toolbar.querySelectorAll(`.${prefix}-btn`).forEach(btn => {
+                btn.classList.remove(`${prefix}-btn-disabled`);
+                if (btn.dataset.command === 'codeView') {
+                    btn.classList.remove(`${prefix}-btn-active`);
+                }
+            });
+        }
+    }
+
+    /**
+     * Show the table insertion modal
+     */
+    showTableModal() {
+        const prefix = this.config.classPrefix;
+        const defaults = this.config.tableDefaults;
+
+        this.saveSelection();
+
+        const content = `
+            <div class="${prefix}-modal-header">Insert Table</div>
+            <div class="${prefix}-modal-body">
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Rows</label>
+                    <input type="number" class="${prefix}-modal-input" id="${prefix}-table-rows" value="${defaults.rows}" min="1" max="20">
+                </div>
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Columns</label>
+                    <input type="number" class="${prefix}-modal-input" id="${prefix}-table-cols" value="${defaults.cols}" min="1" max="20">
+                </div>
+            </div>
+            <div class="${prefix}-modal-footer">
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Insert</button>
+            </div>
+        `;
+
+        this.showModal(content, (modal) => {
+            const rows = parseInt(modal.querySelector(`#${prefix}-table-rows`).value, 10) || defaults.rows;
+            const cols = parseInt(modal.querySelector(`#${prefix}-table-cols`).value, 10) || defaults.cols;
+            this.insertTable(rows, cols);
+        });
+    }
+
+    /**
+     * Insert a table with the specified dimensions
+     *
+     * @param {number} rows - Number of rows
+     * @param {number} cols - Number of columns
+     */
+    insertTable(rows, cols) {
+        let html = '<table><tbody>';
+
+        for (let r = 0; r < rows; r++) {
+            html += '<tr>';
+            for (let c = 0; c < cols; c++) {
+                html += '<td>&nbsp;</td>';
+            }
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+
+        this.restoreSelection();
+        document.execCommand('insertHTML', false, html);
+        this.sync();
+    }
+
+    /**
+     * Show the image insertion modal
+     */
+    showImageModal() {
+        const prefix = this.config.classPrefix;
+
+        this.saveSelection();
+
+        let content = `
+            <div class="${prefix}-modal-header">Insert Image</div>
+            <div class="${prefix}-modal-body">
+        `;
+
+        if (this.config.imageUpload) {
+            content += `
+                <div class="${prefix}-modal-tabs">
+                    <div class="${prefix}-modal-tab ${prefix}-modal-tab-active" data-tab="url">URL</div>
+                    <div class="${prefix}-modal-tab" data-tab="upload">Upload</div>
+                </div>
+                <div class="${prefix}-modal-tab-content ${prefix}-modal-tab-content-active" data-tab-content="url">
+                    <div class="${prefix}-modal-row">
+                        <label class="${prefix}-modal-label">Image URL</label>
+                        <input type="url" class="${prefix}-modal-input" id="${prefix}-image-url" placeholder="https://example.com/image.jpg">
+                    </div>
+                </div>
+                <div class="${prefix}-modal-tab-content" data-tab-content="upload">
+                    <div class="${prefix}-modal-row">
+                        <label class="${prefix}-modal-label">Select Image</label>
+                        <input type="file" class="${prefix}-modal-input" id="${prefix}-image-file" accept="${this.config.allowedImageTypes.join(',')}">
+                    </div>
+                </div>
+            `;
+        } else {
+            content += `
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Image URL</label>
+                    <input type="url" class="${prefix}-modal-input" id="${prefix}-image-url" placeholder="https://example.com/image.jpg">
+                </div>
+            `;
+        }
+
+        content += `
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">Alt Text</label>
+                    <input type="text" class="${prefix}-modal-input" id="${prefix}-image-alt" placeholder="Image description">
+                </div>
+            </div>
+            <div class="${prefix}-modal-footer">
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Insert</button>
+            </div>
+        `;
+
+        this.showModal(content, (modal) => {
+            const url = modal.querySelector(`#${prefix}-image-url`);
+            const file = modal.querySelector(`#${prefix}-image-file`);
+            const alt = modal.querySelector(`#${prefix}-image-alt`).value || '';
+
+            // Check which tab is active
+            const activeTab = modal.querySelector(`.${prefix}-modal-tab-active`);
+            const isUploadTab = activeTab && activeTab.dataset.tab === 'upload';
+
+            if (isUploadTab && file && file.files.length > 0) {
+                this.insertImageFromFile(file.files[0], alt);
+            } else if (url && url.value) {
+                this.insertImageFromUrl(url.value, alt);
+            }
+        }, (modal) => {
+            // Setup tab switching
+            const tabs = modal.querySelectorAll(`.${prefix}-modal-tab`);
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove(`${prefix}-modal-tab-active`));
+                    tab.classList.add(`${prefix}-modal-tab-active`);
+
+                    const tabName = tab.dataset.tab;
+                    modal.querySelectorAll(`.${prefix}-modal-tab-content`).forEach(content => {
+                        content.classList.remove(`${prefix}-modal-tab-content-active`);
+                    });
+                    modal.querySelector(`[data-tab-content="${tabName}"]`).classList.add(`${prefix}-modal-tab-content-active`);
+                });
+            });
+        });
+    }
+
+    /**
+     * Insert an image from a URL
+     *
+     * @param {string} url - The image URL
+     * @param {string} alt - The alt text
+     */
+    insertImageFromUrl(url, alt = '') {
+        const html = `<img src="${this.escapeHtml(url)}" alt="${this.escapeHtml(alt)}">`;
+        this.restoreSelection();
+        document.execCommand('insertHTML', false, html);
+        this.sync();
+    }
+
+    /**
+     * Insert an image from a file (converts to base64)
+     *
+     * @param {File} file - The image file
+     * @param {string} alt - The alt text
+     */
+    insertImageFromFile(file, alt = '') {
+        if (!this.config.allowedImageTypes.includes(file.type)) {
+            alert('Invalid image type. Allowed: ' + this.config.allowedImageTypes.join(', '));
+            return;
+        }
+
+        if (file.size > this.config.maxImageSize) {
+            const maxMB = Math.round(this.config.maxImageSize / 1024 / 1024);
+            alert(`Image too large. Maximum size: ${maxMB}MB`);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const html = `<img src="${e.target.result}" alt="${this.escapeHtml(alt)}">`;
+            this.restoreSelection();
+            document.execCommand('insertHTML', false, html);
+            this.sync();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    /**
+     * Show a modal dialog
+     *
+     * @param {string} content - The modal HTML content
+     * @param {Function} onConfirm - Callback when confirm button is clicked
+     * @param {Function} onSetup - Optional callback for additional setup after modal is created
+     * @private
+     */
+    showModal(content, onConfirm, onSetup = null) {
+        const prefix = this.config.classPrefix;
+
+        const overlay = document.createElement('div');
+        overlay.className = `${prefix}-modal-overlay`;
+
+        const modal = document.createElement('div');
+        modal.className = `${prefix}-modal`;
+        modal.innerHTML = content;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Run setup callback if provided
+        if (onSetup) {
+            onSetup(modal);
+        }
+
+        // Focus first input
+        const firstInput = modal.querySelector('input');
+        if (firstInput) {
+            firstInput.focus();
+        }
+
+        // Handle button clicks
+        modal.addEventListener('click', (e) => {
+            const action = e.target.dataset.action;
+            if (action === 'cancel') {
+                this.closeModal(overlay);
+            } else if (action === 'insert') {
+                onConfirm(modal);
+                this.closeModal(overlay);
+            }
+        });
+
+        // Handle ESC key
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                this.closeModal(overlay);
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+
+        // Handle click outside modal
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                this.closeModal(overlay);
+            }
+        });
+    }
+
+    /**
+     * Close a modal dialog
+     *
+     * @param {HTMLElement} overlay - The modal overlay element
+     * @private
+     */
+    closeModal(overlay) {
+        overlay.remove();
     }
 
     /**
@@ -657,6 +1592,12 @@ class WYSIWYGEditor {
      * Destroy the editor and restore the original textarea
      */
     destroy() {
+        // Remove document click handler
+        if (this.documentClickHandler) {
+            document.removeEventListener('click', this.documentClickHandler);
+            this.documentClickHandler = null;
+        }
+
         // Move textarea back and show it
         this.wrapper.parentNode.insertBefore(this.textarea, this.wrapper);
         this.textarea.style.display = '';
@@ -668,6 +1609,8 @@ class WYSIWYGEditor {
         this.wrapper = null;
         this.toolbar = null;
         this.editor = null;
+        this.codeEditor = null;
+        this.savedSelection = null;
     }
 
     /**

@@ -5,6 +5,24 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-23
+
+### Added
+- **Code View**: Toggle between WYSIWYG and HTML source editing mode
+- **Font Size**: Dropdown selector with configurable font sizes (12px-48px)
+- **Font Family**: Dropdown selector with web-safe fonts (Arial, Times New Roman, Georgia, Courier New, Verdana, Trebuchet MS)
+- **Text Color**: Color picker palette for text foreground color
+- **Background Color**: Color picker palette for text highlight/background color with remove option
+- **Table Insertion**: Modal dialog to insert tables with configurable rows and columns
+- **Image Insertion**: Modal dialog to insert images via URL or file upload (base64)
+- New configuration options: `fontSizes`, `fontFamilies`, `colorPalette`, `tableDefaults`, `imageUpload`, `maxImageSize`, `allowedImageTypes`
+- Reusable UI components: dropdown menus, color pickers, modal dialogs
+- Selection save/restore for maintaining cursor position during popup interactions
+
+### Changed
+- Default toolbar now includes all new formatting options
+- Updated CSS with styles for dropdowns, color pickers, modals, and code editor
+
 ## [1.0.1] - 2026-01-21
 
 ### Fixed
