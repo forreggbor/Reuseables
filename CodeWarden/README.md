@@ -37,7 +37,7 @@ A bash utility for project maintenance tasks, focusing on PO/MO localization fil
 |-------------------------|------------------------------------------------------------------------------------------------|
 | `-r, --restart`         | Compile PO files and restart PHP-8.4 FPM                                                       |
 | `-p, --po-path <path>`  | Relative PO path (default: `locale/{LANG}/LC_MESSAGES/messages.po`)                            |
-| `-u, --unused [sub...]` | Analyze PO files. Sub-options: `sync`, `missing`, `unused`, `duplicates`, `dynamic`, `doconly` |
+| `-u, --unused [sub...]` | Analyze PO files. Default: `sync`, `missing`, `unused`, `duplicates`, `dynamic`. Optional: `doconly` |
 | `-c, --cleanup`         | Comment out strictly unused keys                                                               |
 | `-f, --file`            | Save analysis report to file                                                                   |
 
@@ -66,6 +66,11 @@ Check dynamic prefixes and missing keys:
 ./CodeWarden.sh -u dynamic missing
 ```
 
+Check keys used only in documentation:
+```bash
+./CodeWarden.sh -u doconly
+```
+
 Compile PO files and restart FPM:
 ```bash
 ./CodeWarden.sh -d /var/www/myproject -r
@@ -83,7 +88,7 @@ Full analysis with cleanup and report:
 
 ## PO Intelligence Analysis
 
-The `-u` switch provides intelligent analysis of translation keys with the following sub-sections:
+The `-u` switch provides intelligent analysis of translation keys. By default, it runs: `sync`, `missing`, `unused`, `duplicates`, `dynamic`. The `doconly` sub-option must be explicitly specified.
 
 | Sub-option    | Description                                                                 |
 |---------------|-----------------------------------------------------------------------------|
@@ -92,20 +97,32 @@ The `-u` switch provides intelligent analysis of translation keys with the follo
 | `unused`      | Keys in PO files but not used in code (PHP/JS)                              |
 | `duplicates`  | Duplicate `msgid` entries within PO files                                   |
 | `dynamic`     | Dynamic prefixes (keys ending with `_`) used for concatenation in code      |
-| `doconly`     | Keys found only in documentation files but not in PO or code                |
+| `doconly`     | Keys found only in documentation files (not enabled by default)             |
 
 ### Key Classification Rules
 
 - **Dynamic key**: Ends with `_` (e.g., `ERROR_`) - prefix used for string concatenation
 - **Full key**: Does NOT end with `_` (e.g., `ERROR_INVALID`) - must exist exactly in PO
+- **Dynamically protected**: Full keys that match a detected dynamic prefix (e.g., `ERROR_INVALID` is protected when `ERROR_` is used dynamically in code)
 
-| In Code (PHP/JS) | In Docs Only | In PO | Classification              |
-|------------------|--------------|-------|-----------------------------|
-| Yes              | -            | Yes   | ✓ OK (used correctly)       |
-| Yes              | -            | No    | Missing from PO             |
-| No               | Yes          | Yes   | Unused in code              |
-| No               | No           | Yes   | Unused in code              |
-| No               | Yes          | No    | Used only in documentation  |
+| In Code (PHP/JS) | Dynamic Prefix | In PO | Classification              |
+|------------------|----------------|-------|-----------------------------|
+| Yes              | -              | Yes   | ✓ OK (used correctly)       |
+| Yes              | -              | No    | Missing from PO             |
+| No               | Yes            | Yes   | ✓ Dynamically protected     |
+| No               | No             | Yes   | Unused in code              |
+| No               | -              | No    | Used only in documentation  |
+
+### Dynamic Protection
+
+When code uses dynamic key construction like:
+```php
+__('TEXT_STATUS_DELIVERY_' . strtoupper($status))
+```
+
+CodeWarden detects the `TEXT_STATUS_DELIVERY_` prefix and automatically protects all matching PO keys (e.g., `TEXT_STATUS_DELIVERY_PENDING`, `TEXT_STATUS_DELIVERY_SHIPPED`) from being flagged as unused or commented out by cleanup.
+
+**Note:** Prefixes that match ALL keys are excluded from dynamic detection as they represent naming conventions, not dynamic usage (e.g., if all keys start with `TEXT_`, this prefix is ignored).
 
 ## Configuration
 

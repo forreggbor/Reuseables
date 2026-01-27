@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.04.00] - 2026-01-27
+
+### Added
+- Dynamic prefix linking: Keys matching detected dynamic prefixes are now marked as "dynamically protected"
+- Protected key count shown per dynamic prefix (e.g., `TEXT_STATUS_DELIVERY_ | 3 keys protected`)
+- Summary now shows count of dynamically protected keys
+
+### Changed
+- `doconly` sub-option no longer runs by default with `-u`; must be explicitly specified (`-u doconly`)
+
+### Fixed
+- Keys like `TEXT_STATUS_DELIVERY_PENDING` no longer flagged as unused when `TEXT_STATUS_DELIVERY_` prefix is used in code via concatenation (e.g., `__('TEXT_STATUS_DELIVERY_' . strtoupper($status))`)
+- Prefixes matching ALL keys (naming conventions like `TEXT_`) are now excluded from dynamic detection
+- Cleanup (`-c`) no longer comments out dynamically protected keys
+
 ## [v1.03.00] - 2026-01-27
 
 ### Added

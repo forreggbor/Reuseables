@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="v1.03.00"
+VERSION="v1.04.00"
 
 # Record start time for performance tracking
 START_TIME=$(date +%s)
@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
                 shift
             done
             if [[ "$RUN_SYNC" = false && "$RUN_MISSING" = false && "$RUN_UNUSED" = false && "$RUN_DUPLICATES" = false && "$RUN_DYNAMIC" = false && "$RUN_DOCONLY" = false ]]; then
-                RUN_SYNC=true; RUN_MISSING=true; RUN_UNUSED=true; RUN_DUPLICATES=true; RUN_DYNAMIC=true; RUN_DOCONLY=true
+                RUN_SYNC=true; RUN_MISSING=true; RUN_UNUSED=true; RUN_DUPLICATES=true; RUN_DYNAMIC=true
             fi
             ;;
         -h|--help)          usage ;;
@@ -177,7 +177,7 @@ if [ "$DO_UNUSED" = true ]; then
     PREFIXES=$(for k in "${!PO_ALL[@]}"; do echo "$k"; done | grep -o '^[^_]\+_' | sort -u)
     JOINED_PREFIXES=$(echo "$PREFIXES" | tr '\n' '|' | sed 's/|$//')
 
-    declare -A KEY_IN_CODE; declare -A DYNAMIC_IN_CODE; declare -A KEY_IN_DOCS
+    declare -A KEY_IN_CODE; declare -A DYNAMIC_IN_CODE; declare -A KEY_IN_DOCS; declare -A DYNAMICALLY_USED_KEYS
     GREP_EXCLUDES=(); for d in "${EXCLUDE_DIRS[@]}"; do GREP_EXCLUDES+=(--exclude-dir="$d"); done; for f in "${EXCLUDE_FILES[@]}"; do GREP_EXCLUDES+=(--exclude="$f"); done
 
     # Only run grep if we have prefixes to search for
@@ -209,6 +209,28 @@ if [ "$DO_UNUSED" = true ]; then
         # (handles case where doc file was processed before code file)
         for k in "${!KEY_IN_DOCS[@]}"; do
             [[ -n "${KEY_IN_CODE[$k]}" ]] && unset "KEY_IN_DOCS[$k]"
+        done
+
+        # Link dynamic prefixes to PO keys - marks keys as "dynamically used"
+        # Skip prefixes that match ALL keys (naming convention, not dynamic usage)
+        TOTAL_PO_KEYS=${#PO_ALL[@]}
+        for prefix in "${!DYNAMIC_IN_CODE[@]}"; do
+            # Count how many keys match this prefix
+            match_count=0
+            for po_key in "${!PO_ALL[@]}"; do
+                [[ "$po_key" == "$prefix"* ]] && ((match_count++))
+            done
+            # Only link if prefix matches a subset of keys (not all)
+            if (( match_count < TOTAL_PO_KEYS )); then
+                for po_key in "${!PO_ALL[@]}"; do
+                    if [[ "$po_key" == "$prefix"* ]]; then
+                        DYNAMICALLY_USED_KEYS["$po_key"]="$prefix"
+                    fi
+                done
+            else
+                # Remove from DYNAMIC_IN_CODE - it's a naming convention, not dynamic usage
+                unset "DYNAMIC_IN_CODE[$prefix]"
+            fi
         done
     else
         echo "Warning: No translation keys found in PO files."
@@ -247,7 +269,12 @@ if [ "$DO_UNUSED" = true ]; then
         for k in "${sorted_keys[@]}"; do
             [ -z "$k" ] && continue
             ((DYN_COUNT++))
-            REPORT_CONTENT+=$(printf "  Dynamic | %-12s | %-${MAX_LEN}s |\n" "(${DYNAMIC_IN_CODE[$k]})" "$k")
+            # Count how many PO keys match this prefix
+            match_count=0
+            for po_key in "${!PO_ALL[@]}"; do
+                [[ "$po_key" == "$k"* ]] && ((match_count++))
+            done
+            REPORT_CONTENT+=$(printf "  Dynamic | %-12s | %-${MAX_LEN}s | %d keys protected\n" "(${DYNAMIC_IN_CODE[$k]})" "$k" "$match_count")
             REPORT_CONTENT+="\n"
         done
         REPORT_CONTENT+="\n"
@@ -271,8 +298,8 @@ if [ "$DO_UNUSED" = true ]; then
     if [ "$RUN_UNUSED" = true ]; then
         UNUSED_LINES=""; UNUSED_LIST=()
         for k in "${!PO_ALL[@]}"; do
-            # A key is unused if it's NOT in KEY_IN_CODE (full keys found in PHP/JS)
-            if [[ -z "${KEY_IN_CODE[$k]}" ]]; then
+            # A key is unused if it's NOT in KEY_IN_CODE and NOT dynamically used via prefix
+            if [[ -z "${KEY_IN_CODE[$k]}" && -z "${DYNAMICALLY_USED_KEYS[$k]}" ]]; then
                 langs=""; line_num="N/A"
                 [[ -n "${PO_HU[$k]}" ]] && langs="HU" && line_num=$(grep -n "^msgid \"$k\"" "$FULL_HU" | cut -d: -f1)
                 [[ -n "${PO_EN[$k]}" ]] && langs=$( [[ -z "$langs" ]] && echo "EN" || echo "HU,EN" ) && [[ "$line_num" == "N/A" ]] && line_num=$(grep -n "^msgid \"$k\"" "$FULL_EN" | cut -d: -f1)
@@ -301,7 +328,8 @@ if [ "$DO_UNUSED" = true ]; then
         REPORT_CONTENT+="\n"
     fi
 
-    SUMMARY_LINE="Summary: Found $U_COUNT unused, $M_COUNT missing from PO, $DYN_COUNT dynamic prefixes, $DOC_COUNT doc-only, $DUP_COUNT duplicates."
+    DYN_USED_COUNT=${#DYNAMICALLY_USED_KEYS[@]}
+    SUMMARY_LINE="Summary: Found $U_COUNT unused (strict), $DYN_USED_COUNT dynamically protected, $M_COUNT missing from PO, $DYN_COUNT dynamic prefixes, $DOC_COUNT doc-only, $DUP_COUNT duplicates."
     REPORT_CONTENT+="$SUMMARY_LINE\n"
     if [ "$DO_FILE" = true ]; then echo -e "$REPORT_CONTENT" > "$OUTPUT_FILE"; echo "Result saved to $OUTPUT_FILE"; fi
     echo -e "$REPORT_CONTENT"
