@@ -33,13 +33,13 @@ A bash utility for project maintenance tasks, focusing on PO/MO localization fil
 
 ### PO Intelligence & Localization
 
-| Option                  | Description                                                              |
-|-------------------------|--------------------------------------------------------------------------|
-| `-r, --restart`         | Compile PO files and restart PHP-8.4 FPM                                 |
-| `-p, --po-path <path>`  | Relative PO path (default: `locale/{LANG}/LC_MESSAGES/messages.po`)      |
-| `-u, --unused [sub...]` | Analyze PO files. Sub-options: `sync`, `missing`, `unused`, `duplicates` |
-| `-c, --cleanup`         | Comment out strictly unused keys                                         |
-| `-f, --file`            | Save analysis report to file                                             |
+| Option                  | Description                                                                                    |
+|-------------------------|------------------------------------------------------------------------------------------------|
+| `-r, --restart`         | Compile PO files and restart PHP-8.4 FPM                                                       |
+| `-p, --po-path <path>`  | Relative PO path (default: `locale/{LANG}/LC_MESSAGES/messages.po`)                            |
+| `-u, --unused [sub...]` | Analyze PO files. Sub-options: `sync`, `missing`, `unused`, `duplicates`, `dynamic`, `doconly` |
+| `-c, --cleanup`         | Comment out strictly unused keys                                                               |
+| `-f, --file`            | Save analysis report to file                                                                   |
 
 ### System Operations
 
@@ -61,6 +61,11 @@ Check only unused and duplicate translations:
 ./CodeWarden.sh -u unused duplicates
 ```
 
+Check dynamic prefixes and missing keys:
+```bash
+./CodeWarden.sh -u dynamic missing
+```
+
 Compile PO files and restart FPM:
 ```bash
 ./CodeWarden.sh -d /var/www/myproject -r
@@ -76,10 +81,38 @@ Full analysis with cleanup and report:
 ./CodeWarden.sh -d /var/www/myproject -u -c -f -y
 ```
 
+## PO Intelligence Analysis
+
+The `-u` switch provides intelligent analysis of translation keys with the following sub-sections:
+
+| Sub-option    | Description                                                                 |
+|---------------|-----------------------------------------------------------------------------|
+| `sync`        | Keys missing in one language file but present in the other                  |
+| `missing`     | Full keys found in code (PHP/JS) but not in PO files                        |
+| `unused`      | Keys in PO files but not used in code (PHP/JS)                              |
+| `duplicates`  | Duplicate `msgid` entries within PO files                                   |
+| `dynamic`     | Dynamic prefixes (keys ending with `_`) used for concatenation in code      |
+| `doconly`     | Keys found only in documentation files but not in PO or code                |
+
+### Key Classification Rules
+
+- **Dynamic key**: Ends with `_` (e.g., `ERROR_`) - prefix used for string concatenation
+- **Full key**: Does NOT end with `_` (e.g., `ERROR_INVALID`) - must exist exactly in PO
+
+| In Code (PHP/JS) | In Docs Only | In PO | Classification              |
+|------------------|--------------|-------|-----------------------------|
+| Yes              | -            | Yes   | ✓ OK (used correctly)       |
+| Yes              | -            | No    | Missing from PO             |
+| No               | Yes          | Yes   | Unused in code              |
+| No               | No           | Yes   | Unused in code              |
+| No               | Yes          | No    | Used only in documentation  |
+
 ## Configuration
 
-Default excluded directories: `vendor`, `.claude`, `database`, `locale`, `storage`, `.idea`, `.git`
+Default excluded directories: `vendor`, `.claude`, `database`, `locale`, `.idea`, `.git`
 
 Default excluded files: `composer.*`, `.git*`
+
+Root-level `/storage` directory is excluded (but not `**/storage` paths like `app/views/.../storage/`)
 
 Supported languages: `en_US`, `hu_HU`

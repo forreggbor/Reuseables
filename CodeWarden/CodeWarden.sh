@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="v1.01.00"
+VERSION="v1.03.00"
 
 # Record start time for performance tracking
 START_TIME=$(date +%s)
@@ -25,6 +25,8 @@ RUN_SYNC=false
 RUN_MISSING=false
 RUN_UNUSED=false
 RUN_DUPLICATES=false
+RUN_DYNAMIC=false
+RUN_DOCONLY=false
 
 BASE_PATH=$(pwd)
 PO_RELATIVE_PATH="locale/{LANG}/LC_MESSAGES/messages.po"
@@ -33,7 +35,7 @@ OUTPUT_FILE="po_intelligence_report_$(date +%Y-%m-%d).txt"
 
 # Filters for analysis
 DOC_EXTENSIONS=" md txt log sql bak json local "
-EXCLUDE_DIRS=(vendor .claude database locale storage .idea .git)
+EXCLUDE_DIRS=(vendor .claude database locale .idea .git)
 EXCLUDE_FILES=("composer.*" ".git*")
 
 # Display complete usage instructions
@@ -49,7 +51,7 @@ usage() {
     echo "PO Intelligence & Localization:"
     echo "  -r, --restart            Compile PO files and restart PHP-8.4 FPM"
     echo "  -p, --po-path <path>     Relative PO path (default: locale/{LANG}/LC_MESSAGES/messages.po)"
-    echo "  -u, --unused [sub...]    Analyze PO: sync, missing, unused, duplicates"
+    echo "  -u, --unused [sub...]    Analyze PO: sync, missing, unused, duplicates, dynamic, doconly"
     echo "  -c, --cleanup            Comment out strictly unused keys"
     echo "  -f, --file               Save analysis report to file"
     echo ""
@@ -95,16 +97,18 @@ while [[ $# -gt 0 ]]; do
             shift
             while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
                 case "$1" in
-                    sync)    RUN_SYNC=true ;;
-                    missing) RUN_MISSING=true ;;
-                    unused)  RUN_UNUSED=true ;;
+                    sync)       RUN_SYNC=true ;;
+                    missing)    RUN_MISSING=true ;;
+                    unused)     RUN_UNUSED=true ;;
                     duplicates) RUN_DUPLICATES=true ;;
-                    *) echo "Warning: Unknown sub-option '$1' for -u/--unused (valid: sync, missing, unused, duplicates)" ;;
+                    dynamic)    RUN_DYNAMIC=true ;;
+                    doconly)    RUN_DOCONLY=true ;;
+                    *) echo "Warning: Unknown sub-option '$1' for -u/--unused (valid: sync, missing, unused, duplicates, dynamic, doconly)" ;;
                 esac
                 shift
             done
-            if [[ "$RUN_SYNC" = false && "$RUN_MISSING" = false && "$RUN_UNUSED" = false && "$RUN_DUPLICATES" = false ]]; then
-                RUN_SYNC=true; RUN_MISSING=true; RUN_UNUSED=true; RUN_DUPLICATES=true
+            if [[ "$RUN_SYNC" = false && "$RUN_MISSING" = false && "$RUN_UNUSED" = false && "$RUN_DUPLICATES" = false && "$RUN_DYNAMIC" = false && "$RUN_DOCONLY" = false ]]; then
+                RUN_SYNC=true; RUN_MISSING=true; RUN_UNUSED=true; RUN_DUPLICATES=true; RUN_DYNAMIC=true; RUN_DOCONLY=true
             fi
             ;;
         -h|--help)          usage ;;
@@ -173,7 +177,7 @@ if [ "$DO_UNUSED" = true ]; then
     PREFIXES=$(for k in "${!PO_ALL[@]}"; do echo "$k"; done | grep -o '^[^_]\+_' | sort -u)
     JOINED_PREFIXES=$(echo "$PREFIXES" | tr '\n' '|' | sed 's/|$//')
 
-    declare -A KEY_IN_CORE; declare -A DYNAMIC_PREFIXES; declare -A KEY_IN_OTHER; declare -A MISSING_KEY_EXT
+    declare -A KEY_IN_CODE; declare -A DYNAMIC_IN_CODE; declare -A KEY_IN_DOCS
     GREP_EXCLUDES=(); for d in "${EXCLUDE_DIRS[@]}"; do GREP_EXCLUDES+=(--exclude-dir="$d"); done; for f in "${EXCLUDE_FILES[@]}"; do GREP_EXCLUDES+=(--exclude="$f"); done
 
     # Only run grep if we have prefixes to search for
@@ -181,29 +185,46 @@ if [ "$DO_UNUSED" = true ]; then
         REGEX="(?<![A-Z0-9_])($JOINED_PREFIXES)[A-Z0-9_]*(?![A-Z0-9_])"
         while IFS=: read -r file match; do
             [ -z "$match" ] && continue
+            # Skip files in root-level /storage directory (but not **/storage)
+            [[ "$file" == "$BASE_PATH/storage/"* ]] && continue
             ext="${file##*.}"
-            if [[ "$ext" == "php" || "$ext" == "js" ]]; then
-                if [[ "$match" =~ _$ ]]; then DYNAMIC_PREFIXES["$match"]=1; else KEY_IN_CORE["$match"]=1; fi
+            is_code=$( [[ "$ext" == "php" || "$ext" == "js" ]] && echo "true" || echo "false" )
+            is_dynamic=$( [[ "$match" =~ _$ ]] && echo "true" || echo "false" )
+
+            if [[ "$is_code" == "true" ]]; then
+                if [[ "$is_dynamic" == "true" ]]; then
+                    DYNAMIC_IN_CODE["$match"]="$ext"
+                else
+                    KEY_IN_CODE["$match"]="$ext"
+                fi
             else
-                [[ -z "${KEY_IN_OTHER["$match"]}" ]] && KEY_IN_OTHER["$match"]="$ext"
-            fi
-            if [[ -z "${PO_ALL["$match"]}" ]] && [[ ! "$DOC_EXTENSIONS" =~ " $ext " ]]; then
-                [[ -z "${MISSING_KEY_EXT["$match"]}" ]] && MISSING_KEY_EXT["$match"]="$ext"
+                # Only track in docs if it's a full key AND not already found in code
+                if [[ "$is_dynamic" == "false" && -z "${KEY_IN_CODE[$match]}" ]]; then
+                    [[ -z "${KEY_IN_DOCS[$match]}" ]] && KEY_IN_DOCS["$match"]="$ext"
+                fi
             fi
         done <<< "$(grep -rPo "${GREP_EXCLUDES[@]}" "$REGEX" "$BASE_PATH" 2>/dev/null)"
+
+        # Post-process: Remove keys from KEY_IN_DOCS if they're also in KEY_IN_CODE
+        # (handles case where doc file was processed before code file)
+        for k in "${!KEY_IN_DOCS[@]}"; do
+            [[ -n "${KEY_IN_CODE[$k]}" ]] && unset "KEY_IN_DOCS[$k]"
+        done
     else
         echo "Warning: No translation keys found in PO files."
     fi
 
     MAX_LEN=40
     for k in "${!PO_ALL[@]}"; do (( ${#k} > MAX_LEN )) && MAX_LEN=${#k}; done
-    for k in "${!MISSING_KEY_EXT[@]}"; do (( ${#k} > MAX_LEN )) && MAX_LEN=${#k}; done
+    for k in "${!KEY_IN_CODE[@]}"; do (( ${#k} > MAX_LEN )) && MAX_LEN=${#k}; done
+    for k in "${!DYNAMIC_IN_CODE[@]}"; do (( ${#k} > MAX_LEN )) && MAX_LEN=${#k}; done
+    for k in "${!KEY_IN_DOCS[@]}"; do (( ${#k} > MAX_LEN )) && MAX_LEN=${#k}; done
 
     REPORT_CONTENT=""
-    D_SRC_COUNT=0; D_MATCH_COUNT=0; U_COUNT=0; DUP_COUNT=0
+    DYN_COUNT=0; U_COUNT=0; DUP_COUNT=0; M_COUNT=0; DOC_COUNT=0
 
     if [ "$RUN_DUPLICATES" = true ]; then
-        REPORT_CONTENT+="Sub-Section: Duplicate Definitions\n"
+        REPORT_CONTENT+="\nSub-Section: Duplicate Definitions\n"
         for f in "$FULL_HU" "$FULL_EN"; do
             [ ! -f "$f" ] && continue
             fname=$(basename "$f")
@@ -214,55 +235,73 @@ if [ "$DO_UNUSED" = true ]; then
     fi
 
     if [ "$RUN_SYNC" = true ]; then
-        REPORT_CONTENT+="Sub-Section: Sync Check (HU vs EN)\n"
+        REPORT_CONTENT+="\nSub-Section: Sync Check (HU vs EN)\n"
         for k in "${!PO_HU[@]}"; do [[ -z "${PO_EN[$k]}" ]] && REPORT_CONTENT+="  Sync    | Missing  | EN | $k\n"; done
         for k in "${!PO_EN[@]}"; do [[ -z "${PO_HU[$k]}" ]] && REPORT_CONTENT+="  Sync    | Missing  | HU | $k\n"; done
         REPORT_CONTENT+="\n"
     fi
 
-    if [ "$RUN_MISSING" = true ]; then
-        REPORT_CONTENT+="Sub-Section: Missing from PO (Check for dynamic prefixes vs actual missing keys)\n"
-        mapfile -t sorted_keys < <(printf "%s\n" "${!MISSING_KEY_EXT[@]}" | sort)
+    if [ "$RUN_DYNAMIC" = true ]; then
+        REPORT_CONTENT+="\nSub-Section: Dynamic Matches (Prefixes used for concatenation in code)\n"
+        mapfile -t sorted_keys < <(printf "%s\n" "${!DYNAMIC_IN_CODE[@]}" | sort)
         for k in "${sorted_keys[@]}"; do
             [ -z "$k" ] && continue
-            note=""
-            if [[ "$k" =~ _$ ]]; then note="[Dynamic Source Prefix - Used for concatenation]"; ((D_SRC_COUNT++)); fi
-            REPORT_CONTENT+=$(printf "  Missing | %-12s | %-${MAX_LEN}s | %s\n" "(${MISSING_KEY_EXT[$k]})" "$k" "$note")
+            ((DYN_COUNT++))
+            REPORT_CONTENT+=$(printf "  Dynamic | %-12s | %-${MAX_LEN}s |\n" "(${DYNAMIC_IN_CODE[$k]})" "$k")
             REPORT_CONTENT+="\n"
         done
         REPORT_CONTENT+="\n"
     fi
 
-    if [ "$RUN_UNUSED" = true ]; then
-        UNUSED_LINES=""; DYNAMIC_LINES=""; UNUSED_LIST=()
-        for k in "${!PO_ALL[@]}"; do
-            IS_USED=false; IS_DYNAMIC=false
-            [[ -n "${KEY_IN_CORE[$k]}" ]] && IS_USED=true
-            if [ "$IS_USED" = false ]; then
-                for p in "${!DYNAMIC_PREFIXES[@]}"; do if [[ "$k" == "$p"* ]]; then IS_USED=true; IS_DYNAMIC=true; break; fi; done
+    if [ "$RUN_MISSING" = true ]; then
+        REPORT_CONTENT+="\nSub-Section: Missing from PO (Full keys in code but not in PO files)\n"
+        mapfile -t sorted_keys < <(printf "%s\n" "${!KEY_IN_CODE[@]}" | sort)
+        for k in "${sorted_keys[@]}"; do
+            [ -z "$k" ] && continue
+            # Only list if NOT in PO
+            if [[ -z "${PO_ALL[$k]}" ]]; then
+                ((M_COUNT++))
+                REPORT_CONTENT+=$(printf "  Missing | %-12s | %-${MAX_LEN}s |\n" "(${KEY_IN_CODE[$k]})" "$k")
+                REPORT_CONTENT+="\n"
             fi
-            if [ "$IS_USED" = false ]; then
+        done
+        REPORT_CONTENT+="\n"
+    fi
+
+    if [ "$RUN_UNUSED" = true ]; then
+        UNUSED_LINES=""; UNUSED_LIST=()
+        for k in "${!PO_ALL[@]}"; do
+            # A key is unused if it's NOT in KEY_IN_CODE (full keys found in PHP/JS)
+            if [[ -z "${KEY_IN_CODE[$k]}" ]]; then
                 langs=""; line_num="N/A"
                 [[ -n "${PO_HU[$k]}" ]] && langs="HU" && line_num=$(grep -n "^msgid \"$k\"" "$FULL_HU" | cut -d: -f1)
                 [[ -n "${PO_EN[$k]}" ]] && langs=$( [[ -z "$langs" ]] && echo "EN" || echo "HU,EN" ) && [[ "$line_num" == "N/A" ]] && line_num=$(grep -n "^msgid \"$k\"" "$FULL_EN" | cut -d: -f1)
-                other_info=$( [[ -n "${KEY_IN_OTHER["$k"]}" ]] && echo "[Used in: ${KEY_IN_OTHER["$k"]}]" || echo "" )
-                UNUSED_LINES+="$(printf "%-8s | %-8s | %-${MAX_LEN}s | %s\n" "$line_num" "$langs" "$k" "$other_info")\n"
+                # Show note if key is also found in docs
+                doc_info=$( [[ -n "${KEY_IN_DOCS[$k]}" ]] && echo "[Also in: ${KEY_IN_DOCS[$k]}]" || echo "" )
+                UNUSED_LINES+="$(printf "%-8s | %-8s | %-${MAX_LEN}s | %s\n" "$line_num" "$langs" "$k" "$doc_info")\n"
                 UNUSED_LIST+=("$k"); ((U_COUNT++))
-            elif [ "$IS_DYNAMIC" = true ]; then
-                langs=""; [[ -n "${PO_HU[$k]}" ]] && langs="HU"; [[ -n "${PO_EN[$k]}" ]] && langs=$( [[ -z "$langs" ]] && echo "EN" || echo "HU,EN" )
-                DYNAMIC_LINES+="$(printf "  Dynamic | %-8s | %-${MAX_LEN}s | Prefix match found in code\n" "$langs" "$k")\n"
-                ((D_MATCH_COUNT++))
             fi
         done
-        if [[ -n "$DYNAMIC_LINES" ]]; then
-            REPORT_CONTENT+="Sub-Section: Dynamic Matches (Safe - These PO keys are matched by code prefixes)\n"
-            REPORT_CONTENT+="$(echo -e "$DYNAMIC_LINES" | sort)\n"
-        fi
-        REPORT_CONTENT+="Sub-Section: Unused in Core (Strictly unused in PHP/JS files)\n"
+        REPORT_CONTENT+="\nSub-Section: Unused in Code (Keys in PO but not used in PHP/JS)\n"
         REPORT_CONTENT+="$(echo -e "$UNUSED_LINES" | sort -n)\n"
     fi
 
-    SUMMARY_LINE="Summary: Found $U_COUNT unused, $D_MATCH_COUNT saved by dynamic matches, $D_SRC_COUNT dynamic prefixes, and $DUP_COUNT duplicates."
+    if [ "$RUN_DOCONLY" = true ]; then
+        REPORT_CONTENT+="\nSub-Section: Used Only in Documentation (Keys in docs but not in PO or code)\n"
+        mapfile -t sorted_keys < <(printf "%s\n" "${!KEY_IN_DOCS[@]}" | sort)
+        for k in "${sorted_keys[@]}"; do
+            [ -z "$k" ] && continue
+            # Only list if NOT in PO and NOT in code
+            if [[ -z "${PO_ALL[$k]}" && -z "${KEY_IN_CODE[$k]}" ]]; then
+                ((DOC_COUNT++))
+                REPORT_CONTENT+=$(printf "  DocOnly | %-12s | %-${MAX_LEN}s |\n" "(${KEY_IN_DOCS[$k]})" "$k")
+                REPORT_CONTENT+="\n"
+            fi
+        done
+        REPORT_CONTENT+="\n"
+    fi
+
+    SUMMARY_LINE="Summary: Found $U_COUNT unused, $M_COUNT missing from PO, $DYN_COUNT dynamic prefixes, $DOC_COUNT doc-only, $DUP_COUNT duplicates."
     REPORT_CONTENT+="$SUMMARY_LINE\n"
     if [ "$DO_FILE" = true ]; then echo -e "$REPORT_CONTENT" > "$OUTPUT_FILE"; echo "Result saved to $OUTPUT_FILE"; fi
     echo -e "$REPORT_CONTENT"
