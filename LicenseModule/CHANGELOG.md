@@ -5,6 +5,17 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-02
+
+### Added
+
+- `DatabaseUnavailableException` for graceful handling when PDO factory returns null (e.g., during installation)
+- Documentation for handling installation scenarios in README
+
+### Changed
+
+- `CallableAdapter` now throws `DatabaseUnavailableException` instead of `TypeError` when PDO is unavailable
+
 ## [1.1.1] - 2026-01-23
 
 ### Fixed

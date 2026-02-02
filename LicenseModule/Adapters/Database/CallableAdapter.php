@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LicenseModule\Adapters\Database;
 
 use LicenseModule\Contracts\DatabaseAdapterInterface;
+use LicenseModule\Exceptions\DatabaseUnavailableException;
 use PDO;
 
 /**
@@ -12,16 +13,18 @@ use PDO;
  *
  * Wraps a PDO-returning callable for lazy connection.
  * This allows the host application to provide its existing PDO connection.
+ *
+ * @throws DatabaseUnavailableException When the PDO factory returns null
  */
 class CallableAdapter implements DatabaseAdapterInterface
 {
-    /** @var callable():PDO */
+    /** @var callable():?PDO */
     private $pdoFactory;
 
     private ?PdoAdapter $adapter = null;
 
     /**
-     * @param callable():PDO $pdoFactory Callable that returns a PDO instance
+     * @param callable():?PDO $pdoFactory Callable that returns a PDO instance or null
      */
     public function __construct(callable $pdoFactory)
     {
@@ -30,11 +33,20 @@ class CallableAdapter implements DatabaseAdapterInterface
 
     /**
      * Get the underlying PDO adapter (lazy initialization)
+     *
+     * @throws DatabaseUnavailableException When PDO factory returns null
      */
     private function getAdapter(): PdoAdapter
     {
         if ($this->adapter === null) {
             $pdo = ($this->pdoFactory)();
+
+            if ($pdo === null) {
+                throw new DatabaseUnavailableException(
+                    'PDO factory returned null - database connection is not available'
+                );
+            }
+
             $this->adapter = new PdoAdapter($pdo);
         }
 

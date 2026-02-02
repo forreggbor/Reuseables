@@ -4,7 +4,7 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: LicenseModule 1.0\n"
+"Project-Id-Version: LicenseModule 1.2\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-01-18 12:00+0000\n"
 "PO-Revision-Date: 2025-01-18 12:00+0000\n"

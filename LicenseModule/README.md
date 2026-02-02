@@ -52,6 +52,34 @@ if ($license->hasModule('reports')) {
 }
 ```
 
+### Handling Installation Scenarios
+
+When the database is not yet initialized (e.g., during installation), the PDO factory may return `null`. The module throws a `DatabaseUnavailableException` that you can catch to handle this gracefully:
+
+```php
+<?php
+
+use LicenseModule\LicenseModule;
+use LicenseModule\Exceptions\DatabaseUnavailableException;
+
+try {
+    $license = new LicenseModule([
+        'get_pdo' => fn() => $db->getConnection(), // May return null during installation
+    ]);
+
+    // Normal license checking...
+    $check = $license->checkMiddleware();
+    if ($check !== null) {
+        http_response_code($check['http_code']);
+        echo $check['view'];
+        exit;
+    }
+} catch (DatabaseUnavailableException $e) {
+    // Database not ready - allow installation to proceed
+    // Host application should show installation wizard
+}
+```
+
 ### Full Configuration
 
 ```php
