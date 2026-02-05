@@ -820,6 +820,7 @@ class SzamlazzHuAgent
         $xml .= '<telepules>' . htmlspecialchars($buyerData['city'] ?? '') . '</telepules>';
         $xml .= '<cim>' . htmlspecialchars($buyerData['address'] ?? '') . '</cim>';
         $xml .= '<email>' . htmlspecialchars($buyerData['email'] ?? '') . '</email>';
+        $xml .= '<emailKuldes>' . (($buyerData['send_email'] ?? true) ? 'true' : 'false') . '</emailKuldes>';
         if (!empty($buyerData['vat_number'])) {
             $xml .= '<adoszam>' . htmlspecialchars($buyerData['vat_number']) . '</adoszam>';
         }

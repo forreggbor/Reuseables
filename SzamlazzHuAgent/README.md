@@ -376,6 +376,7 @@ $buyerData = [
     'email' => 'customer@example.com',          // Recommended
     'vat_number' => 'HU12345678',               // Optional
     'phone' => '+36201234567',                  // Optional
+    'send_email' => true,                       // Optional, default: true
 ];
 ```
 

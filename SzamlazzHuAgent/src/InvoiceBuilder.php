@@ -175,6 +175,10 @@ class InvoiceBuilder
             $buyer->setPhone($buyerData['phone']);
         }
 
+        if (array_key_exists('send_email', $buyerData)) {
+            $buyer->setSendEmail((bool) $buyerData['send_email']);
+        }
+
         $invoice->setBuyer($buyer);
     }
 
@@ -368,6 +372,10 @@ class InvoiceBuilder
             $buyer->setPhone($buyerData['phone']);
         }
 
+        if (array_key_exists('send_email', $buyerData)) {
+            $buyer->setSendEmail((bool) $buyerData['send_email']);
+        }
+
         $deliveryNote->setBuyer($buyer);
     }
 
@@ -520,6 +528,10 @@ class InvoiceBuilder
 
         if (!empty($buyerData['phone'])) {
             $buyer->setPhone($buyerData['phone']);
+        }
+
+        if (array_key_exists('send_email', $buyerData)) {
+            $buyer->setSendEmail((bool) $buyerData['send_email']);
         }
 
         $proforma->setBuyer($buyer);
