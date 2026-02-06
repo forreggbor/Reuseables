@@ -808,7 +808,7 @@ class SzamlazzHuAgent
         $xml .= '<teljesitesDatum>' . $fulfillmentDate . '</teljesitesDatum>';
         $xml .= '<fizetesiHataridoDatum>' . date('Y-m-d', strtotime($fulfillmentDate . ' +8 days')) . '</fizetesiHataridoDatum>';
         $xml .= '<fizmod>' . htmlspecialchars($paymentMethod) . '</fizmod>';
-        $xml .= '<ppiid>' . htmlspecialchars($this->config['currency'] ?? 'HUF') . '</ppiid>';
+        $xml .= '<ppiid>' . htmlspecialchars($orderData['currency'] ?? 'Ft') . '</ppiid>';
         $xml .= '<szamlaNyelve>' . ($this->config['default_language'] === 'en' ? 'en' : 'hu') . '</szamlaNyelve>';
         if (!empty($orderData['order_number'])) {
             $xml .= '<rendelesSzam>' . htmlspecialchars($orderData['order_number']) . '</rendelesSzam>';

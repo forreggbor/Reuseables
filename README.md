@@ -16,6 +16,6 @@
 | [GettextFallback](GettextFallback/) | v1.00.00 | Gettext translation with MO parser fallback for servers without installed locales  |
 | [MFA](MFA/)                         | v1.00.00 | RFC 6238 TOTP multi-factor authentication with built-in QR code generator          |
 | [LicenseModule](LicenseModule/)     | v1.01.01 | Framework-agnostic PHP module for license validation and tier-based feature gating |
-| [SzamlazzHuAgent](SzamlazzHuAgent/) | v1.01.03 | Framework-agnostic PHP module for Szamlazz.hu invoice integration                  |
+| [SzamlazzHuAgent](SzamlazzHuAgent/) | v1.01.05 | Framework-agnostic PHP module for Szamlazz.hu invoice integration                  |
 | [WYSIWYGEditor](WYSIWYGEditor/)     | v2.02.02 | Lightweight WYSIWYG rich text editor with tables, images, colors, and code view    |
 

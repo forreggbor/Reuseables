@@ -107,7 +107,7 @@ class InvoiceBuilder
         }
 
         // Currency
-        $currency = $orderData['currency'] ?? 'HUF';
+        $currency = $orderData['currency'] ?? 'Ft';
         $header->setCurrency($this->mapCurrency($currency));
 
         // Language
@@ -251,9 +251,11 @@ class InvoiceBuilder
     private function mapCurrency(string $currency): string
     {
         return match (strtoupper($currency)) {
+            'FT' => \SzamlaAgent\Currency::CURRENCY_FT,
+            'HUF' => \SzamlaAgent\Currency::CURRENCY_FT,
             'EUR' => \SzamlaAgent\Currency::CURRENCY_EUR,
             'USD' => \SzamlaAgent\Currency::CURRENCY_USD,
-            default => \SzamlaAgent\Currency::CURRENCY_HUF,
+            default => \SzamlaAgent\Currency::CURRENCY_FT,
         };
     }
 
@@ -304,7 +306,7 @@ class InvoiceBuilder
         $header->setPaymentMethod($paymentMethod);
 
         // Currency
-        $currency = $orderData['currency'] ?? 'HUF';
+        $currency = $orderData['currency'] ?? 'Ft';
         $header->setCurrency($this->mapCurrency($currency));
 
         // Language
@@ -462,7 +464,7 @@ class InvoiceBuilder
         $header->setPaymentDue(date('Y-m-d', strtotime($fulfillmentDate . ' +' . $deadlineDays . ' days')));
 
         // Currency
-        $currency = $orderData['currency'] ?? 'HUF';
+        $currency = $orderData['currency'] ?? 'Ft';
         $header->setCurrency($this->mapCurrency($currency));
 
         // Language
@@ -610,10 +612,11 @@ class InvoiceBuilder
 
         // Currency
         if (!empty($options['currency'])) {
-            $header->setCurrency($options['currency']);
+            $mappedCurrency = $this->mapCurrency($options['currency']);
+            $header->setCurrency($mappedCurrency);
 
-            // Exchange settings for non-HUF
-            if (strtoupper($options['currency']) !== 'HUF') {
+            // Exchange settings for non-HUF currencies
+            if (!in_array(strtoupper($options['currency']), ['HUF', 'FT'], true)) {
                 if (!empty($options['exchange_bank'])) {
                     $header->setExchangeBank($options['exchange_bank']);
                 }

@@ -5,6 +5,19 @@ All notable changes to SzamlazzHuAgent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-02-06
+
+### Changed
+
+- Currency default changed from `HUF` to `Ft` to align with SzamlaAgent SDK default (`Currency::CURRENCY_FT`)
+- `mapCurrency()` now maps both `HUF` and `FT` to `CURRENCY_FT`, and uses `CURRENCY_FT` as default
+- Receipt currency now routed through `mapCurrency()` for consistent handling across all document types
+
+### Fixed
+
+- cURL fallback XML currency now uses order-level `$orderData['currency']` instead of global `$this->config['currency']`
+- Receipt exchange rate check now correctly recognizes both `HUF` and `FT` as domestic currency
+
 ## [1.1.4] - 2026-02-05
 
 ### Added

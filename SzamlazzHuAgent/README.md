@@ -256,7 +256,7 @@ $result = $agent->generateReceipt(
     options: [
         'prefix' => 'NYGTA',           // Required: receipt number prefix
         'payment_method' => 'cash',    // cash, card, bank_transfer
-        'currency' => 'HUF',
+        'currency' => 'Ft',
         'comment' => 'Optional comment',
     ]
 );
@@ -272,7 +272,7 @@ if ($result->success) {
 |--------|-------------|
 | `prefix` | Receipt number prefix (required) |
 | `payment_method` | Payment method: cash, card, bank_transfer, etc. |
-| `currency` | Currency: HUF, EUR, USD |
+| `currency` | Currency: Ft, HUF, EUR, USD |
 | `exchange_bank` | Exchange bank for non-HUF (e.g., 'MNB') |
 | `exchange_rate` | Exchange rate (uses MNB rate if not set) |
 | `comment` | Optional comment |
@@ -359,7 +359,7 @@ $orderData = [
     'fulfillment_date' => '2025-01-18',         // Default: today
     'payment_method' => 'bank_transfer',        // See payment methods below
     'payment_deadline_days' => 8,               // Default: 8
-    'currency' => 'HUF',                        // HUF, EUR, USD
+    'currency' => 'Ft',                         // Ft, HUF, EUR, USD
     'language' => 'hu',                         // hu or en
     'comment' => 'Optional invoice comment',
 ];
