@@ -103,7 +103,7 @@ class InvoiceBuilder
             $header->setPaymentDue($issueDate);
         } else {
             $deadlineDays = $orderData['payment_deadline_days'] ?? 8;
-            $header->setPaymentDue(date('Y-m-d', strtotime($fulfillmentDate . ' +' . $deadlineDays . ' days')));
+            $header->setPaymentDue(date('Y-m-d', strtotime($issueDate . ' +' . $deadlineDays . ' days')));
         }
 
         // Paid status
@@ -466,7 +466,7 @@ class InvoiceBuilder
 
         // Payment deadline
         $deadlineDays = $orderData['payment_deadline_days'] ?? 8;
-        $header->setPaymentDue(date('Y-m-d', strtotime($fulfillmentDate . ' +' . $deadlineDays . ' days')));
+        $header->setPaymentDue(date('Y-m-d', strtotime($issueDate . ' +' . $deadlineDays . ' days')));
 
         // Currency
         $currency = $orderData['currency'] ?? 'Ft';

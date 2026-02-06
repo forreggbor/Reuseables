@@ -435,7 +435,7 @@ Default mapping from your application's payment methods to Szamlazz.hu:
 
 By default, Szamlazz.hu determines the paid status based on the payment method and deadline:
 - **Cash** (`Készpénz`): automatically marked as **paid** (deadline = issue date)
-- **All other methods**: marked as **unpaid** (deadline = fulfillment + `payment_deadline_days`)
+- **All other methods**: marked as **unpaid** (deadline = issue date + `payment_deadline_days`)
 
 You can override this with the `paid` parameter in `$orderData`:
 
