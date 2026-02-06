@@ -359,6 +359,7 @@ $orderData = [
     'fulfillment_date' => '2025-01-18',         // Default: today
     'payment_method' => 'bank_transfer',        // See payment methods below
     'payment_deadline_days' => 8,               // Default: 8
+    'paid' => true,                             // Explicitly set paid status (optional)
     'currency' => 'Ft',                         // Ft, HUF, EUR, USD
     'language' => 'hu',                         // hu or en
     'comment' => 'Optional invoice comment',
@@ -429,6 +430,30 @@ Default mapping from your application's payment methods to Szamlazz.hu:
 | `szep_card`       | SZÉP kártya       |
 | `otp_simple`      | OTP Simple        |
 | `cheque`          | csekk             |
+
+### Invoice Paid Status
+
+By default, Szamlazz.hu determines the paid status based on the payment method and deadline:
+- **Cash** (`Készpénz`): automatically marked as **paid** (deadline = issue date)
+- **All other methods**: marked as **unpaid** (deadline = fulfillment + `payment_deadline_days`)
+
+You can override this with the `paid` parameter in `$orderData`:
+
+```php
+// Explicitly mark a bank transfer invoice as paid
+$orderData = [
+    'payment_method' => 'bank_transfer',
+    'paid'           => true,
+];
+
+// Explicitly mark a cash invoice as unpaid
+$orderData = [
+    'payment_method' => 'cash',
+    'paid'           => false,
+];
+```
+
+When `paid` is omitted, Szamlazz.hu applies its default logic.
 
 Add custom mappings via configuration:
 

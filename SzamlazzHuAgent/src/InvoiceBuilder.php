@@ -106,6 +106,11 @@ class InvoiceBuilder
             $header->setPaymentDue(date('Y-m-d', strtotime($fulfillmentDate . ' +' . $deadlineDays . ' days')));
         }
 
+        // Paid status
+        if (array_key_exists('paid', $orderData)) {
+            $header->setPaid((bool) $orderData['paid']);
+        }
+
         // Currency
         $currency = $orderData['currency'] ?? 'Ft';
         $header->setCurrency($this->mapCurrency($currency));
