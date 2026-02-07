@@ -55,14 +55,15 @@ Copy `WYSIWYGEditor.js` to your project and include it:
 ```javascript
 const editor = new WYSIWYGEditor(document.getElementById('content'), {
     toolbar: [
-        'bold', 'italic', 'underline', 'strikethrough', '|',
+        'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', '|',
         'fontSize', 'fontName', '|',
         'textColor', 'bgColor', '|',
-        'h1', 'h2', 'h3', '|',
-        'ul', 'ol', '|',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', '|',
+        'ul', 'ol', 'blockquote', 'pre', '|',
         'link', 'unlink', '|',
-        'alignLeft', 'alignCenter', 'alignRight', '|',
-        'table', 'image', '|',
+        'alignLeft', 'alignCenter', 'alignRight', 'justifyFull', '|',
+        'indent', 'outdent', '|',
+        'hr', 'table', 'image', '|',
         'undo', 'redo', '|',
         'clearFormat', 'codeView'
     ],
@@ -123,14 +124,15 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 
 ```javascript
 [
-    'bold', 'italic', 'underline', 'strikethrough', '|',
+    'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', '|',
     'fontSize', 'fontName', '|',
     'textColor', 'bgColor', '|',
-    'h1', 'h2', 'h3', '|',
-    'ul', 'ol', '|',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6', '|',
+    'ul', 'ol', 'blockquote', 'pre', '|',
     'link', 'unlink', '|',
-    'alignLeft', 'alignCenter', 'alignRight', '|',
-    'table', 'image', '|',
+    'alignLeft', 'alignCenter', 'alignRight', 'justifyFull', '|',
+    'indent', 'outdent', '|',
+    'hr', 'table', 'image', '|',
     'undo', 'redo', '|',
     'clearFormat', 'codeView'
 ]
@@ -138,33 +140,44 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 
 ### Available Toolbar Buttons
 
-| Button | Description |
-|--------|-------------|
-| `bold` | Bold text |
-| `italic` | Italic text |
-| `underline` | Underlined text |
-| `strikethrough` | Strikethrough text |
-| `fontSize` | Font size dropdown |
-| `fontName` | Font family dropdown |
-| `textColor` | Text color picker |
-| `bgColor` | Background/highlight color picker |
-| `h1` | Heading 1 |
-| `h2` | Heading 2 |
-| `h3` | Heading 3 |
-| `ul` | Unordered (bullet) list |
-| `ol` | Ordered (numbered) list |
-| `link` | Insert hyperlink |
-| `unlink` | Remove hyperlink |
-| `alignLeft` | Align text left |
-| `alignCenter` | Align text center |
-| `alignRight` | Align text right |
-| `table` | Insert table |
-| `image` | Insert image |
-| `undo` | Undo last action |
-| `redo` | Redo last action |
-| `clearFormat` | Remove all formatting |
-| `codeView` | Toggle HTML source view |
-| `\|` | Separator (vertical line) |
+| Button        | Description                      |
+|---------------|----------------------------------|
+| `bold`        | Bold text                        |
+| `italic`      | Italic text                      |
+| `underline`   | Underlined text                  |
+| `strikethrough` | Strikethrough text             |
+| `subscript`   | Subscript text                   |
+| `superscript` | Superscript text                 |
+| `fontSize`    | Font size dropdown               |
+| `fontName`    | Font family dropdown             |
+| `textColor`   | Text color picker                |
+| `bgColor`     | Background/highlight color picker |
+| `h1`          | Heading 1                        |
+| `h2`          | Heading 2                        |
+| `h3`          | Heading 3                        |
+| `h4`          | Heading 4                        |
+| `h5`          | Heading 5                        |
+| `h6`          | Heading 6                        |
+| `blockquote`  | Block quote                      |
+| `pre`         | Preformatted code block          |
+| `ul`          | Unordered (bullet) list          |
+| `ol`          | Ordered (numbered) list          |
+| `hr`          | Horizontal rule                  |
+| `link`        | Insert hyperlink                 |
+| `unlink`      | Remove hyperlink                 |
+| `alignLeft`   | Align text left                  |
+| `alignCenter` | Align text center                |
+| `alignRight`  | Align text right                 |
+| `justifyFull` | Justify text                     |
+| `indent`      | Increase indentation             |
+| `outdent`     | Decrease indentation             |
+| `table`       | Insert table                     |
+| `image`       | Insert image                     |
+| `undo`        | Undo last action                 |
+| `redo`        | Redo last action                 |
+| `clearFormat` | Remove all formatting            |
+| `codeView`    | Toggle HTML source view          |
+| `\|`          | Separator (vertical line)        |
 
 ## API Reference
 

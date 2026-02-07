@@ -5,6 +5,19 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-02-07
+
+### Added
+- Subscript (`subscript`) toolbar button
+- Superscript (`superscript`) toolbar button
+- Headings 4-6 (`h4`, `h5`, `h6`) toolbar buttons
+- Block quote (`blockquote`) toolbar button
+- Preformatted code block (`pre`) toolbar button
+- Horizontal rule (`hr`) toolbar button for inserting `<hr>` separator
+- Justify (`justifyFull`) toolbar button for full text justification
+- Increase indent (`indent`) toolbar button
+- Decrease indent (`outdent`) toolbar button
+
 ## [2.2.2] - 2026-01-23
 
 ### Fixed
