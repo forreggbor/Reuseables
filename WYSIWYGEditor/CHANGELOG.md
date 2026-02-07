@@ -5,7 +5,31 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-02-07
+
+### Summary
+
+| Area          | Change                                                            |
+|---------------|-------------------------------------------------------------------|
+| Localization  | English and Hungarian UI translations with browser auto-detection |
+| Configuration | New `locale` option (`'auto'`, `'en'`, `'hu'`)                    |
+| API           | New `t(key)` translation method with English fallback             |
+
+### Added
+- **Localization**: English and Hungarian UI translations with automatic browser language detection
+- `locale` configuration option (`'auto'`, `'en'`, `'hu'`) — auto-detects browser language by default
+- `t(key)` translation method with English fallback for all user-facing strings
+- All tooltips, modal labels, button texts, prompts, and error messages are translated
+
 ## [2.3.0] - 2026-02-07
+
+### Summary
+
+| Area              | Change                                                         |
+|-------------------|----------------------------------------------------------------|
+| Toolbar buttons   | 9 new formatting buttons (subscript, superscript, h4-h6, etc.) |
+| Toolbar shorthand | `all` option to include all buttons at once                    |
+| Compatibility     | Cross-browser fixes for Firefox and Safari                     |
 
 ### Added
 - Subscript (`subscript`) toolbar button

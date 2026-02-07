@@ -20,6 +20,7 @@ A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textar
 - Link insertion with configurable target
 - Automatic sync with hidden textarea for form submission
 - CSS auto-injection (no separate stylesheet needed)
+- Localization support (English, Hungarian) with auto-detection
 - Clean API with destroy method
 
 ## Requirements
@@ -116,6 +117,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `imageUpload` | Boolean | `true` | Enable file upload for images |
 | `maxImageSize` | Number | `5242880` | Max upload size in bytes (5MB) |
 | `allowedImageTypes` | Array | `['image/jpeg', ...]` | Allowed MIME types |
+| `locale` | String | `'auto'` | UI language: `'auto'`, `'en'`, or `'hu'` |
 | `onChange` | Function | `null` | Callback when content changes |
 | `onFocus` | Function | `null` | Callback when editor gains focus |
 | `onBlur` | Function | `null` | Callback when editor loses focus |
@@ -248,6 +250,14 @@ new WYSIWYGEditor('#content', {
 });
 ```
 
+### Hungarian Locale
+
+```javascript
+new WYSIWYGEditor('#content', {
+    locale: 'hu'
+});
+```
+
 ### Minimal Toolbar
 
 ```javascript
@@ -345,6 +355,18 @@ new WYSIWYGEditor('#content', {
 ```
 
 Then style with `.my-editor-wrapper`, `.my-editor-toolbar`, etc.
+
+## Localization
+
+The editor supports multiple UI languages. By default (`locale: 'auto'`), it detects the browser language and uses Hungarian if the browser is set to Hungarian, otherwise English.
+
+| Locale | Language  |
+|--------|-----------|
+| `auto` | Auto-detect from browser (default) |
+| `en`   | English   |
+| `hu`   | Hungarian |
+
+All tooltips, modal labels, button texts, prompts, and error messages are translated.
 
 ## Security
 

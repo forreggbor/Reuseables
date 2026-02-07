@@ -61,7 +61,224 @@ class WYSIWYGEditor {
         tableDefaults: { rows: 3, cols: 3 },
         imageUpload: true,
         maxImageSize: 5242880,
-        allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+        locale: 'auto'
+    };
+
+    /**
+     * Translation strings for supported locales
+     * @type {Object}
+     */
+    static translations = {
+        en: {
+            // Toolbar button tooltips
+            'toolbar.bold': 'Bold (Ctrl+B)',
+            'toolbar.italic': 'Italic (Ctrl+I)',
+            'toolbar.underline': 'Underline (Ctrl+U)',
+            'toolbar.strikethrough': 'Strikethrough',
+            'toolbar.subscript': 'Subscript',
+            'toolbar.superscript': 'Superscript',
+            'toolbar.h1': 'Heading 1',
+            'toolbar.h2': 'Heading 2',
+            'toolbar.h3': 'Heading 3',
+            'toolbar.h4': 'Heading 4',
+            'toolbar.h5': 'Heading 5',
+            'toolbar.h6': 'Heading 6',
+            'toolbar.blockquote': 'Block Quote',
+            'toolbar.pre': 'Preformatted Block',
+            'toolbar.ul': 'Bullet List',
+            'toolbar.ol': 'Numbered List',
+            'toolbar.hr': 'Horizontal Rule',
+            'toolbar.link': 'Insert Link (Ctrl+K)',
+            'toolbar.unlink': 'Remove Link',
+            'toolbar.alignLeft': 'Align Left',
+            'toolbar.alignCenter': 'Align Center',
+            'toolbar.alignRight': 'Align Right',
+            'toolbar.justifyFull': 'Justify',
+            'toolbar.indent': 'Increase Indent',
+            'toolbar.outdent': 'Decrease Indent',
+            'toolbar.undo': 'Undo (Ctrl+Z)',
+            'toolbar.redo': 'Redo (Ctrl+Y)',
+            'toolbar.clearFormat': 'Clear Formatting',
+            'toolbar.fontSize': 'Font Size',
+            'toolbar.fontName': 'Font Family',
+            'toolbar.textColor': 'Text Color',
+            'toolbar.bgColor': 'Background Color',
+            'toolbar.table': 'Insert Table',
+            'toolbar.image': 'Insert Image',
+            'toolbar.codeView': 'View HTML Source',
+
+            // Link prompt
+            'prompt.enterUrl': 'Enter URL:',
+
+            // Color picker
+            'colorPicker.remove': 'Remove',
+
+            // Table modal
+            'modal.insertTable': 'Insert Table',
+            'modal.rows': 'Rows',
+            'modal.columns': 'Columns',
+
+            // Image modal
+            'modal.insertImage': 'Insert Image',
+            'modal.tabUrl': 'URL',
+            'modal.tabUpload': 'Upload',
+            'modal.imageUrl': 'Image URL',
+            'modal.selectImage': 'Select Image',
+            'modal.altText': 'Alt Text',
+            'modal.altPlaceholder': 'Image description',
+
+            // Alt text edit modal
+            'modal.editAltText': 'Edit Alt Text',
+
+            // Table properties modal
+            'modal.tableProperties': 'Table Properties',
+            'modal.borderWidth': 'Border Width (px)',
+            'modal.borderColor': 'Border Color',
+            'modal.cellPadding': 'Cell Padding (px)',
+            'modal.tableWidth': 'Table Width (%)',
+
+            // Shared modal buttons
+            'modal.cancel': 'Cancel',
+            'modal.insert': 'Insert',
+            'modal.save': 'Save',
+            'modal.apply': 'Apply',
+
+            // Image toolbar
+            'imageToolbar.editAlt': 'Edit alt text',
+            'imageToolbar.resize50': '50% size',
+            'imageToolbar.resize100': 'Original size',
+            'imageToolbar.delete': 'Delete image',
+
+            // Table toolbar
+            'tableToolbar.properties': 'Table properties',
+            'tableToolbar.rowAbove': 'Insert row above',
+            'tableToolbar.rowBelow': 'Insert row below',
+            'tableToolbar.colLeft': 'Insert column left',
+            'tableToolbar.colRight': 'Insert column right',
+            'tableToolbar.deleteRow': 'Delete row',
+            'tableToolbar.deleteCol': 'Delete column',
+            'tableToolbar.deleteTable': 'Delete table',
+
+            // Table toolbar button labels
+            'tableToolbar.propertiesLabel': '&#9881; Properties',
+            'tableToolbar.rowAboveLabel': '&#8593; Row',
+            'tableToolbar.rowBelowLabel': '&#8595; Row',
+            'tableToolbar.colLeftLabel': '&#8592; Col',
+            'tableToolbar.colRightLabel': '&#8594; Col',
+            'tableToolbar.deleteRowLabel': '&#10060; Row',
+            'tableToolbar.deleteColLabel': '&#10060; Col',
+            'tableToolbar.deleteTableLabel': '&#10060; Table',
+
+            // Alert messages
+            'alert.invalidImageType': 'Invalid image type. Allowed: ',
+            'alert.imageTooLarge': 'Image too large. Maximum size: '
+        },
+
+        hu: {
+            // Toolbar button tooltips
+            'toolbar.bold': 'Félkövér (Ctrl+B)',
+            'toolbar.italic': 'Dőlt (Ctrl+I)',
+            'toolbar.underline': 'Aláhúzott (Ctrl+U)',
+            'toolbar.strikethrough': 'Áthúzott',
+            'toolbar.subscript': 'Alsó index',
+            'toolbar.superscript': 'Felső index',
+            'toolbar.h1': 'Címsor 1',
+            'toolbar.h2': 'Címsor 2',
+            'toolbar.h3': 'Címsor 3',
+            'toolbar.h4': 'Címsor 4',
+            'toolbar.h5': 'Címsor 5',
+            'toolbar.h6': 'Címsor 6',
+            'toolbar.blockquote': 'Idézetblokk',
+            'toolbar.pre': 'Előformázott blokk',
+            'toolbar.ul': 'Felsorolás',
+            'toolbar.ol': 'Számozott lista',
+            'toolbar.hr': 'Vízszintes vonal',
+            'toolbar.link': 'Hivatkozás beszúrása (Ctrl+K)',
+            'toolbar.unlink': 'Hivatkozás eltávolítása',
+            'toolbar.alignLeft': 'Balra igazítás',
+            'toolbar.alignCenter': 'Középre igazítás',
+            'toolbar.alignRight': 'Jobbra igazítás',
+            'toolbar.justifyFull': 'Sorkizárás',
+            'toolbar.indent': 'Behúzás növelése',
+            'toolbar.outdent': 'Behúzás csökkentése',
+            'toolbar.undo': 'Visszavonás (Ctrl+Z)',
+            'toolbar.redo': 'Újra (Ctrl+Y)',
+            'toolbar.clearFormat': 'Formázás törlése',
+            'toolbar.fontSize': 'Betűméret',
+            'toolbar.fontName': 'Betűtípus',
+            'toolbar.textColor': 'Szövegszín',
+            'toolbar.bgColor': 'Háttérszín',
+            'toolbar.table': 'Táblázat beszúrása',
+            'toolbar.image': 'Kép beszúrása',
+            'toolbar.codeView': 'HTML forráskód',
+
+            // Link prompt
+            'prompt.enterUrl': 'Add meg az URL-t:',
+
+            // Color picker
+            'colorPicker.remove': 'Eltávolítás',
+
+            // Table modal
+            'modal.insertTable': 'Táblázat beszúrása',
+            'modal.rows': 'Sorok',
+            'modal.columns': 'Oszlopok',
+
+            // Image modal
+            'modal.insertImage': 'Kép beszúrása',
+            'modal.tabUrl': 'URL',
+            'modal.tabUpload': 'Feltöltés',
+            'modal.imageUrl': 'Kép URL',
+            'modal.selectImage': 'Kép kiválasztása',
+            'modal.altText': 'Alt szöveg',
+            'modal.altPlaceholder': 'Kép leírása',
+
+            // Alt text edit modal
+            'modal.editAltText': 'Alt szöveg szerkesztése',
+
+            // Table properties modal
+            'modal.tableProperties': 'Táblázat tulajdonságai',
+            'modal.borderWidth': 'Szegély szélesség (px)',
+            'modal.borderColor': 'Szegély szín',
+            'modal.cellPadding': 'Cella kitöltés (px)',
+            'modal.tableWidth': 'Táblázat szélesség (%)',
+
+            // Shared modal buttons
+            'modal.cancel': 'Mégse',
+            'modal.insert': 'Beszúrás',
+            'modal.save': 'Mentés',
+            'modal.apply': 'Alkalmaz',
+
+            // Image toolbar
+            'imageToolbar.editAlt': 'Alt szöveg szerkesztése',
+            'imageToolbar.resize50': '50% méret',
+            'imageToolbar.resize100': 'Eredeti méret',
+            'imageToolbar.delete': 'Kép törlése',
+
+            // Table toolbar
+            'tableToolbar.properties': 'Táblázat tulajdonságai',
+            'tableToolbar.rowAbove': 'Sor beszúrása fölé',
+            'tableToolbar.rowBelow': 'Sor beszúrása alá',
+            'tableToolbar.colLeft': 'Oszlop beszúrása balra',
+            'tableToolbar.colRight': 'Oszlop beszúrása jobbra',
+            'tableToolbar.deleteRow': 'Sor törlése',
+            'tableToolbar.deleteCol': 'Oszlop törlése',
+            'tableToolbar.deleteTable': 'Táblázat törlése',
+
+            // Table toolbar button labels
+            'tableToolbar.propertiesLabel': '&#9881; Tulajdonságok',
+            'tableToolbar.rowAboveLabel': '&#8593; Sor',
+            'tableToolbar.rowBelowLabel': '&#8595; Sor',
+            'tableToolbar.colLeftLabel': '&#8592; Oszlop',
+            'tableToolbar.colRightLabel': '&#8594; Oszlop',
+            'tableToolbar.deleteRowLabel': '&#10060; Sor',
+            'tableToolbar.deleteColLabel': '&#10060; Oszlop',
+            'tableToolbar.deleteTableLabel': '&#10060; Táblázat',
+
+            // Alert messages
+            'alert.invalidImageType': 'Érvénytelen képformátum. Engedélyezett: ',
+            'alert.imageTooLarge': 'A kép túl nagy. Maximális méret: '
+        }
     };
 
     /**
@@ -599,7 +816,32 @@ class WYSIWYGEditor {
             this.config.toolbar = [...WYSIWYGEditor.defaults.toolbar];
         }
 
+        // Resolve locale: 'auto' detects from browser, defaults to 'en'
+        if (this.config.locale === 'auto') {
+            const browserLang = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+            this.config.locale = browserLang.startsWith('hu') ? 'hu' : 'en';
+        }
+
         this.init();
+    }
+
+    /**
+     * Get a translated string by key
+     *
+     * Falls back to English if the key is not found in the active locale.
+     *
+     * @param {string} key - Translation key (e.g. 'toolbar.bold')
+     * @returns {string} Translated string
+     */
+    t(key) {
+        const locale = this.config.locale;
+        const translations = WYSIWYGEditor.translations;
+
+        if (translations[locale] && translations[locale][key] !== undefined) {
+            return translations[locale][key];
+        }
+
+        return translations.en[key] || key;
     }
 
     /**
@@ -687,7 +929,7 @@ class WYSIWYGEditor {
             btn.dataset.command = def.command;
             if (def.value) btn.dataset.value = def.value;
             if (def.custom) btn.dataset.custom = 'true';
-            btn.title = def.title;
+            btn.title = this.t('toolbar.' + item) || def.title;
             btn.innerHTML = def.icon;
 
             this.toolbar.appendChild(btn);
@@ -762,7 +1004,7 @@ class WYSIWYGEditor {
         btn.dataset.command = def.command;
         btn.dataset.custom = 'true';
         btn.dataset.dropdownTrigger = name;
-        btn.title = def.title;
+        btn.title = this.t('toolbar.' + name) || def.title;
         btn.innerHTML = def.icon;
 
         const dropdown = document.createElement('div');
@@ -815,7 +1057,7 @@ class WYSIWYGEditor {
         btn.dataset.command = def.command;
         btn.dataset.custom = 'true';
         btn.dataset.colorPickerTrigger = name;
-        btn.title = def.title;
+        btn.title = this.t('toolbar.' + name) || def.title;
         btn.innerHTML = def.icon;
 
         const picker = document.createElement('div');
@@ -837,7 +1079,7 @@ class WYSIWYGEditor {
             const remove = document.createElement('div');
             remove.className = `${prefix}-color-remove`;
             remove.dataset.color = 'transparent';
-            remove.textContent = 'Remove';
+            remove.textContent = this.t('colorPicker.remove');
             picker.appendChild(remove);
         }
 
@@ -1253,7 +1495,7 @@ class WYSIWYGEditor {
         const selection = window.getSelection();
         const hasSelection = selection.toString().length > 0;
 
-        const url = prompt('Enter URL:', 'https://');
+        const url = prompt(this.t('prompt.enterUrl'), 'https://');
 
         if (!url || url === 'https://') return;
 
@@ -1511,20 +1753,20 @@ class WYSIWYGEditor {
         this.saveSelection();
 
         const content = `
-            <div class="${prefix}-modal-header">Insert Table</div>
+            <div class="${prefix}-modal-header">${this.t('modal.insertTable')}</div>
             <div class="${prefix}-modal-body">
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Rows</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.rows')}</label>
                     <input type="number" class="${prefix}-modal-input" id="${prefix}-table-rows" value="${defaults.rows}" min="1" max="20">
                 </div>
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Columns</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.columns')}</label>
                     <input type="number" class="${prefix}-modal-input" id="${prefix}-table-cols" value="${defaults.cols}" min="1" max="20">
                 </div>
             </div>
             <div class="${prefix}-modal-footer">
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Insert</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">${this.t('modal.cancel')}</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">${this.t('modal.insert')}</button>
             </div>
         `;
 
@@ -1568,25 +1810,25 @@ class WYSIWYGEditor {
         this.saveSelection();
 
         let content = `
-            <div class="${prefix}-modal-header">Insert Image</div>
+            <div class="${prefix}-modal-header">${this.t('modal.insertImage')}</div>
             <div class="${prefix}-modal-body">
         `;
 
         if (this.config.imageUpload) {
             content += `
                 <div class="${prefix}-modal-tabs">
-                    <div class="${prefix}-modal-tab ${prefix}-modal-tab-active" data-tab="url">URL</div>
-                    <div class="${prefix}-modal-tab" data-tab="upload">Upload</div>
+                    <div class="${prefix}-modal-tab ${prefix}-modal-tab-active" data-tab="url">${this.t('modal.tabUrl')}</div>
+                    <div class="${prefix}-modal-tab" data-tab="upload">${this.t('modal.tabUpload')}</div>
                 </div>
                 <div class="${prefix}-modal-tab-content ${prefix}-modal-tab-content-active" data-tab-content="url">
                     <div class="${prefix}-modal-row">
-                        <label class="${prefix}-modal-label">Image URL</label>
+                        <label class="${prefix}-modal-label">${this.t('modal.imageUrl')}</label>
                         <input type="url" class="${prefix}-modal-input" id="${prefix}-image-url" placeholder="https://example.com/image.jpg">
                     </div>
                 </div>
                 <div class="${prefix}-modal-tab-content" data-tab-content="upload">
                     <div class="${prefix}-modal-row">
-                        <label class="${prefix}-modal-label">Select Image</label>
+                        <label class="${prefix}-modal-label">${this.t('modal.selectImage')}</label>
                         <input type="file" class="${prefix}-modal-input" id="${prefix}-image-file" accept="${this.config.allowedImageTypes.join(',')}">
                     </div>
                 </div>
@@ -1594,7 +1836,7 @@ class WYSIWYGEditor {
         } else {
             content += `
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Image URL</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.imageUrl')}</label>
                     <input type="url" class="${prefix}-modal-input" id="${prefix}-image-url" placeholder="https://example.com/image.jpg">
                 </div>
             `;
@@ -1602,13 +1844,13 @@ class WYSIWYGEditor {
 
         content += `
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Alt Text</label>
-                    <input type="text" class="${prefix}-modal-input" id="${prefix}-image-alt" placeholder="Image description">
+                    <label class="${prefix}-modal-label">${this.t('modal.altText')}</label>
+                    <input type="text" class="${prefix}-modal-input" id="${prefix}-image-alt" placeholder="${this.t('modal.altPlaceholder')}">
                 </div>
             </div>
             <div class="${prefix}-modal-footer">
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Insert</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">${this.t('modal.cancel')}</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">${this.t('modal.insert')}</button>
             </div>
         `;
 
@@ -1668,13 +1910,13 @@ class WYSIWYGEditor {
      */
     insertImageFromFile(file, alt = '') {
         if (!this.config.allowedImageTypes.includes(file.type)) {
-            alert('Invalid image type. Allowed: ' + this.config.allowedImageTypes.join(', '));
+            alert(this.t('alert.invalidImageType') + this.config.allowedImageTypes.join(', '));
             return;
         }
 
         if (file.size > this.config.maxImageSize) {
             const maxMB = Math.round(this.config.maxImageSize / 1024 / 1024);
-            alert(`Image too large. Maximum size: ${maxMB}MB`);
+            alert(this.t('alert.imageTooLarge') + maxMB + 'MB');
             return;
         }
 
@@ -1834,10 +2076,10 @@ class WYSIWYGEditor {
         this.imageToolbar = document.createElement('div');
         this.imageToolbar.className = `${prefix}-image-toolbar`;
         this.imageToolbar.innerHTML = `
-            <button type="button" class="${prefix}-image-toolbar-btn" data-action="edit-alt" title="Edit alt text">Alt</button>
-            <button type="button" class="${prefix}-image-toolbar-btn" data-action="resize-50" title="50% size">50%</button>
-            <button type="button" class="${prefix}-image-toolbar-btn" data-action="resize-100" title="Original size">100%</button>
-            <button type="button" class="${prefix}-image-toolbar-btn" data-action="delete" title="Delete image">&#10060;</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="edit-alt" title="${this.t('imageToolbar.editAlt')}">Alt</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="resize-50" title="${this.t('imageToolbar.resize50')}">50%</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="resize-100" title="${this.t('imageToolbar.resize100')}">100%</button>
+            <button type="button" class="${prefix}-image-toolbar-btn" data-action="delete" title="${this.t('imageToolbar.delete')}">&#10060;</button>
         `;
 
         // Position toolbar above the image
@@ -2051,16 +2293,16 @@ class WYSIWYGEditor {
         const currentAlt = img.alt || '';
 
         const content = `
-            <div class="${prefix}-modal-header">Edit Alt Text</div>
+            <div class="${prefix}-modal-header">${this.t('modal.editAltText')}</div>
             <div class="${prefix}-modal-body">
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Alt Text</label>
-                    <input type="text" class="${prefix}-modal-input" id="${prefix}-edit-alt" value="${this.escapeHtml(currentAlt)}" placeholder="Image description">
+                    <label class="${prefix}-modal-label">${this.t('modal.altText')}</label>
+                    <input type="text" class="${prefix}-modal-input" id="${prefix}-edit-alt" value="${this.escapeHtml(currentAlt)}" placeholder="${this.t('modal.altPlaceholder')}">
                 </div>
             </div>
             <div class="${prefix}-modal-footer">
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Save</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">${this.t('modal.cancel')}</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">${this.t('modal.save')}</button>
             </div>
         `;
 
@@ -2131,16 +2373,16 @@ class WYSIWYGEditor {
         this.tableToolbar = document.createElement('div');
         this.tableToolbar.className = `${prefix}-table-toolbar`;
         this.tableToolbar.innerHTML = `
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="properties" title="Table properties">&#9881; Properties</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="properties" title="${this.t('tableToolbar.properties')}">${this.t('tableToolbar.propertiesLabel')}</button>
             <span class="${prefix}-table-toolbar-separator"></span>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="row-above" title="Insert row above">&#8593; Row</button>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="row-below" title="Insert row below">&#8595; Row</button>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="col-left" title="Insert column left">&#8592; Col</button>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="col-right" title="Insert column right">&#8594; Col</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="row-above" title="${this.t('tableToolbar.rowAbove')}">${this.t('tableToolbar.rowAboveLabel')}</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="row-below" title="${this.t('tableToolbar.rowBelow')}">${this.t('tableToolbar.rowBelowLabel')}</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="col-left" title="${this.t('tableToolbar.colLeft')}">${this.t('tableToolbar.colLeftLabel')}</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="col-right" title="${this.t('tableToolbar.colRight')}">${this.t('tableToolbar.colRightLabel')}</button>
             <span class="${prefix}-table-toolbar-separator"></span>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-row" title="Delete row">&#10060; Row</button>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-col" title="Delete column">&#10060; Col</button>
-            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-table" title="Delete table">&#10060; Table</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-row" title="${this.t('tableToolbar.deleteRow')}">${this.t('tableToolbar.deleteRowLabel')}</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-col" title="${this.t('tableToolbar.deleteCol')}">${this.t('tableToolbar.deleteColLabel')}</button>
+            <button type="button" class="${prefix}-table-toolbar-btn" data-action="delete-table" title="${this.t('tableToolbar.deleteTable')}">${this.t('tableToolbar.deleteTableLabel')}</button>
         `;
 
         // Position toolbar above the table
@@ -2263,28 +2505,28 @@ class WYSIWYGEditor {
         }
 
         const content = `
-            <div class="${prefix}-modal-header">Table Properties</div>
+            <div class="${prefix}-modal-header">${this.t('modal.tableProperties')}</div>
             <div class="${prefix}-modal-body">
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Border Width (px)</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.borderWidth')}</label>
                     <input type="number" class="${prefix}-modal-input" id="${prefix}-table-border" value="${borderWidth}" min="0" max="10">
                 </div>
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Border Color</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.borderColor')}</label>
                     <input type="color" class="${prefix}-modal-input" id="${prefix}-table-border-color" value="${borderColor}" style="height: 36px; padding: 2px;">
                 </div>
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Cell Padding (px)</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.cellPadding')}</label>
                     <input type="number" class="${prefix}-modal-input" id="${prefix}-table-padding" value="${cellPadding}" min="0" max="50">
                 </div>
                 <div class="${prefix}-modal-row">
-                    <label class="${prefix}-modal-label">Table Width (%)</label>
+                    <label class="${prefix}-modal-label">${this.t('modal.tableWidth')}</label>
                     <input type="number" class="${prefix}-modal-input" id="${prefix}-table-width" value="${tableWidth}" min="10" max="100">
                 </div>
             </div>
             <div class="${prefix}-modal-footer">
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">Cancel</button>
-                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">Apply</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">${this.t('modal.cancel')}</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert">${this.t('modal.apply')}</button>
             </div>
         `;
 
