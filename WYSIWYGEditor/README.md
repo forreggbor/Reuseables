@@ -177,6 +177,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `redo`        | Redo last action                 |
 | `clearFormat` | Remove all formatting            |
 | `codeView`    | Toggle HTML source view          |
+| `all`         | Include all buttons (shorthand)  |
 | `\|`          | Separator (vertical line)        |
 
 ## API Reference
@@ -238,6 +239,14 @@ new WYSIWYGEditor(textarea, options)
 | Ctrl/Cmd + Shift + Z | Redo (alternative) |
 
 ## Examples
+
+### All Buttons
+
+```javascript
+new WYSIWYGEditor('#content', {
+    toolbar: ['all']
+});
+```
 
 ### Minimal Toolbar
 

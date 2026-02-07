@@ -593,6 +593,12 @@ class WYSIWYGEditor {
 
         this.textarea = textarea;
         this.config = { ...WYSIWYGEditor.defaults, ...options };
+
+        // Resolve 'all' shorthand in toolbar to include all available buttons
+        if (this.config.toolbar.includes('all')) {
+            this.config.toolbar = [...WYSIWYGEditor.defaults.toolbar];
+        }
+
         this.init();
     }
 

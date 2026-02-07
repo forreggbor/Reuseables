@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Justify (`justifyFull`) toolbar button for full text justification
 - Increase indent (`indent`) toolbar button
 - Decrease indent (`outdent`) toolbar button
+- `all` toolbar shorthand to include all available buttons at once (`toolbar: ['all']`)
 
 ### Fixed
 - Blockquote and pre now toggle off (revert to `<p>`) instead of nesting in Firefox
