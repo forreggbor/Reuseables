@@ -73,8 +73,8 @@ class WYSIWYGEditor {
         italic: { icon: '<i>I</i>', title: 'Italic (Ctrl+I)', command: 'italic' },
         underline: { icon: '<u>U</u>', title: 'Underline (Ctrl+U)', command: 'underline' },
         strikethrough: { icon: '<s>S</s>', title: 'Strikethrough', command: 'strikeThrough' },
-        subscript: { icon: 'X<sub>2</sub>', title: 'Subscript', command: 'subscript' },
-        superscript: { icon: 'X<sup>2</sup>', title: 'Superscript', command: 'superscript' },
+        subscript: { icon: 'X<sub>2</sub>', title: 'Subscript', command: 'subscript', custom: true },
+        superscript: { icon: 'X<sup>2</sup>', title: 'Superscript', command: 'superscript', custom: true },
         h1: { icon: 'H1', title: 'Heading 1', command: 'formatBlock', value: 'h1' },
         h2: { icon: 'H2', title: 'Heading 2', command: 'formatBlock', value: 'h2' },
         h3: { icon: 'H3', title: 'Heading 3', command: 'formatBlock', value: 'h3' },
@@ -92,11 +92,11 @@ class WYSIWYGEditor {
         alignCenter: { icon: '&#8596;', title: 'Align Center', command: 'justifyCenter' },
         alignRight: { icon: '&#8677;', title: 'Align Right', command: 'justifyRight' },
         justifyFull: { icon: '&#9776;', title: 'Justify', command: 'justifyFull' },
-        indent: { icon: '&#8680;', title: 'Increase Indent', command: 'indent' },
-        outdent: { icon: '&#8678;', title: 'Decrease Indent', command: 'outdent' },
+        indent: { icon: '&#8680;', title: 'Increase Indent', command: 'indent', custom: true },
+        outdent: { icon: '&#8678;', title: 'Decrease Indent', command: 'outdent', custom: true },
         undo: { icon: '&#8617;', title: 'Undo (Ctrl+Z)', command: 'undo' },
         redo: { icon: '&#8618;', title: 'Redo (Ctrl+Y)', command: 'redo' },
-        clearFormat: { icon: 'T&#824;', title: 'Clear Formatting', command: 'removeFormat' },
+        clearFormat: { icon: 'T&#824;', title: 'Clear Formatting', command: 'removeFormat', custom: true },
         fontSize: { icon: 'A<small>&#9662;</small>', title: 'Font Size', command: 'fontSize', custom: true, type: 'dropdown' },
         fontName: { icon: 'F<small>&#9662;</small>', title: 'Font Family', command: 'fontName', custom: true, type: 'dropdown' },
         textColor: { icon: '<span style="border-bottom:3px solid #000">A</span>', title: 'Text Color', command: 'foreColor', custom: true, type: 'colorPicker' },
@@ -1000,7 +1000,13 @@ class WYSIWYGEditor {
         this.editor.focus();
 
         if (command === 'formatBlock' && value) {
-            document.execCommand(command, false, `<${value}>`);
+            // Toggle off: if already in the requested block type, revert to <p>
+            const currentBlock = document.queryCommandValue('formatBlock');
+            if (currentBlock.toLowerCase() === value.toLowerCase()) {
+                document.execCommand(command, false, '<p>');
+            } else {
+                document.execCommand(command, false, `<${value}>`);
+            }
         } else {
             document.execCommand(command, false, value);
         }
@@ -1029,7 +1035,209 @@ class WYSIWYGEditor {
             case 'insertImage':
                 this.showImageModal();
                 break;
+            case 'subscript':
+                this.toggleSubscript();
+                break;
+            case 'superscript':
+                this.toggleSuperscript();
+                break;
+            case 'indent':
+                this.applyIndent();
+                break;
+            case 'outdent':
+                this.applyOutdent();
+                break;
+            case 'removeFormat':
+                this.safeRemoveFormat();
+                break;
         }
+    }
+
+    /**
+     * Toggle subscript, removing superscript first to avoid conflicts
+     * @private
+     */
+    toggleSubscript() {
+        this.editor.focus();
+
+        // Remove superscript first if active
+        if (this.isInsideTag('sup')) {
+            document.execCommand('superscript', false, null);
+        }
+
+        document.execCommand('subscript', false, null);
+        this.sync();
+        this.updateToolbarState();
+    }
+
+    /**
+     * Toggle superscript, removing subscript first to avoid conflicts
+     * @private
+     */
+    toggleSuperscript() {
+        this.editor.focus();
+
+        // Remove subscript first if active
+        if (this.isInsideTag('sub')) {
+            document.execCommand('subscript', false, null);
+        }
+
+        document.execCommand('superscript', false, null);
+        this.sync();
+        this.updateToolbarState();
+    }
+
+    /**
+     * Check if current selection is inside a specific HTML tag
+     *
+     * @param {string} tagName - Tag name to check (lowercase)
+     * @returns {boolean} True if selection is inside the tag
+     * @private
+     */
+    isInsideTag(tagName) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return false;
+
+        let node = sel.anchorNode;
+        while (node && node !== this.editor) {
+            if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === tagName) {
+                return true;
+            }
+            node = node.parentNode;
+        }
+        return false;
+    }
+
+    /**
+     * Get the closest block-level parent element of the current selection
+     *
+     * @returns {HTMLElement|null} The closest block element or null
+     * @private
+     */
+    getSelectedBlockElement() {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return null;
+
+        let node = sel.anchorNode;
+        if (node.nodeType === Node.TEXT_NODE) {
+            node = node.parentElement;
+        }
+
+        const blockTags = ['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+            'BLOCKQUOTE', 'PRE', 'LI', 'TD', 'TH'];
+
+        while (node && node !== this.editor) {
+            if (node.nodeType === Node.ELEMENT_NODE && blockTags.includes(node.tagName)) {
+                return node;
+            }
+            node = node.parentNode;
+        }
+        return null;
+    }
+
+    /**
+     * Increase indentation using consistent margin-left CSS across all browsers
+     * @private
+     */
+    applyIndent() {
+        this.editor.focus();
+        const block = this.getSelectedBlockElement();
+        if (!block) return;
+
+        const currentMargin = parseInt(getComputedStyle(block).marginLeft, 10) || 0;
+        block.style.marginLeft = (currentMargin + 40) + 'px';
+
+        this.sync();
+        this.updateToolbarState();
+    }
+
+    /**
+     * Decrease indentation using consistent margin-left CSS across all browsers
+     * @private
+     */
+    applyOutdent() {
+        this.editor.focus();
+        const block = this.getSelectedBlockElement();
+        if (!block) return;
+
+        const currentMargin = parseInt(getComputedStyle(block).marginLeft, 10) || 0;
+        const newMargin = Math.max(0, currentMargin - 40);
+
+        if (newMargin === 0) {
+            block.style.marginLeft = '';
+            // Clean up empty style attribute
+            if (!block.getAttribute('style')?.trim()) {
+                block.removeAttribute('style');
+            }
+        } else {
+            block.style.marginLeft = newMargin + 'px';
+        }
+
+        this.sync();
+        this.updateToolbarState();
+    }
+
+    /**
+     * Remove formatting while preserving links (Safari compatibility)
+     *
+     * Safari's native removeFormat also removes anchor elements.
+     * This method saves links, removes formatting, then restores them.
+     * @private
+     */
+    safeRemoveFormat() {
+        this.editor.focus();
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+
+        const range = sel.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        const scope = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
+
+        // Collect all links within the selection range
+        const links = [];
+        const allAnchors = scope.querySelectorAll ? scope.querySelectorAll('a[href]') : [];
+        allAnchors.forEach(a => {
+            if (range.intersectsNode(a)) {
+                links.push({
+                    href: a.href,
+                    target: a.target,
+                    textContent: a.textContent
+                });
+            }
+        });
+
+        // Execute removeFormat
+        document.execCommand('removeFormat', false, null);
+
+        // Restore links that were removed by Safari
+        if (links.length > 0) {
+            const updatedContent = this.editor.innerHTML;
+            links.forEach(link => {
+                // Check if the link text still exists but is no longer wrapped in <a>
+                const escapedText = link.textContent.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const linkExists = this.editor.querySelector(`a[href="${CSS.escape(link.href)}"]`);
+                if (!linkExists) {
+                    // Find the text node and re-wrap it
+                    const treeWalker = document.createTreeWalker(
+                        this.editor, NodeFilter.SHOW_TEXT, null
+                    );
+                    while (treeWalker.nextNode()) {
+                        const textNode = treeWalker.currentNode;
+                        if (textNode.textContent.includes(link.textContent)) {
+                            const newAnchor = document.createElement('a');
+                            newAnchor.href = link.href;
+                            if (link.target) newAnchor.target = link.target;
+                            newAnchor.textContent = link.textContent;
+                            textNode.parentNode.replaceChild(newAnchor, textNode);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        this.sync();
+        this.updateToolbarState();
     }
 
     /**
@@ -2379,24 +2587,41 @@ class WYSIWYGEditor {
      */
     updateToolbarState() {
         const buttons = this.toolbar.querySelectorAll('[data-command]');
+        const activeClass = `${this.config.classPrefix}-btn-active`;
 
         buttons.forEach(btn => {
             const command = btn.dataset.command;
             const value = btn.dataset.value;
 
-            btn.classList.remove(`${this.config.classPrefix}-btn-active`);
+            btn.classList.remove(activeClass);
 
-            // Check formatBlock for headings
+            // Check formatBlock for headings, blockquote, pre
             if (command === 'formatBlock' && value) {
                 const currentBlock = document.queryCommandValue('formatBlock');
                 if (currentBlock.toLowerCase() === value.toLowerCase()) {
-                    btn.classList.add(`${this.config.classPrefix}-btn-active`);
+                    btn.classList.add(activeClass);
+                }
+            // DOM-based check for subscript (Firefox queryCommandState unreliable)
+            } else if (command === 'subscript') {
+                if (this.isInsideTag('sub')) {
+                    btn.classList.add(activeClass);
+                }
+            // DOM-based check for superscript (Firefox queryCommandState unreliable)
+            } else if (command === 'superscript') {
+                if (this.isInsideTag('sup')) {
+                    btn.classList.add(activeClass);
+                }
+            // CSS-based check for justifyFull (Safari queryCommandState unreliable)
+            } else if (command === 'justifyFull') {
+                const block = this.getSelectedBlockElement();
+                if (block && getComputedStyle(block).textAlign === 'justify') {
+                    btn.classList.add(activeClass);
                 }
             } else {
                 // Check if command is currently active
                 try {
                     if (document.queryCommandState(command)) {
-                        btn.classList.add(`${this.config.classPrefix}-btn-active`);
+                        btn.classList.add(activeClass);
                     }
                 } catch (e) {
                     // Some commands don't support queryCommandState

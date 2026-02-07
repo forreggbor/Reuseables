@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Increase indent (`indent`) toolbar button
 - Decrease indent (`outdent`) toolbar button
 
+### Fixed
+- Blockquote and pre now toggle off (revert to `<p>`) instead of nesting in Firefox
+- Indent/outdent uses consistent `margin-left` CSS across all browsers instead of browser-specific markup
+- Subscript/superscript are mutually exclusive (applying one removes the other)
+- Subscript/superscript active state detection uses DOM traversal instead of unreliable `queryCommandState` in Firefox
+- Justify full active state detection uses computed CSS instead of unreliable `queryCommandState` in Safari
+- Remove formatting now preserves links in Safari (Safari's native `removeFormat` strips anchor elements)
+
 ## [2.2.2] - 2026-01-23
 
 ### Fixed
