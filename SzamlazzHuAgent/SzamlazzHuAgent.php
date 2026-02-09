@@ -806,13 +806,20 @@ class SzamlazzHuAgent
         $xml .= '<fejlec>';
         $xml .= '<keltDatum>' . $issueDate . '</keltDatum>';
         $xml .= '<teljesitesDatum>' . $fulfillmentDate . '</teljesitesDatum>';
-        $xml .= '<fizetesiHataridoDatum>' . date('Y-m-d', strtotime($fulfillmentDate . ' +8 days')) . '</fizetesiHataridoDatum>';
+        if ($paymentMethod === 'Készpénz') {
+            $xml .= '<fizetesiHataridoDatum>' . $issueDate . '</fizetesiHataridoDatum>';
+        } else {
+            $deadlineDays = $orderData['payment_deadline_days'] ?? 8;
+            $xml .= '<fizetesiHataridoDatum>' . date('Y-m-d', strtotime($issueDate . ' +' . $deadlineDays . ' days')) . '</fizetesiHataridoDatum>';
+        }
         $xml .= '<fizmod>' . htmlspecialchars($paymentMethod) . '</fizmod>';
         if (!empty($orderData['paid'])) {
             $xml .= '<fizetve>true</fizetve>';
         }
-        $xml .= '<ppiid>' . htmlspecialchars($orderData['currency'] ?? 'Ft') . '</ppiid>';
-        $xml .= '<szamlaNyelve>' . ($this->config['default_language'] === 'en' ? 'en' : 'hu') . '</szamlaNyelve>';
+        $currency = $this->mapCurrencyString($orderData['currency'] ?? 'Ft');
+        $xml .= '<ppiid>' . htmlspecialchars($currency) . '</ppiid>';
+        $language = $orderData['language'] ?? ($this->config['default_language'] ?? 'hu');
+        $xml .= '<szamlaNyelve>' . ($language === 'en' ? 'en' : 'hu') . '</szamlaNyelve>';
         if (!empty($orderData['order_number'])) {
             $xml .= '<rendelesSzam>' . htmlspecialchars($orderData['order_number']) . '</rendelesSzam>';
         }
@@ -929,6 +936,25 @@ class SzamlazzHuAgent
         $methods = array_merge($defaultMethods, $customMethods);
 
         return $methods[$method] ?? $methods['bank_transfer'];
+    }
+
+    /**
+     * Map currency string for legacy XML path
+     *
+     * Normalizes currency input (e.g. 'HUF' -> 'Ft') to match
+     * the szamlazz.hu API expected values.
+     *
+     * @param string $currency Currency code or symbol
+     * @return string Normalized currency string
+     */
+    private function mapCurrencyString(string $currency): string
+    {
+        return match (strtoupper($currency)) {
+            'FT', 'HUF' => 'Ft',
+            'EUR' => 'EUR',
+            'USD' => 'USD',
+            default => 'Ft',
+        };
     }
 
     /**

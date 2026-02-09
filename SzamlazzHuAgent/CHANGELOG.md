@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.1.8   | 2026-02-09 | Fix legacy cURL fallback consistency with InvoiceBuilder |
 | 1.1.7   | 2026-02-06 | Fix payment due date calculation base date               |
 | 1.1.6   | 2026-02-06 | Add explicit paid status parameter                       |
 | 1.1.5   | 2026-02-06 | Fix currency handling, align with SDK Ft default         |
@@ -19,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.1.8] - 2026-02-09
+
+### Fixed
+
+- Legacy cURL fallback (`buildInvoiceXml`) payment due date now calculated from issue date instead of fulfillment date
+- Legacy cURL fallback now respects `payment_deadline_days` from order data instead of hardcoded 8 days
+- Legacy cURL fallback now sets payment due date to issue date for cash (`Készpénz`) payments
+- Legacy cURL fallback currency now normalized through `mapCurrencyString()` method (e.g. `HUF` → `Ft`)
+- Legacy cURL fallback now respects per-invoice `language` from order data instead of only reading global config
 
 ## [1.1.7] - 2026-02-06
 
