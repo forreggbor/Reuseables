@@ -95,11 +95,12 @@ class InvoiceBuilder
         }
 
         // Payment method
-        $paymentMethod = $this->mapPaymentMethod($orderData['payment_method'] ?? 'bank_transfer');
-        $header->setPaymentMethod($paymentMethod);
+        $paymentKey = $this->resolvePaymentMethodKey($orderData['payment_method'] ?? 'bank_transfer');
+        $paymentLabel = $orderData['payment_method_label'] ?? $this->getPaymentMethodLabel($paymentKey);
+        $header->setPaymentMethod($paymentLabel);
 
         // Payment deadline
-        if ($paymentMethod === 'Készpénz') {
+        if ($paymentKey === 'cash') {
             $header->setPaymentDue($issueDate);
         } else {
             $deadlineDays = $orderData['payment_deadline_days'] ?? 8;
@@ -227,27 +228,70 @@ class InvoiceBuilder
         return round($gross / (1 + $vatRate / 100), 2);
     }
 
+    /** @var array<string, string> Known payment method keys and their default Hungarian labels */
+    private const PAYMENT_METHOD_LABELS = [
+        'bank_transfer'    => 'Átutalás',
+        'cash'             => 'Készpénz',
+        'card'             => 'Bankkártya',
+        'cash_on_delivery' => 'Utánvét',
+        'paypal'           => 'PayPal',
+        'szep_card'        => 'SZÉP kártya',
+        'otp_simple'       => 'OTP Simple',
+        'cheque'           => 'csekk',
+    ];
+
     /**
-     * Map payment method to Hungarian Szamlazz.hu format
+     * Resolve and validate payment method key
+     *
+     * Accepts a known payment method key (e.g. 'bank_transfer', 'cash') and returns it validated.
+     * Also supports legacy custom payment_methods config mapping for backward compatibility.
+     *
+     * @param string $method Payment method key
+     * @return string Validated payment method key
+     * @throws \InvalidArgumentException If the payment method key is unknown
      */
-    private function mapPaymentMethod(string $method): string
+    private function resolvePaymentMethodKey(string $method): string
     {
+        // Known key — return as-is
+        if (isset(self::PAYMENT_METHOD_LABELS[$method])) {
+            return $method;
+        }
+
+        // Legacy: check deprecated payment_methods config
         $customMethods = $this->config['payment_methods'] ?? [];
+        if (!empty($customMethods) && isset($customMethods[$method])) {
+            trigger_error(
+                'SzamlazzHuAgent: The "payment_methods" config option is deprecated. '
+                . 'Use "payment_method_label" in $orderData instead.',
+                E_USER_DEPRECATED
+            );
+            return $method;
+        }
 
-        $defaultMethods = [
-            'bank_transfer' => 'Átutalás',
-            'cash' => 'Készpénz',
-            'card' => 'Bankkártya',
-            'cash_on_delivery' => 'Utánvét',
-            'paypal' => 'PayPal',
-            'szep_card' => 'SZÉP kártya',
-            'otp_simple' => 'OTP Simple',
-            'cheque' => 'csekk',
-        ];
+        throw new \InvalidArgumentException(
+            "Unknown payment method key: '{$method}'. Valid keys: " . implode(', ', array_keys(self::PAYMENT_METHOD_LABELS))
+        );
+    }
 
-        $methods = array_merge($defaultMethods, $customMethods);
+    /**
+     * Get the display label for a payment method key
+     *
+     * Returns the Hungarian label used in the Szamlazz.hu <fizmod> field.
+     * Checks the deprecated payment_methods config first for backward compatibility,
+     * then falls back to the built-in default label.
+     *
+     * @param string $method Validated payment method key
+     * @return string Hungarian payment method label
+     */
+    private function getPaymentMethodLabel(string $method): string
+    {
+        // Legacy: check deprecated payment_methods config
+        $customMethods = $this->config['payment_methods'] ?? [];
+        if (!empty($customMethods) && isset($customMethods[$method])) {
+            return $customMethods[$method];
+        }
 
-        return $methods[$method] ?? $methods['bank_transfer'];
+        return self::PAYMENT_METHOD_LABELS[$method] ?? self::PAYMENT_METHOD_LABELS['bank_transfer'];
     }
 
     /**
@@ -307,8 +351,9 @@ class InvoiceBuilder
         $header->setFulfillment($fulfillmentDate);
 
         // Payment method
-        $paymentMethod = $this->mapPaymentMethod($orderData['payment_method'] ?? 'bank_transfer');
-        $header->setPaymentMethod($paymentMethod);
+        $paymentKey = $this->resolvePaymentMethodKey($orderData['payment_method'] ?? 'bank_transfer');
+        $paymentLabel = $orderData['payment_method_label'] ?? $this->getPaymentMethodLabel($paymentKey);
+        $header->setPaymentMethod($paymentLabel);
 
         // Currency
         $currency = $orderData['currency'] ?? 'Ft';
@@ -461,8 +506,9 @@ class InvoiceBuilder
         $header->setFulfillment($fulfillmentDate);
 
         // Payment method
-        $paymentMethod = $this->mapPaymentMethod($orderData['payment_method'] ?? 'bank_transfer');
-        $header->setPaymentMethod($paymentMethod);
+        $paymentKey = $this->resolvePaymentMethodKey($orderData['payment_method'] ?? 'bank_transfer');
+        $paymentLabel = $orderData['payment_method_label'] ?? $this->getPaymentMethodLabel($paymentKey);
+        $header->setPaymentMethod($paymentLabel);
 
         // Payment deadline
         $deadlineDays = $orderData['payment_deadline_days'] ?? 8;
@@ -612,7 +658,9 @@ class InvoiceBuilder
 
         // Payment method
         if (!empty($options['payment_method'])) {
-            $header->setPaymentMethod($this->mapPaymentMethod($options['payment_method']));
+            $paymentKey = $this->resolvePaymentMethodKey($options['payment_method']);
+            $paymentLabel = $options['payment_method_label'] ?? $this->getPaymentMethodLabel($paymentKey);
+            $header->setPaymentMethod($paymentLabel);
         }
 
         // Currency

@@ -104,7 +104,7 @@ $agent = new SzamlazzHuAgent([
     'invoice_prefix' => 'INV-',    // Invoice number prefix
     'default_language' => 'hu',    // Default language: 'hu' or 'en'
 
-    // Custom payment method mapping
+    // Custom payment method mapping (deprecated, use payment_method_label in $orderData)
     'payment_methods' => [
         'stripe' => 'Bankkártya',
         'wire' => 'Átutalás',
@@ -358,6 +358,7 @@ $orderData = [
     'order_number' => 'ORD-2025-001',           // Required
     'fulfillment_date' => '2025-01-18',         // Default: today
     'payment_method' => 'bank_transfer',        // See payment methods below
+    'payment_method_label' => 'Átutalás 15 napon belül', // Custom label on invoice (optional)
     'payment_deadline_days' => 8,               // Default: 8
     'paid' => true,                             // Explicitly set paid status (optional)
     'currency' => 'Ft',                         // Ft, HUF, EUR, USD
@@ -418,24 +419,47 @@ class InvoiceResult {
 
 ## Payment Methods
 
-Default mapping from your application's payment methods to Szamlazz.hu:
+The `payment_method` key in `$orderData` determines payment behavior (e.g. auto-paid for cash). The `payment_method_label` is an optional override for the text displayed on the invoice.
 
-| Key               | Szamlazz.hu Value |
-|-------------------|-------------------|
-| `bank_transfer`   | Átutalás          |
-| `cash`            | Készpénz          |
-| `card`            | Bankkártya        |
-| `cash_on_delivery`| Utánvét           |
-| `paypal`          | PayPal            |
-| `szep_card`       | SZÉP kártya       |
-| `otp_simple`      | OTP Simple        |
-| `cheque`          | csekk             |
+| Key                | Default Label (invoice) |
+|--------------------|-------------------------|
+| `bank_transfer`    | Átutalás                |
+| `cash`             | Készpénz                |
+| `card`             | Bankkártya              |
+| `cash_on_delivery` | Utánvét                 |
+| `paypal`           | PayPal                  |
+| `szep_card`        | SZÉP kártya             |
+| `otp_simple`       | OTP Simple              |
+| `cheque`           | csekk                   |
+
+### Custom Payment Method Label
+
+Use `payment_method_label` to display custom text on the invoice while keeping the correct payment behavior:
+
+```php
+// Same payment type, different labels on the invoice
+$orderData = [
+    'payment_method'       => 'bank_transfer',
+    'payment_method_label' => 'Átutalás 15 napon belül',
+    'payment_deadline_days' => 15,
+];
+
+$orderData = [
+    'payment_method'       => 'bank_transfer',
+    'payment_method_label' => 'Átutalás 8 napon belül',
+    'payment_deadline_days' => 8,
+];
+```
+
+When `payment_method_label` is omitted, the default Hungarian label from the table above is used.
+
+An unknown `payment_method` key throws `\InvalidArgumentException`.
 
 ### Invoice Paid Status
 
-By default, Szamlazz.hu determines the paid status based on the payment method and deadline:
-- **Cash** (`Készpénz`): automatically marked as **paid** (deadline = issue date)
-- **All other methods**: marked as **unpaid** (deadline = issue date + `payment_deadline_days`)
+By default, the paid status is determined by the payment method key:
+- **`cash`**: automatically marked as **paid** (deadline = issue date)
+- **All other keys**: marked as **unpaid** (deadline = issue date + `payment_deadline_days`)
 
 You can override this with the `paid` parameter in `$orderData`:
 
@@ -455,9 +479,14 @@ $orderData = [
 
 When `paid` is omitted, Szamlazz.hu applies its default logic.
 
-Add custom mappings via configuration:
+### Deprecated: Custom Payment Method Mapping Config
+
+> **Deprecated:** The `payment_methods` config option is deprecated. Use `payment_method_label` in `$orderData` instead.
+
+The old approach mapped custom keys to Hungarian strings in the config. This still works but triggers a deprecation warning:
 
 ```php
+// Deprecated — avoid in new code
 'payment_methods' => [
     'stripe' => 'Bankkártya',
     'bitcoin' => 'Egyéb',

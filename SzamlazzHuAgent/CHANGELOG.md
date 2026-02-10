@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.2.0   | 2026-02-10 | Add payment_method_label, validate keys, deprecate config mapping |
 | 1.1.8   | 2026-02-09 | Fix legacy cURL fallback consistency with InvoiceBuilder |
 | 1.1.7   | 2026-02-06 | Fix payment due date calculation base date               |
 | 1.1.6   | 2026-02-06 | Add explicit paid status parameter                       |
@@ -20,6 +21,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.2.0] - 2026-02-10
+
+### Added
+
+- `payment_method_label` parameter in `$orderData` allows custom display text on invoices while keeping correct payment behavior (e.g. "Átutalás 15 napon belül")
+- Payment method key validation — unknown keys now throw `\InvalidArgumentException` instead of silently defaulting to bank transfer
+
+### Changed
+
+- Internal payment logic now uses the English key (`cash`) instead of the Hungarian label (`Készpénz`) for behavior decisions (auto-paid, deadline)
+
+### Deprecated
+
+- `payment_methods` config option — use `payment_method_label` in `$orderData` instead. Legacy config still works but logs a deprecation warning.
 
 ## [1.1.8] - 2026-02-09
 
