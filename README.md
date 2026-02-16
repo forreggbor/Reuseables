@@ -8,15 +8,16 @@
 
 ## Components
 
-| Component                           | Version  | Description                                                                        |
-|-------------------------------------|----------|------------------------------------------------------------------------------------|
-| [ActivityLogs](ActivityLogs/)       | v1.00.00 | Framework-agnostic PHP activity logging with flexible schema and integrity checks  |
-| [CodeWarden](CodeWarden/)           | v1.04.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)  |
-| [ErrorHandling](ErrorHandling/)     | v1.00.01 | Framework-agnostic PHP error and exception logging with severity levels            |
-| [GettextFallback](GettextFallback/) | v1.00.00 | Gettext translation with MO parser fallback for servers without installed locales  |
-| [MFA](MFA/)                         | v1.00.00 | RFC 6238 TOTP multi-factor authentication with built-in QR code generator          |
-| [LicenseModule](LicenseModule/)     | v1.01.01 | Framework-agnostic PHP module for license validation and tier-based feature gating |
-| [SzamlazzHuAgent](SzamlazzHuAgent/) | v1.01.07 | Framework-agnostic PHP module for Szamlazz.hu invoice integration                  |
-| [Virtualjog](Virtualjog/)           | v1.00.00 | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent) |
-| [WYSIWYGEditor](WYSIWYGEditor/)     | v2.04.00 | Lightweight WYSIWYG rich text editor with tables, images, colors, and code view    |
+| Component                           | Version  | Description                                                                          |
+|-------------------------------------|----------|--------------------------------------------------------------------------------------|
+| [ActivityLogs](ActivityLogs/)       | v1.00.00 | Framework-agnostic PHP activity logging with flexible schema and integrity checks    |
+| [CodeWarden](CodeWarden/)           | v1.04.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)    |
+| [ErrorHandling](ErrorHandling/)     | v1.00.01 | Framework-agnostic PHP error and exception logging with severity levels              |
+| [GettextFallback](GettextFallback/) | v1.00.00 | Gettext translation with MO parser fallback for servers without installed locales    |
+| [MFA](MFA/)                         | v1.00.00 | RFC 6238 TOTP multi-factor authentication with built-in QR code generator            |
+| [LicenseModule](LicenseModule/)     | v1.01.01 | Framework-agnostic PHP module for license validation and tier-based feature gating   |
+| [PatchModule](PatchModule/)         | v1.00.00 | Framework-agnostic patch management with update checking, installation, and rollback |
+| [SzamlazzHuAgent](SzamlazzHuAgent/) | v1.01.07 | Framework-agnostic PHP module for Szamlazz.hu invoice integration                    |
+| [Virtualjog](Virtualjog/)           | v1.00.00 | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent)   |
+| [WYSIWYGEditor](WYSIWYGEditor/)     | v2.04.00 | Lightweight WYSIWYG rich text editor with tables, images, colors, and code view      |
 

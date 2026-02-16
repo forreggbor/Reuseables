@@ -1,0 +1,205 @@
+# PatchModule - English Translations
+# Copyright (C) 2026
+#
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en_US\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# =========================================================================
+# UI - Banner & Modal
+# =========================================================================
+
+msgid "TEXT_PATCH_UPDATE_AVAILABLE"
+msgstr "Update available: v%s"
+
+msgid "TEXT_PATCH_UPDATES_AVAILABLE"
+msgstr "%d updates available (v%s → v%s)"
+
+msgid "TEXT_PATCH_VIEW_DETAILS"
+msgstr "View details"
+
+msgid "TEXT_PATCH_DISMISS"
+msgstr "Dismiss"
+
+msgid "TEXT_PATCH_DISMISS_ALL"
+msgstr "Dismiss all"
+
+msgid "TEXT_HEADING_PATCH_UPDATE"
+msgstr "System Update"
+
+msgid "TEXT_PATCH_CREATE_BACKUP_BEFORE"
+msgstr "Create backup before update"
+
+msgid "TEXT_PATCH_BACKUP_RECOMMENDED"
+msgstr "Creating a backup is recommended so you can restore the previous state if something goes wrong."
+
+msgid "TEXT_MESSAGE_PATCH_INSTALL_WARNING"
+msgstr "The system will be in maintenance mode during the update. Users will not be able to access the application."
+
+msgid "TEXT_PATCH_VERIFY_PASSWORD"
+msgstr "Enter your password to authorize the update."
+
+# =========================================================================
+# UI - Labels
+# =========================================================================
+
+msgid "TEXT_LABEL_CURRENT_VERSION"
+msgstr "Current version"
+
+msgid "TEXT_LABEL_NEW_VERSION"
+msgstr "New version"
+
+msgid "TEXT_LABEL_RELEASE_NOTES"
+msgstr "Release notes"
+
+msgid "TEXT_LABEL_NO_RELEASE_NOTES"
+msgstr "No release notes available."
+
+# =========================================================================
+# UI - Buttons
+# =========================================================================
+
+msgid "TEXT_BUTTON_INSTALL_UPDATE"
+msgstr "Install update"
+
+msgid "TEXT_BUTTON_INSTALL_ALL_UPDATES"
+msgstr "Install all %d updates"
+
+msgid "TEXT_BUTTON_INSTALL_NEXT"
+msgstr "Install next: v%s"
+
+msgid "TEXT_BUTTON_SKIP_UPDATE"
+msgstr "Skip"
+
+msgid "TEXT_BUTTON_BACK"
+msgstr "Back"
+
+msgid "TEXT_BUTTON_CONFIRM"
+msgstr "Confirm"
+
+msgid "TEXT_BUTTON_RELOAD_PAGE"
+msgstr "Reload page"
+
+# =========================================================================
+# UI - Result Messages
+# =========================================================================
+
+msgid "TEXT_MESSAGE_PATCH_INSTALLED"
+msgstr "Update installed successfully."
+
+msgid "TEXT_MESSAGE_PATCH_FAILED"
+msgstr "Update installation failed."
+
+msgid "TEXT_MESSAGE_PATCH_ROLLED_BACK"
+msgstr "Changes have been rolled back."
+
+msgid "TEXT_MESSAGE_ALL_PATCHES_DONE"
+msgstr "All %d updates installed successfully."
+
+# =========================================================================
+# Installation Steps
+# =========================================================================
+
+msgid "TEXT_PATCH_STEP_PREFLIGHT"
+msgstr "Pre-flight checks"
+
+msgid "TEXT_PATCH_STEP_BACKUP"
+msgstr "Creating backup"
+
+msgid "TEXT_PATCH_STEP_DOWNLOAD"
+msgstr "Downloading patch"
+
+msgid "TEXT_PATCH_STEP_EXTRACT"
+msgstr "Extracting files"
+
+msgid "TEXT_PATCH_STEP_MIGRATION"
+msgstr "Executing database migration"
+
+msgid "TEXT_PATCH_STEP_COPY_FILES"
+msgstr "Copying files"
+
+msgid "TEXT_PATCH_STEP_UPDATE_VERSION"
+msgstr "Updating version"
+
+msgid "TEXT_PATCH_STEP_VERIFY"
+msgstr "Verifying installation"
+
+msgid "TEXT_PATCH_STEP_CLEANUP"
+msgstr "Cleaning up"
+
+# =========================================================================
+# Queue Status Labels
+# =========================================================================
+
+msgid "TEXT_PATCH_QUEUE_HEADER"
+msgstr "Update queue"
+
+msgid "TEXT_PATCH_STATUS_NEXT"
+msgstr "Next"
+
+msgid "TEXT_PATCH_STATUS_PENDING"
+msgstr "Pending"
+
+msgid "TEXT_PATCH_STATUS_INSTALLING"
+msgstr "Installing..."
+
+msgid "TEXT_PATCH_STATUS_INSTALLED"
+msgstr "Installed"
+
+msgid "TEXT_PATCH_STATUS_FAILED"
+msgstr "Failed"
+
+msgid "TEXT_PATCH_UPDATE_X_OF_N"
+msgstr "Update %d of %d"
+
+# =========================================================================
+# Error Messages
+# =========================================================================
+
+msgid "TEXT_ERROR_SYSADMIN_ONLY"
+msgstr "This feature is available to system administrators only."
+
+msgid "TEXT_ERROR_INVALID_REQUEST"
+msgstr "Invalid request"
+
+msgid "TEXT_ERROR_INVALID_PASSWORD"
+msgstr "Invalid password"
+
+msgid "TEXT_ERROR_PATCH_AUTH_EXPIRED"
+msgstr "Password confirmation has expired. Please try again."
+
+msgid "TEXT_ERROR_PATCH_RECORD_NOT_FOUND"
+msgstr "Patch record not found."
+
+msgid "TEXT_ERROR_PATCH_WRONG_ORDER"
+msgstr "Updates must be installed in order. Next: v%s"
+
+msgid "TEXT_ERROR_NO_PATCH_AVAILABLE"
+msgstr "No update available."
+
+# =========================================================================
+# Activity Log Actions
+# =========================================================================
+
+msgid "TEXT_ACTION_CHECK_PATCH"
+msgstr "Check for updates"
+
+msgid "TEXT_ACTION_DOWNLOAD_PATCH"
+msgstr "Download patch"
+
+msgid "TEXT_ACTION_INSTALL_PATCH"
+msgstr "Install patch"
+
+msgid "TEXT_ACTION_INSTALL_PATCH_FAILED"
+msgstr "Patch installation failed"
+
+msgid "TEXT_ACTION_ROLLBACK_PATCH"
+msgstr "Rollback patch"
+
+msgid "TEXT_ACTION_DISMISS_PATCH"
+msgstr "Dismiss patch"
+
+msgid "TEXT_ACTION_DISMISS_ALL_PATCHES"
+msgstr "Dismiss all patches"

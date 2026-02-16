@@ -1,0 +1,109 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PatchModule\Contracts;
+
+/**
+ * Database adapter for patch management
+ *
+ * Provides two categories of operations:
+ * 1. Patch history record CRUD (patch_history table)
+ * 2. Key-value settings cache (for patch availability caching)
+ *
+ * @package PatchModule
+ */
+interface DatabaseAdapterInterface
+{
+    // =========================================================================
+    // Patch History
+    // =========================================================================
+
+    /**
+     * Get a patch history record by ID
+     *
+     * @param int $id Record ID
+     * @return array|null Associative array of all columns, or null if not found
+     */
+    public function getHistoryRecord(int $id): ?array;
+
+    /**
+     * Find a patch history record by version and status filter
+     *
+     * @param string $version Semver version string
+     * @param array $statuses Allowed status values (e.g., ['available', 'downloading'])
+     * @return array|null Associative array or null if not found
+     */
+    public function findHistoryByVersion(string $version, array $statuses = ['available', 'downloading']): ?array;
+
+    /**
+     * Get all completed version strings
+     *
+     * @return string[] List of version strings with status='completed'
+     */
+    public function getCompletedVersions(): array;
+
+    /**
+     * Get full patch history ordered by created_at DESC
+     *
+     * May include installer user info if the host application supports it.
+     *
+     * @return array[] List of associative arrays
+     */
+    public function getHistory(): array;
+
+    /**
+     * Create a new patch history record
+     *
+     * @param array $data Column values: version, status, release_notes, file_size,
+     *                     sha256_hash, patch_server_id, released_at
+     * @return int Inserted record ID
+     */
+    public function createHistoryRecord(array $data): int;
+
+    /**
+     * Update a patch history record
+     *
+     * @param int $id Record ID
+     * @param array $data Column => value pairs to update
+     * @return bool True on success
+     */
+    public function updateHistoryRecord(int $id, array $data): bool;
+
+    // =========================================================================
+    // Settings Cache
+    // =========================================================================
+
+    /**
+     * Get a cached setting value
+     *
+     * Used keys: patch_last_check_at, patch_available_data, patch_dismissed_versions
+     *
+     * @param string $key Setting key
+     * @return string|null Stored value or null if not set
+     */
+    public function getSetting(string $key): ?string;
+
+    /**
+     * Set a cached setting value
+     *
+     * @param string $key Setting key
+     * @param string|null $value Value to store (null to clear)
+     * @return bool True on success
+     */
+    public function setSetting(string $key, ?string $value): bool;
+
+    // =========================================================================
+    // Raw PDO Access
+    // =========================================================================
+
+    /**
+     * Get the raw PDO connection for SQL migration execution
+     *
+     * Migrations need direct PDO access to run arbitrary SQL statements
+     * with FK check toggling. This is the only method that exposes PDO directly.
+     *
+     * @return \PDO
+     */
+    public function getPdo(): \PDO;
+}
