@@ -5,6 +5,7 @@ A framework-agnostic PHP module for license validation and tier-based feature ga
 ## Features
 
 - Online license validation with configurable server endpoint
+- Server-side grace period support (expired license continues working within grace window)
 - Offline grace period (7 days default) with cached status
 - Hierarchical tier system (higher tiers inherit lower tier modules)
 - Addon-based feature unlocking
@@ -113,15 +114,16 @@ $license = new LicenseModule([
 ### Status Checks
 
 ```php
-// Get current status (active, expired, invalid, suspended)
+// Get current status (active, grace, expired, invalid, suspended)
 $status = $license->getStatus();
 
 // Boolean checks
-$license->isActive();     // Normal operation
-$license->isExpired();    // Read-only mode
-$license->isSuspended();  // Blocked
-$license->isInvalid();    // Blocked
-$license->isBlocked();    // Suspended or invalid
+$license->isActive();         // Normal operation (true for both active and grace)
+$license->isInGracePeriod();  // Expired but within server-side grace window
+$license->isExpired();        // Read-only mode
+$license->isSuspended();      // Blocked
+$license->isInvalid();        // Blocked
+$license->isBlocked();        // Suspended or invalid
 ```
 
 ### License Validation
@@ -192,6 +194,10 @@ $info = $license->getLicenseInfo();
 
 // Get days until expiration
 $days = $license->getDaysUntilExpiration();  // null if no expiry, negative if expired
+
+// Grace period information
+$graceEnd = $license->getGraceExpiresAt();            // "2026-03-15 00:00:00" or null
+$graceDays = $license->getDaysUntilGraceExpiration();  // Days remaining in grace or null
 ```
 
 ## Default Tier Configuration
@@ -228,6 +234,9 @@ The module includes PO files for English and Hungarian in the `locale/` folder.
 
 ### Translation Keys
 
+- `LICENSE_GRACE_TITLE`
+- `LICENSE_GRACE_MESSAGE`
+- `LICENSE_GRACE_NOTICE`
 - `LICENSE_EXPIRED_TITLE`
 - `LICENSE_EXPIRED_MESSAGE`
 - `LICENSE_EXPIRED_READONLY`
@@ -306,7 +315,7 @@ $license = new LicenseModule([
 
 The module expects the license server to return responses in this format:
 
-**Supported status values:** `valid`, `active`, `revoked`, `expired`, `invalid`
+**Supported status values:** `valid`, `active`, `grace`, `revoked`, `expired`, `invalid`
 
 ```json
 {
@@ -317,6 +326,8 @@ The module expects the license server to return responses in this format:
     "message": "License is valid",
     "expiry_date": "2026-01-01 00:00:00",
     "client_name": "Acme Corp",
+    "in_grace_period": false,
+    "grace_expires_at": null,
     "package": {
       "id": 1,
       "name": "Pro Suite",
@@ -341,7 +352,17 @@ The module expects the license server to return responses in this format:
 }
 ```
 
-## Offline Mode
+When a license is in grace period, the server returns `"valid": true` with `"status": "grace"`, `"in_grace_period": true` and `"grace_expires_at": "2026-02-15 00:00:00"`.
+
+## Grace Periods
+
+The module supports two independent grace period concepts:
+
+### Server-Side Grace Period
+
+When a license expires on the server, the server may grant a configurable grace period during which the license remains fully operational. The server returns `status: "grace"` with a `grace_expires_at` date. Use `isInGracePeriod()` to detect this state and warn users to renew.
+
+### Offline Grace Period
 
 When the license server is unreachable:
 

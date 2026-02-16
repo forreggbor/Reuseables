@@ -29,7 +29,7 @@ class PdoAdapter implements DatabaseAdapterInterface
      */
     public function getLicenseInfo(): ?array
     {
-        $sql = "SELECT * FROM license_info WHERE status IN ('active', 'expired') ORDER BY id DESC LIMIT 1";
+        $sql = "SELECT * FROM license_info WHERE status IN ('active', 'grace', 'expired') ORDER BY id DESC LIMIT 1";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute();
 

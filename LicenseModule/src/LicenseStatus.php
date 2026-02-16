@@ -12,6 +12,9 @@ final class LicenseStatus
     /** License is valid and active */
     public const ACTIVE = 'active';
 
+    /** License has expired but is within the server-side grace period */
+    public const GRACE = 'grace';
+
     /** License has expired */
     public const EXPIRED = 'expired';
 
@@ -24,9 +27,16 @@ final class LicenseStatus
     /** All valid statuses */
     public const ALL_STATUSES = [
         self::ACTIVE,
+        self::GRACE,
         self::EXPIRED,
         self::INVALID,
         self::SUSPENDED,
+    ];
+
+    /** Statuses that allow full operation (active or grace period) */
+    public const ACTIVE_STATUSES = [
+        self::ACTIVE,
+        self::GRACE,
     ];
 
     /** Statuses that allow read-only access */
@@ -51,6 +61,7 @@ final class LicenseStatus
     {
         return match (strtolower($serverStatus)) {
             'active', 'valid' => self::ACTIVE,
+            'grace' => self::GRACE,
             'inactive' => self::EXPIRED,
             'revoked' => self::SUSPENDED,
             'expired' => self::EXPIRED,
@@ -59,14 +70,25 @@ final class LicenseStatus
     }
 
     /**
-     * Check if status allows normal operation
+     * Check if status allows normal operation (active or grace period)
      *
      * @param string $status License status
      * @return bool
      */
     public static function isActive(string $status): bool
     {
-        return $status === self::ACTIVE;
+        return in_array($status, self::ACTIVE_STATUSES, true);
+    }
+
+    /**
+     * Check if status is in server-side grace period
+     *
+     * @param string $status License status
+     * @return bool
+     */
+    public static function isGrace(string $status): bool
+    {
+        return $status === self::GRACE;
     }
 
     /**

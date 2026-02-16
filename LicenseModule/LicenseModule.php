@@ -188,6 +188,19 @@ class LicenseModule
     }
 
     /**
+     * Check if license is in server-side grace period
+     *
+     * The license has expired on the server but is within the configured grace window.
+     * The system remains fully operational during this period.
+     *
+     * @return bool
+     */
+    public function isInGracePeriod(): bool
+    {
+        return LicenseStatus::isGrace($this->getStatus());
+    }
+
+    /**
      * Check if license is expired (read-only mode)
      *
      * @return bool
@@ -383,6 +396,41 @@ class LicenseModule
         return (int) ceil($daysRemaining);
     }
 
+    /**
+     * Get the grace period expiry date
+     *
+     * @return string|null Grace expiry datetime string or null if not in grace period
+     */
+    public function getGraceExpiresAt(): ?string
+    {
+        $licenseInfo = $this->getLicenseInfo();
+
+        if ($licenseInfo === null || empty($licenseInfo['grace_expires_at'])) {
+            return null;
+        }
+
+        return $licenseInfo['grace_expires_at'];
+    }
+
+    /**
+     * Get days until grace period expiration
+     *
+     * @return int|null Days remaining in grace period or null if not in grace period
+     */
+    public function getDaysUntilGraceExpiration(): ?int
+    {
+        $graceExpiresAt = $this->getGraceExpiresAt();
+
+        if ($graceExpiresAt === null) {
+            return null;
+        }
+
+        $graceExpiryTime = strtotime($graceExpiresAt);
+        $daysRemaining = ($graceExpiryTime - time()) / 86400;
+
+        return (int) ceil($daysRemaining);
+    }
+
     // =========================================================================
     // Internal Helpers
     // =========================================================================
@@ -442,6 +490,7 @@ class LicenseModule
     private function getStatusMessage(string $status): string
     {
         return match ($status) {
+            LicenseStatus::GRACE => function_exists('_') ? _('LICENSE_GRACE_MESSAGE') : 'License has expired but is in a grace period. Please renew to avoid service interruption.',
             LicenseStatus::EXPIRED => function_exists('_') ? _('LICENSE_EXPIRED_MESSAGE') : 'License has expired. System is in read-only mode.',
             LicenseStatus::SUSPENDED => function_exists('_') ? _('LICENSE_SUSPENDED_MESSAGE') : 'License has been suspended. Please contact support.',
             LicenseStatus::INVALID => function_exists('_') ? _('LICENSE_INVALID_MESSAGE') : 'Invalid license. Please check your license key.',

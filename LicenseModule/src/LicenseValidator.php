@@ -54,7 +54,7 @@ class LicenseValidator
             $response = $this->sendValidationRequest($licenseKey);
 
             if ($response['valid']) {
-                $this->updateLicenseInfo([
+                $updateData = [
                     'status' => $response['status'],
                     'validated_at' => date('Y-m-d H:i:s'),
                     'last_check_at' => date('Y-m-d H:i:s'),
@@ -62,7 +62,10 @@ class LicenseValidator
                     'license_type' => $response['license_type'] ?? 'standard',
                     'licensed_domain' => $domain,
                     'features' => json_encode($response['features'] ?? ['all'], JSON_UNESCAPED_UNICODE),
-                ]);
+                    'grace_expires_at' => $response['grace_expires_at'] ?? null,
+                ];
+
+                $this->updateLicenseInfo($updateData);
 
                 $licenseInfo = $this->database->getLicenseInfo();
                 if ($licenseInfo !== null) {
@@ -221,7 +224,7 @@ class LicenseValidator
             $features = ['all'];
         }
 
-        return [
+        $parsed = [
             'valid' => $isValid,
             'status' => $mappedStatus,
             'server_status' => $serverStatus,
@@ -232,6 +235,14 @@ class LicenseValidator
             'package' => $package,
             'features' => $features,
         ];
+
+        // Extract server-side grace period information
+        if (!empty($result['data']['in_grace_period'])) {
+            $parsed['in_grace_period'] = true;
+            $parsed['grace_expires_at'] = $result['data']['grace_expires_at'] ?? null;
+        }
+
+        return $parsed;
     }
 
     /**
@@ -309,12 +320,23 @@ class LicenseValidator
             return LicenseStatus::INVALID;
         }
 
+        $status = $licenseInfo['status'] ?? LicenseStatus::INVALID;
+
+        // If in grace period, check if grace has expired locally
+        if ($status === LicenseStatus::GRACE) {
+            if (!empty($licenseInfo['grace_expires_at']) && strtotime($licenseInfo['grace_expires_at']) < time()) {
+                return LicenseStatus::EXPIRED;
+            }
+
+            return LicenseStatus::GRACE;
+        }
+
         // Check if license is expired by date
         if (!empty($licenseInfo['expires_at']) && strtotime($licenseInfo['expires_at']) < time()) {
             return LicenseStatus::EXPIRED;
         }
 
-        return $licenseInfo['status'] ?? LicenseStatus::INVALID;
+        return $status;
     }
 
     /**
