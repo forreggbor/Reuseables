@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.05.00] - 2026-02-25
+
+| Type    | Count |
+|---------|-------|
+| Added   | 2     |
+| Changed | 0     |
+| Fixed   | 0     |
+| Removed | 0     |
+
+### Added
+- `-n, --hostname <name>` switch to set local mDNS hostname via `hostnamectl` and restart `avahi-daemon`
+- RFC 1123 hostname format validation (alphanumeric and hyphens, no leading/trailing hyphens, max 63 chars)
+
 ## [v1.04.00] - 2026-01-27
 
 ### Added

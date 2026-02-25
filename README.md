@@ -11,7 +11,8 @@
 | Component                           | Version  | Description                                                                          |
 |-------------------------------------|----------|--------------------------------------------------------------------------------------|
 | [ActivityLogs](ActivityLogs/)       | v1.00.00 | Framework-agnostic PHP activity logging with flexible schema and integrity checks    |
-| [CodeWarden](CodeWarden/)           | v1.04.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)    |
+| [CodeWarden](CodeWarden/)           | v1.05.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)    |
+| [DotEnv](DotEnv/)                   | v1.00.00 | Lightweight framework-agnostic PHP .env parser, zero dependencies, phpdotenv-compatible API |
 | [ErrorHandling](ErrorHandling/)     | v1.00.01 | Framework-agnostic PHP error and exception logging with severity levels              |
 | [GettextFallback](GettextFallback/) | v1.00.00 | Gettext translation with MO parser fallback for servers without installed locales    |
 | [MFA](MFA/)                         | v1.00.00 | RFC 6238 TOTP multi-factor authentication with built-in QR code generator            |

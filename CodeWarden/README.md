@@ -43,11 +43,12 @@ A bash utility for project maintenance tasks, focusing on PO/MO localization fil
 
 ### System Operations
 
-| Option                     | Description                    |
-|----------------------------|--------------------------------|
-| `-o, --owner <user:group>` | Set file ownership             |
+| Option                     | Description                                           |
+|----------------------------|-------------------------------------------------------|
+| `-o, --owner <user:group>` | Set file ownership                                    |
 | `-m, --permissions`        | Fix permissions (dirs: 775, files: 664, scripts: 775) |
-| `-h, --help`               | Display help message           |
+| `-n, --hostname <name>`    | Set local mDNS hostname via avahi                     |
+| `-h, --help`               | Display help message                                  |
 
 ## Examples
 
@@ -84,6 +85,11 @@ Fix ownership and permissions:
 Full analysis with cleanup and report:
 ```bash
 ./CodeWarden.sh -d /var/www/myproject -u -c -f -y
+```
+
+Set local mDNS hostname:
+```bash
+./CodeWarden.sh -n my-server
 ```
 
 ## PO Intelligence Analysis

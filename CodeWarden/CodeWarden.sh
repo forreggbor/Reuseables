@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="v1.04.00"
+VERSION="v1.05.00"
 
 # Record start time for performance tracking
 START_TIME=$(date +%s)
@@ -12,8 +12,10 @@ DO_PERMISSION=false
 DO_UNUSED=false
 DO_FILE=false
 DO_CLEANUP=false
+DO_HOSTNAME=false
 DRY_RUN=false
 AUTO_CONFIRM=false
+HOSTNAME_VALUE=""
 
 # Helper function to escape regex metacharacters for sed
 escape_regex() {
@@ -58,6 +60,7 @@ usage() {
     echo "System Operations:"
     echo "  -o, --owner <u:g>        Set file ownership (user:group)"
     echo "  -m, --permissions        Fix file permissions (664/775)"
+    echo "  -n, --hostname <name>    Set local mDNS hostname via avahi"
     echo "  -h, --help               Display this help message"
     exit 1
 }
@@ -87,6 +90,13 @@ while [[ $# -gt 0 ]]; do
             fi
             DO_OWNER=true; OWNER_CONFIG="$2"; shift 2 ;;
         -m|--permissions)   DO_PERMISSION=true; shift ;;
+        -n|--hostname)
+            require_arg "$1" "$2"
+            if [[ ! "$2" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
+                echo "Error: Invalid hostname '$2'. Use RFC 1123 format: alphanumeric and hyphens, no leading/trailing hyphens, max 63 chars."
+                exit 1
+            fi
+            DO_HOSTNAME=true; HOSTNAME_VALUE="$2"; shift 2 ;;
         -y|--yes)           AUTO_CONFIRM=true; shift ;;
         -c|--cleanup)       DO_CLEANUP=true; shift ;;
         -f|--file)          DO_FILE=true; shift ;;
@@ -377,6 +387,26 @@ if [ "$DO_PERMISSION" = true ]; then
         fi
     else
         echo "[DRY-RUN] Would set directories to 775, files to 664, .sh files to 775"
+    fi
+fi
+
+# 5. Hostname
+if [ "$DO_HOSTNAME" = true ]; then
+    echo "--- SECTION: HOSTNAME ---"
+    if [ "$AUTO_CONFIRM" = false ] && [ "$DRY_RUN" = false ]; then
+        echo "Warning: About to change hostname to '$HOSTNAME_VALUE' and restart avahi-daemon. Continue? (y/N)"
+        read -r confirm
+        [[ ! "$confirm" =~ ^[Yy]$ ]] && echo "Hostname change cancelled." && exit 0
+    fi
+    if [ "$DRY_RUN" = true ]; then
+        echo "[DRY-RUN] Would run: sudo hostnamectl set-hostname \"$HOSTNAME_VALUE\""
+        echo "[DRY-RUN] Would run: sudo systemctl restart avahi-daemon"
+    else
+        if sudo hostnamectl set-hostname "$HOSTNAME_VALUE" && sudo systemctl restart avahi-daemon; then
+            echo "Status: [SUCCESS] Hostname set to '$HOSTNAME_VALUE' and avahi-daemon restarted."
+        else
+            echo "Status: [FAILED] Could not set hostname or restart avahi-daemon."
+        fi
     fi
 fi
 
