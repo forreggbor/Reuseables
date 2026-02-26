@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.05.01] - 2026-02-26
+
+| Type    | Count |
+|---------|-------|
+| Added   | 0     |
+| Changed | 0     |
+| Fixed   | 1     |
+| Removed | 0     |
+
+### Fixed
+- Hostname validation now accepts dot-separated FQDN labels (e.g. `flowershop.local`) in addition to single-label hostnames
+
 ## [v1.05.00] - 2026-02-25
 
 | Type    | Count |

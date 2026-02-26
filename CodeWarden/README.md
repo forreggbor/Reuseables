@@ -90,6 +90,7 @@ Full analysis with cleanup and report:
 Set local mDNS hostname:
 ```bash
 ./CodeWarden.sh -n my-server
+./CodeWarden.sh -n flowershop.local
 ```
 
 ## PO Intelligence Analysis

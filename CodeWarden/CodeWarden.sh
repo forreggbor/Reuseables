@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION="v1.05.00"
+VERSION="v1.05.01"
 
 # Record start time for performance tracking
 START_TIME=$(date +%s)
@@ -92,8 +92,8 @@ while [[ $# -gt 0 ]]; do
         -m|--permissions)   DO_PERMISSION=true; shift ;;
         -n|--hostname)
             require_arg "$1" "$2"
-            if [[ ! "$2" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]]; then
-                echo "Error: Invalid hostname '$2'. Use RFC 1123 format: alphanumeric and hyphens, no leading/trailing hyphens, max 63 chars."
+            if [[ ! "$2" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$ ]]; then
+                echo "Error: Invalid hostname '$2'. Use RFC 1123 format: alphanumeric and hyphens, no leading/trailing hyphens, max 63 chars per label."
                 exit 1
             fi
             DO_HOSTNAME=true; HOSTNAME_VALUE="$2"; shift 2 ;;
