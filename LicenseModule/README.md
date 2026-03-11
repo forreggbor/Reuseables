@@ -292,6 +292,22 @@ $license = new LicenseModule([
 ]);
 ```
 
+### CLI / Cron Usage (MemorySessionAdapter)
+
+In CLI scripts and cron jobs `session_start()` is unavailable. Use the bundled `MemorySessionAdapter` instead of the default `NativeSessionAdapter`:
+
+```php
+use LicenseModule\LicenseModule;
+use LicenseModule\Adapters\Session\MemorySessionAdapter;
+
+$license = new LicenseModule([
+    'get_pdo'         => fn() => $pdo,
+    'session_adapter' => new MemorySessionAdapter(),
+]);
+```
+
+The adapter stores values in a plain PHP array for the lifetime of the current process. Values are not persisted between runs — each CLI invocation starts with an empty state.
+
 ### Custom HTTP Client
 
 ```php

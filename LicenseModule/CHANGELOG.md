@@ -5,6 +5,16 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-11
+
+| Category | Description                                                      |
+|----------|------------------------------------------------------------------|
+| Added    | In-memory session adapter for CLI and cron contexts              |
+
+### Added
+
+- `MemorySessionAdapter` — a `SessionAdapterInterface` implementation that stores session values in a plain PHP array, with no dependency on `session_start()` or `$_SESSION`; intended for CLI scripts, cron jobs, and test environments
+
 ## [1.3.0] - 2026-02-16
 
 | Category | Details                                                        |
