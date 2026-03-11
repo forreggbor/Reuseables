@@ -93,11 +93,70 @@ ActivityLogger::addSensitiveFields(['custom_secret', 'pin_code']);
 
 ### Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `encryption_key` | string | `'activity_log_default_key'` | Key for checksum generation |
-| `table_name` | string | `'activity_logs'` | Database table name |
-| `sensitive_fields` | array | (see above) | Fields to mask with `***MASKED***` |
+| Option            | Type   | Default                      | Description                                            |
+|-------------------|--------|------------------------------|--------------------------------------------------------|
+| `encryption_key`  | string | `'activity_log_default_key'` | Key for checksum generation                            |
+| `table_name`      | string | `'activity_logs'`            | Database table name                                    |
+| `trusted_proxies` | array  | `[]`                         | IPs/CIDRs of trusted reverse proxies (empty = secure default) |
+| `sensitive_fields`| array  | (see above)                  | Fields to mask with `***MASKED***`                     |
+
+### Trusted Proxy Configuration
+
+By default, `trusted_proxies` is empty and the logger records `REMOTE_ADDR` directly, ignoring all
+forwarded headers. This is the secure default — it prevents clients from spoofing their IP by sending
+a fake `X-Forwarded-For` header.
+
+Only configure `trusted_proxies` when your application sits behind a real reverse proxy or CDN that
+you control.
+
+```php
+// No proxy (default) — REMOTE_ADDR only, no headers trusted
+ActivityLogger::init($pdo, [
+    'encryption_key' => $_ENV['APP_KEY'],
+]);
+
+// Single nginx reverse proxy on the same host
+ActivityLogger::init($pdo, [
+    'encryption_key' => $_ENV['APP_KEY'],
+    'trusted_proxies' => ['127.0.0.1'],
+]);
+
+// Nginx proxy in a private subnet
+ActivityLogger::init($pdo, [
+    'encryption_key' => $_ENV['APP_KEY'],
+    'trusted_proxies' => ['10.0.0.0/8'],
+]);
+
+// Cloudflare — add current ranges from https://www.cloudflare.com/ips/
+ActivityLogger::init($pdo, [
+    'encryption_key' => $_ENV['APP_KEY'],
+    'trusted_proxies' => [
+        '103.21.244.0/22',
+        '103.22.200.0/22',
+        '103.31.4.0/22',
+        '104.16.0.0/13',
+        '104.24.0.0/14',
+        '108.162.192.0/18',
+        '131.0.72.0/22',
+        '141.101.64.0/18',
+        '162.158.0.0/15',
+        '172.64.0.0/13',
+        '173.245.48.0/20',
+        '188.114.96.0/20',
+        '190.93.240.0/20',
+        '197.234.240.0/22',
+        '198.41.128.0/17',
+        // IPv6
+        '2400:cb00::/32',
+        '2606:4700::/32',
+        '2803:f800::/32',
+        '2405:b500::/32',
+        '2405:8100::/32',
+        '2a06:98c0::/29',
+        '2c0f:f248::/32',
+    ],
+]);
+```
 
 ## API Reference
 
@@ -303,6 +362,49 @@ $auditLogger = new ActivityLogger($pdo, [
 $appLogger->write(1, 'view_dashboard');
 $auditLogger->write(1, 'access_sensitive_data', 'customer', 456);
 ```
+
+## Upgrading from v1.0.0
+
+> **Breaking change — action required if you use a reverse proxy or Cloudflare.**
+
+### What changed
+
+In v1.0.0, `getClientIp()` blindly trusted proxy headers (`X-Forwarded-For`, `CF-Connecting-IP`, etc.)
+from **any** requester. A malicious client could send a fake `X-Forwarded-For` header and have an
+arbitrary IP recorded in your audit log. This was a security vulnerability.
+
+In v1.1.0, proxy headers are **ignored by default**. The logger records `$_SERVER['REMOTE_ADDR']`
+directly unless the remote address matches an entry in the new `trusted_proxies` config option.
+
+### What you need to do
+
+**If you connect directly to the internet (no reverse proxy):** no action needed — the new default is
+correct for you.
+
+**If your app sits behind nginx, Apache, HAProxy, or a similar reverse proxy:**
+
+```php
+ActivityLogger::init($pdo, [
+    'encryption_key' => $_ENV['APP_KEY'],
+    'trusted_proxies' => ['127.0.0.1'],  // or your proxy's IP/subnet
+]);
+```
+
+**If your app is behind Cloudflare:** add the current Cloudflare IP ranges from
+https://www.cloudflare.com/ips/ to `trusted_proxies`. See the Trusted Proxy Configuration section
+above for a ready-to-use list.
+
+**If you use instance mode:**
+
+```php
+$logger = new ActivityLogger($pdo, [
+    'encryption_key' => $_ENV['APP_KEY'],
+    'trusted_proxies' => ['10.0.0.1'],
+]);
+```
+
+Without this change, the IP logged for every request will be your proxy's IP instead of the real
+client IP.
 
 ## Log Entry Format
 

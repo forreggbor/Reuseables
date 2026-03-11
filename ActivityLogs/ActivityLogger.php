@@ -13,7 +13,7 @@ use PDO;
  * integrity verification, and comprehensive query methods.
  *
  * @package ActivityLogs
- * @version 1.0.0
+ * @version 1.1.0
  * @license MIT
  */
 class ActivityLogger
@@ -29,6 +29,7 @@ class ActivityLogger
     private static array $config = [
         'encryption_key' => 'activity_log_default_key',
         'table_name' => 'activity_logs',
+        'trusted_proxies' => [],
         'sensitive_fields' => [
             'password',
             'password_hash',
@@ -216,7 +217,7 @@ class ActivityLogger
         $source = $source ?? self::detectSource();
 
         // Get IP and user agent
-        $ip = $ipAddress ?? self::getClientIp();
+        $ip = $ipAddress ?? self::getClientIp($config);
         $ua = $userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? null);
 
         // Convert entity_id to string
@@ -295,33 +296,141 @@ class ActivityLogger
     }
 
     /**
-     * Get client IP address with proxy support
+     * Get client IP address, only trusting proxy headers when REMOTE_ADDR matches a configured trusted proxy.
+     *
+     * Secure by default: if no trusted_proxies are configured, REMOTE_ADDR is returned directly
+     * regardless of any forwarded headers, preventing IP spoofing in audit logs.
+     *
+     * @param array $config Logger configuration (must contain 'trusted_proxies' key)
+     * @return string|null Client IP address or null if unavailable
      */
-    private static function getClientIp(): ?string
+    private static function getClientIp(array $config): ?string
     {
-        $headers = [
-            'HTTP_CF_CONNECTING_IP',     // Cloudflare
-            'HTTP_X_FORWARDED_FOR',      // Standard proxy
-            'HTTP_X_REAL_IP',            // Nginx proxy
-            'HTTP_CLIENT_IP',            // Client IP
-            'REMOTE_ADDR',               // Direct connection
-        ];
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+        if ($remoteAddr === null) {
+            return null;
+        }
 
-        foreach ($headers as $header) {
-            if (!empty($_SERVER[$header])) {
-                $ip = $_SERVER[$header];
-                // Handle comma-separated IPs (take the first one)
-                if (strpos($ip, ',') !== false) {
-                    $ip = trim(explode(',', $ip)[0]);
-                }
-                // Validate IP
-                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+        $trustedProxies = $config['trusted_proxies'] ?? [];
+        if (empty($trustedProxies)) {
+            return $remoteAddr;
+        }
+
+        if (!self::isIpTrustedProxy($remoteAddr, $trustedProxies)) {
+            return $remoteAddr;
+        }
+
+        // REMOTE_ADDR is a trusted proxy — inspect forwarded headers
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $ip = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ips = array_reverse(array_map('trim', explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])));
+            foreach ($ips as $ip) {
+                if (filter_var($ip, FILTER_VALIDATE_IP) && !self::isIpTrustedProxy($ip, $trustedProxies)) {
                     return $ip;
                 }
             }
         }
 
-        return null;
+        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+            $ip = trim($_SERVER['HTTP_X_REAL_IP']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+            $ip = trim($_SERVER['HTTP_CLIENT_IP']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+
+        return $remoteAddr;
+    }
+
+    /**
+     * Check whether a given IP address falls within any of the trusted proxy ranges.
+     *
+     * @param string   $ip            IP address to check
+     * @param string[] $trustedProxies Array of IPs or CIDR ranges
+     * @return bool True if the IP matches a trusted proxy entry
+     */
+    private static function isIpTrustedProxy(string $ip, array $trustedProxies): bool
+    {
+        foreach ($trustedProxies as $cidr) {
+            if (self::isIpInCidrRange($ip, $cidr)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check whether an IP address falls within a CIDR range.
+     *
+     * Supports both IPv4 and IPv6. When no prefix length is given, performs an exact match.
+     * Handles IPv4-mapped IPv6 addresses (::ffff:x.x.x.x) transparently.
+     *
+     * @param string $ip   IP address to test
+     * @param string $cidr CIDR range (e.g. "192.168.1.0/24") or exact IP
+     * @return bool True if the IP is within the range
+     */
+    private static function isIpInCidrRange(string $ip, string $cidr): bool
+    {
+        if (strpos($cidr, '/') === false) {
+            return $ip === $cidr;
+        }
+
+        [$range, $prefixLen] = explode('/', $cidr, 2);
+        $prefixLen = (int)$prefixLen;
+
+        // Normalize IPv4-mapped IPv6 to plain IPv4
+        $normalizeIp = static function (string $addr): string {
+            if (strncasecmp($addr, '::ffff:', 7) === 0) {
+                return substr($addr, 7);
+            }
+            return $addr;
+        };
+
+        $ip    = $normalizeIp($ip);
+        $range = $normalizeIp($range);
+
+        $ipBin    = inet_pton($ip);
+        $rangeBin = inet_pton($range);
+
+        if ($ipBin === false || $rangeBin === false) {
+            return false;
+        }
+
+        // Both must be the same address family
+        if (strlen($ipBin) !== strlen($rangeBin)) {
+            return false;
+        }
+
+        $addrBits = strlen($ipBin) * 8;
+        if ($prefixLen < 0 || $prefixLen > $addrBits) {
+            return false;
+        }
+
+        $fullBytes  = intdiv($prefixLen, 8);
+        $remBits    = $prefixLen % 8;
+
+        if (substr($ipBin, 0, $fullBytes) !== substr($rangeBin, 0, $fullBytes)) {
+            return false;
+        }
+
+        if ($remBits === 0) {
+            return true;
+        }
+
+        $mask = 0xFF & (0xFF << (8 - $remBits));
+        return (ord($ipBin[$fullBytes]) & $mask) === (ord($rangeBin[$fullBytes]) & $mask);
     }
 
     /**
