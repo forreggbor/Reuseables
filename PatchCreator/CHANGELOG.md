@@ -5,6 +5,16 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.00.01] - 2026-03-11
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Terminal color and bold formatting not rendering correctly |
+
+### Fixed
+
+- Terminal color codes were stored as literal strings instead of escape characters, causing ANSI sequences to appear as raw text in the output
+
 ## [1.00.00] - 2026-02-16
 
 ### Added
