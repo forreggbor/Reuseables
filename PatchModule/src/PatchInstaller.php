@@ -129,14 +129,13 @@ class PatchInstaller
         // Skip backup if no backup adapter is available
         $canBackup = $createBackup && $this->backupAdapter !== null;
 
-        // Determine progress steps
-        $steps = ['preflight_checks'];
+        // Determine progress steps (backup is after extraction so we know if migration.sql exists)
+        $steps = ['preflight_checks', 'download_patch', 'extract_patch'];
         if ($canBackup) {
             $steps[] = 'create_backup';
         }
         $steps = array_merge($steps, [
-            'download_patch', 'extract_patch', 'execute_migration',
-            'copy_files', 'update_version', 'verify_installation', 'cleanup',
+            'execute_migration', 'copy_files', 'update_version', 'verify_installation', 'cleanup',
         ]);
 
         $this->progressTracker->initProgress($steps);
@@ -151,35 +150,12 @@ class PatchInstaller
 
             $this->runPreflightChecks($version, $previousVersion);
 
-            // Step 2: Create backup (optional)
-            if ($canBackup) {
-                $this->progressTracker->stepProgress('create_backup');
-                $this->log("Patch install: creating pre-patch backup", 'INFO');
+            // Record previous version immediately after preflight (needed regardless of backup)
+            $this->database->updateHistoryRecord($patchHistoryId, [
+                'previous_version' => $previousVersion,
+            ]);
 
-                $backupResult = $this->backupAdapter->createBackup(
-                    "Pre-patch backup (v{$previousVersion} → v{$version})",
-                    $userId
-                );
-
-                if (!$backupResult['success']) {
-                    throw new \RuntimeException('Backup creation failed: ' . ($backupResult['error'] ?? 'Unknown error'));
-                }
-
-                $backupId = $backupResult['backup_id'];
-
-                $this->database->updateHistoryRecord($patchHistoryId, [
-                    'backup_id' => $backupId,
-                    'previous_version' => $previousVersion,
-                ]);
-
-                $this->log("Patch install: backup created (ID: {$backupId})", 'INFO');
-            } else {
-                $this->database->updateHistoryRecord($patchHistoryId, [
-                    'previous_version' => $previousVersion,
-                ]);
-            }
-
-            // Step 3: Download patch
+            // Step 2: Download patch
             $this->progressTracker->stepProgress('download_patch');
             $this->log("Patch install: downloading patch v{$version}", 'INFO');
 
@@ -196,7 +172,7 @@ class PatchInstaller
 
             $downloadedFile = $downloadResult['file_path'];
 
-            // Step 4: Extract patch
+            // Step 3: Extract patch
             $this->progressTracker->stepProgress('extract_patch');
             $this->log("Patch install: extracting patch", 'INFO');
 
@@ -213,10 +189,39 @@ class PatchInstaller
                 'manifest_json' => json_encode($manifest),
             ]);
 
+            // Step 4: Create backup (conditional — only if patch has a SQL migration)
+            $hasMigration = file_exists($extractDir . '/migration.sql');
+            if ($canBackup) {
+                if ($hasMigration) {
+                    $this->progressTracker->stepProgress('create_backup');
+                    $this->log("Patch install: creating pre-patch backup", 'INFO');
+
+                    $backupResult = $this->backupAdapter->createBackup(
+                        "Pre-patch backup (v{$previousVersion} → v{$version})",
+                        $userId
+                    );
+
+                    if (!$backupResult['success']) {
+                        throw new \RuntimeException('Backup creation failed: ' . ($backupResult['error'] ?? 'Unknown error'));
+                    }
+
+                    $backupId = $backupResult['backup_id'];
+
+                    $this->database->updateHistoryRecord($patchHistoryId, [
+                        'backup_id' => $backupId,
+                    ]);
+
+                    $this->log("Patch install: backup created (ID: {$backupId})", 'INFO');
+                } else {
+                    $this->progressTracker->stepProgress('create_backup');
+                    $this->log("Patch install: no migration.sql found, skipping backup", 'INFO');
+                }
+            }
+
             // Step 5: Execute SQL migration
             $this->progressTracker->stepProgress('execute_migration');
             $migrationFile = $extractDir . '/migration.sql';
-            if (file_exists($migrationFile)) {
+            if ($hasMigration) {
                 $this->log("Patch install: executing SQL migration", 'INFO');
 
                 $migrationResult = $this->migrator->executeMigration($migrationFile);

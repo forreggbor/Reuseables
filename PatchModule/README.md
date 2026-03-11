@@ -108,6 +108,8 @@ Extracts .tar.gz archives. Auto-detected: `ExecTarAdapter` (shell exec) or `Phar
 
 Pre-patch backup creation and rollback. If not provided, backup/restore steps are skipped and only file-snapshot rollback is available.
 
+The module ships with `MysqldumpBackupAdapter` (in `Adapters/Backup/`) as a ready-to-use implementation. It auto-detects `mariadb-dump` or `mysqldump` for dumps and `mariadb` or `mysql` for restores. It requires the database schema extension in `schema/patch_backups.sql`.
+
 ### LoggerInterface (optional)
 
 Application logging (`log()`) and activity audit (`activity()`). If not provided, all logging is silently skipped.
@@ -195,9 +197,9 @@ files/             # Optional: files to copy to project root
 ## Installation Pipeline
 
 1. **Preflight checks** — Disk space, writable root, version not already installed
-2. **Create backup** — Full backup via BackupAdapter (optional, skipped if no adapter)
-3. **Download patch** — From patch server with SHA-256 verification
-4. **Extract patch** — .tgz archive, validate manifest.json
+2. **Download patch** — From patch server with SHA-256 verification
+3. **Extract patch** — .tgz archive, validate manifest.json
+4. **Create backup** — Full DB dump via BackupAdapter, only if `migration.sql` is present (skipped if no adapter or no migration)
 5. **Execute migration** — SQL statements with FK checks disabled
 6. **Copy files** — With per-file OPcache invalidation
 7. **Update version** — Via VersionResolver
