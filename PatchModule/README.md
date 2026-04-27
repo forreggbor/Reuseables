@@ -132,6 +132,14 @@ When the patch server has signing configured, each patch entry in the `/patches/
 3. **Partial data** — The current server release returns `signature` and `public_key` but does not yet include `exp` or `package_id` in patch entries. When `exp` is absent, full cryptographic verification is skipped and a DEBUG message is logged. Key pinning (point 1) remains active and is the primary defence in this configuration.
 4. **No signing data** — Patches without `signature`/`public_key` are accepted silently (DEBUG log). This is normal for servers without signing configured.
 
+### Implementation details
+
+- **Algorithm**: RSA-SHA256 (`openssl_sign` / `openssl_verify` with `OPENSSL_ALGO_SHA256`).
+- **Signature encoding**: base64url (RFC 4648 §5) — `+` → `-`, `/` → `_`, no padding. Decode by reversing the substitution and padding to a 4-byte boundary before `base64_decode`.
+- **Canonical payload**: `json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)` where `$payload = ['patch_id' => int, 'sha256' => string, 'version' => string, 'package_id' => int, 'exp' => int]`.
+- **`package_id` source**: top-level `response.data.package.id` field in the check response. Defaults to `0` when absent (current server does not yet return it).
+- **`exp` source**: per-patch field in the check response. Absent in the current server release; full verification is skipped when it is missing.
+
 ### Pinning the server's public key
 
 ```php
