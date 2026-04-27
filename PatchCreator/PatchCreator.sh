@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.00.01"
+VERSION="v1.00.02"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 

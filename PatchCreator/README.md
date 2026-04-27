@@ -201,6 +201,19 @@ PatchCreator.sh -p "const VERSION = '([^']+)'"
 | 3 | Git error (not a repository, invalid reference) |
 | 4 | User cancelled |
 
+## Server Compatibility
+
+PatchCreator output is validated by the LicenseManager server upload pipeline (v2.8.0+). All checks are satisfied by the archives this script produces:
+
+| Check         | Details                                                                                 | Status |
+|---------------|-----------------------------------------------------------------------------------------|--------|
+| Extension     | `.tgz` — server allows `tgz` and `tar.gz`                                               | ✓      |
+| Magic bytes   | Gzip header `1F 8B` — produced by `tar -czf`                                            | ✓      |
+| MIME type     | `application/gzip` — reported by `finfo` on `.tgz` archives                            | ✓      |
+| Archive parse | PHP-native `PharData` extraction, no shell execution risk                               | ✓      |
+| Release notes | Optional `release_notes.md` auto-detected at archive root or one level deep            | ✓      |
+| Migration     | Optional `migration.sql` at archive root (include via `-m`)                             | ✓      |
+
 ## Compatibility
 
 Designed to work with [PatchModule](../PatchModule/) v1.00.00+. The generated archive format matches the expected structure for `PatchInstaller::install()`.

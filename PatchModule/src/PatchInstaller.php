@@ -55,18 +55,25 @@ class PatchInstaller
     /** @var int Minimum free disk space in bytes */
     private int $minDiskSpace;
 
+    /** @var callable|null Fire-and-forget callback to refresh the server-side license check window */
+    private $licenseVerifyCallback;
+
     /**
-     * @param DatabaseAdapterInterface $database Database adapter
-     * @param PatchChecker $checker Patch checker instance
-     * @param PatchDownloader $downloader Patch downloader instance
-     * @param PatchFileManager $fileManager File manager instance
-     * @param PatchMigrator $migrator SQL migrator instance
-     * @param ProgressTracker $progressTracker Progress tracker instance
-     * @param VersionResolverInterface $versionResolver Version resolver
-     * @param string $rootPath Project root path
-     * @param int $minDiskSpace Minimum free disk space in bytes
-     * @param BackupAdapterInterface|null $backupAdapter Optional backup adapter
-     * @param LoggerInterface|null $logger Optional logger
+     * @param DatabaseAdapterInterface    $database              Database adapter
+     * @param PatchChecker                $checker               Patch checker instance
+     * @param PatchDownloader             $downloader            Patch downloader instance
+     * @param PatchFileManager            $fileManager           File manager instance
+     * @param PatchMigrator               $migrator              SQL migrator instance
+     * @param ProgressTracker             $progressTracker       Progress tracker instance
+     * @param VersionResolverInterface    $versionResolver       Version resolver
+     * @param string                      $rootPath              Project root path
+     * @param int                         $minDiskSpace          Minimum free disk space in bytes
+     * @param BackupAdapterInterface|null $backupAdapter         Optional backup adapter
+     * @param LoggerInterface|null        $logger                Optional logger
+     * @param callable|null               $licenseVerifyCallback Optional callback invoked before download to
+     *                                                           refresh the server-side license check window;
+     *                                                           also used for a single retry when the server
+     *                                                           rejects the download due to a stale check
      */
     public function __construct(
         DatabaseAdapterInterface $database,
@@ -79,7 +86,8 @@ class PatchInstaller
         string $rootPath,
         int $minDiskSpace = 209715200,
         ?BackupAdapterInterface $backupAdapter = null,
-        ?LoggerInterface $logger = null
+        ?LoggerInterface $logger = null,
+        ?callable $licenseVerifyCallback = null
     ) {
         $this->database = $database;
         $this->checker = $checker;
@@ -92,6 +100,7 @@ class PatchInstaller
         $this->minDiskSpace = $minDiskSpace;
         $this->backupAdapter = $backupAdapter;
         $this->logger = $logger;
+        $this->licenseVerifyCallback = $licenseVerifyCallback;
     }
 
     /**
@@ -159,12 +168,36 @@ class PatchInstaller
             $this->progressTracker->stepProgress('download_patch');
             $this->log("Patch install: downloading patch v{$version}", 'INFO');
 
+            // Fire-and-forget license refresh before attempting the download so the server's
+            // recently-verified window is as fresh as possible
+            if ($this->licenseVerifyCallback !== null) {
+                ($this->licenseVerifyCallback)();
+            }
+
             $downloadResult = $this->downloader->download(
                 (int) $patchRecord['patch_server_id'],
                 $patchRecord['sha256_hash'],
                 $patchHistoryId,
                 $licenseKey
             );
+
+            // If the server rejected the download because the license check is stale, attempt a
+            // single retry after invoking the license verify callback
+            if (
+                !$downloadResult['success']
+                && ($downloadResult['error_code'] ?? null) === 'not_recently_verified'
+                && $this->licenseVerifyCallback !== null
+            ) {
+                $this->log("Patch install: license check stale, refreshing and retrying download", 'WARNING');
+                ($this->licenseVerifyCallback)();
+
+                $downloadResult = $this->downloader->download(
+                    (int) $patchRecord['patch_server_id'],
+                    $patchRecord['sha256_hash'],
+                    $patchHistoryId,
+                    $licenseKey
+                );
+            }
 
             if (!$downloadResult['success']) {
                 throw new \RuntimeException('Download failed: ' . $downloadResult['error']);

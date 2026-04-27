@@ -7,6 +7,7 @@ namespace PatchModule;
 use PatchModule\Contracts\DatabaseAdapterInterface;
 use PatchModule\Contracts\HttpClientInterface;
 use PatchModule\Contracts\LoggerInterface;
+use PatchModule\Contracts\SignatureVerifierInterface;
 use PatchModule\Contracts\VersionResolverInterface;
 
 /**
@@ -14,7 +15,8 @@ use PatchModule\Contracts\VersionResolverInterface;
  *
  * Contacts the patch server to check for available updates, caches results
  * in the database settings, manages dismissed versions, and synchronizes
- * patch_history records.
+ * patch_history records. Optionally verifies per-patch metadata signatures
+ * when the server returns them and the required payload fields are present.
  *
  * @package PatchModule
  */
@@ -29,6 +31,9 @@ class PatchChecker
     /** @var VersionResolverInterface */
     private VersionResolverInterface $versionResolver;
 
+    /** @var SignatureVerifierInterface|null */
+    private ?SignatureVerifierInterface $signatureVerifier;
+
     /** @var LoggerInterface|null */
     private ?LoggerInterface $logger;
 
@@ -41,14 +46,19 @@ class PatchChecker
     /** @var int API timeout in seconds */
     private int $apiTimeout;
 
+    /** @var string|null Pinned public key PEM; when set, patches with a mismatched key are rejected */
+    private ?string $expectedPublicKeyPem;
+
     /**
-     * @param DatabaseAdapterInterface $database Database adapter
-     * @param HttpClientInterface $httpClient HTTP client
-     * @param VersionResolverInterface $versionResolver Version resolver
-     * @param string $serverUrl Patch server base URL
-     * @param int $checkCacheHours Cache duration in hours
-     * @param int $apiTimeout API request timeout in seconds
-     * @param LoggerInterface|null $logger Optional logger
+     * @param DatabaseAdapterInterface    $database             Database adapter
+     * @param HttpClientInterface         $httpClient           HTTP client
+     * @param VersionResolverInterface    $versionResolver      Version resolver
+     * @param string                      $serverUrl            Patch server base URL
+     * @param int                         $checkCacheHours      Cache duration in hours
+     * @param int                         $apiTimeout           API request timeout in seconds
+     * @param LoggerInterface|null        $logger               Optional logger
+     * @param SignatureVerifierInterface|null $signatureVerifier Optional signature verifier
+     * @param string|null                 $expectedPublicKeyPem Pinned public key PEM for key pinning
      */
     public function __construct(
         DatabaseAdapterInterface $database,
@@ -57,7 +67,9 @@ class PatchChecker
         string $serverUrl,
         int $checkCacheHours = 6,
         int $apiTimeout = 30,
-        ?LoggerInterface $logger = null
+        ?LoggerInterface $logger = null,
+        ?SignatureVerifierInterface $signatureVerifier = null,
+        ?string $expectedPublicKeyPem = null
     ) {
         $this->database = $database;
         $this->httpClient = $httpClient;
@@ -66,6 +78,8 @@ class PatchChecker
         $this->checkCacheHours = $checkCacheHours;
         $this->apiTimeout = $apiTimeout;
         $this->logger = $logger;
+        $this->signatureVerifier = $signatureVerifier;
+        $this->expectedPublicKeyPem = $expectedPublicKeyPem;
     }
 
     /**
@@ -147,6 +161,11 @@ class PatchChecker
             return strcmp($a['released_at'] ?? '', $b['released_at'] ?? '');
         });
 
+        // package.id is required for signature payload reconstruction.
+        // The current server response only exposes name and slug in the package block;
+        // when the server starts returning package.id this field will be populated automatically.
+        $packageId = (int) ($responseData['data']['package']['id'] ?? 0);
+
         $patchesData = [];
         foreach ($availablePatches as $patch) {
             $patchItem = [
@@ -156,7 +175,19 @@ class PatchChecker
                 'sha256' => $patch['sha256'] ?? null,
                 'patch_id' => (int) ($patch['id'] ?? 0),
                 'released_at' => $patch['released_at'] ?? null,
+                'signature' => $patch['signature'] ?? null,
+                'public_key' => $patch['public_key'] ?? null,
+                'exp' => isset($patch['exp']) ? (int) $patch['exp'] : null,
             ];
+
+            if (!$this->validatePatchSignature($patchItem, $packageId)) {
+                $this->log(
+                    "Patch check: signature validation failed for v{$patchItem['version']}, excluding from cache",
+                    'WARNING'
+                );
+                continue;
+            }
+
             $patchesData[] = $patchItem;
 
             // Create or update patch_history record for each patch
@@ -356,6 +387,133 @@ class PatchChecker
                 $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed));
             }
         }
+    }
+
+    /**
+     * Validate a patch entry's signature and public key against configured expectations
+     *
+     * Applies three levels of checking in order:
+     * 1. If a pinned public key is configured and the patch has a public_key, reject mismatches.
+     * 2. If signature, public_key, and exp are all present, perform full cryptographic verification.
+     * 3. If signature and public_key are present but exp is missing, accept with a debug note
+     *    (server does not yet include exp in patch entries; full verification is not possible).
+     *
+     * Returns true when the patch is acceptable, false when it must be excluded.
+     *
+     * @param array $patchData  Patch entry data including optional signature, public_key, exp
+     * @param int   $packageId  Package ID from the top-level response, needed for payload rebuild
+     * @return bool
+     */
+    private function validatePatchSignature(array $patchData, int $packageId): bool
+    {
+        $signature = $patchData['signature'] ?? null;
+        $publicKey = $patchData['public_key'] ?? null;
+
+        // No signing data present — server does not have signing configured
+        if ($signature === null && $publicKey === null) {
+            $this->log("Patch check: v{$patchData['version']} has no signature (unsigned server)", 'DEBUG');
+            return true;
+        }
+
+        // Public key pinning: reject if the key doesn't match what we trust
+        if ($publicKey !== null && $this->expectedPublicKeyPem !== null) {
+            if (!$this->pemKeysMatch($publicKey, $this->expectedPublicKeyPem)) {
+                $this->log(
+                    "Patch check: v{$patchData['version']} has an unexpected public key (pinning mismatch)",
+                    'WARNING'
+                );
+                return false;
+            }
+        }
+
+        // Full cryptographic verification requires both exp and package_id in the payload.
+        // package_id comes from the top-level package.id field which the current server does
+        // not yet return (resolves to 0). If exp is present but package_id is unknown the
+        // reconstructed payload would differ from what the server signed, causing every patch
+        // to be rejected with a misleading WARNING. Skip full verification in that case.
+        $exp = $patchData['exp'] ?? null;
+        if ($signature !== null && $publicKey !== null && $exp !== null) {
+            if ($packageId === 0) {
+                $this->log(
+                    "Patch check: v{$patchData['version']} has exp but package_id is unavailable; " .
+                    "cryptographic verification skipped",
+                    'DEBUG'
+                );
+                return true;
+            }
+
+            if ($this->signatureVerifier === null) {
+                // No verifier injected; accept but log that verification was skipped
+                $this->log(
+                    "Patch check: v{$patchData['version']} has a signature but no verifier is configured",
+                    'DEBUG'
+                );
+                return true;
+            }
+
+            $payload = [
+                'patch_id'   => $patchData['patch_id'],
+                'sha256'     => $patchData['sha256'],
+                'version'    => $patchData['version'],
+                'package_id' => $packageId,
+                'exp'        => (int) $exp,
+            ];
+
+            if (!$this->signatureVerifier->verify($payload, $publicKey, $signature)) {
+                return false;
+            }
+
+            $this->log("Patch check: v{$patchData['version']} signature verified OK", 'DEBUG');
+            return true;
+        }
+
+        // Signature and key present but exp missing — server does not yet include exp
+        if ($signature !== null && $publicKey !== null) {
+            $this->log(
+                "Patch check: v{$patchData['version']} signature present but exp missing; " .
+                "cryptographic verification skipped (public-key pinning is the active defense)",
+                'DEBUG'
+            );
+            return true;
+        }
+
+        // Unexpected combination (e.g. signature present but no public key)
+        $this->log(
+            "Patch check: v{$patchData['version']} has partial signing data (signature without public_key or vice versa), accepting",
+            'DEBUG'
+        );
+        return true;
+    }
+
+    /**
+     * Compare two PEM public keys for equivalence by normalizing via OpenSSL key details
+     *
+     * Raw string comparison is unreliable because line endings and whitespace can differ
+     * between the server response and the locally configured pinned value. This method
+     * loads both PEMs and compares the underlying key material.
+     *
+     * @param string $receivedPem  Public key PEM from the server response
+     * @param string $expectedPem  Pinned public key PEM from configuration
+     * @return bool True when both PEMs represent the same public key
+     */
+    private function pemKeysMatch(string $receivedPem, string $expectedPem): bool
+    {
+        $receivedKey = openssl_pkey_get_public($receivedPem);
+        $expectedKey = openssl_pkey_get_public($expectedPem);
+
+        if ($receivedKey === false || $expectedKey === false) {
+            return false;
+        }
+
+        $receivedDetails = openssl_pkey_get_details($receivedKey);
+        $expectedDetails = openssl_pkey_get_details($expectedKey);
+
+        if ($receivedDetails === false || $expectedDetails === false) {
+            return false;
+        }
+
+        // Compare the exported public key PEM (canonical form produced by OpenSSL)
+        return ($receivedDetails['key'] ?? '') === ($expectedDetails['key'] ?? '');
     }
 
     /**

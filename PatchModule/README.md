@@ -82,11 +82,14 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `archive_adapter`  | `ArchiveAdapterInterface`   | No       | auto-detect    | Archive extractor                          |
 | `http_client`      | `HttpClientInterface`       | No       | CurlHttpClient | HTTP client                                |
 | `logger`           | `LoggerInterface`           | No       | `null`         | Logger (null = silent)                     |
-| `check_cache_hours`| `int`                       | No       | `6`            | Hours to cache patch check results         |
-| `min_disk_space`   | `int`                       | No       | `209715200`    | Minimum free bytes (200 MB)                |
-| `api_timeout`      | `int`                       | No       | `30`           | API request timeout in seconds             |
-| `download_timeout` | `int`                       | No       | `300`          | Download timeout in seconds                |
-| `default_language` | `string`                    | No       | `'en'`         | Maintenance page language                  |
+| `check_cache_hours`       | `int`                          | No       | `6`            | Hours to cache patch check results              |
+| `min_disk_space`          | `int`                          | No       | `209715200`    | Minimum free bytes (200 MB)                     |
+| `api_timeout`             | `int`                          | No       | `30`           | API request timeout in seconds                  |
+| `download_timeout`        | `int`                          | No       | `300`          | Download timeout in seconds                     |
+| `default_language`        | `string`                       | No       | `'en'`         | Maintenance page language                       |
+| `expected_public_key_pem` | `string`                       | No       | `null`         | Pinned server public key PEM for key pinning    |
+| `signature_verifier`      | `SignatureVerifierInterface`   | No       | OpenSSL impl  | Custom signature verifier implementation        |
+| `license_verify_callback` | `callable`                     | No       | `null`         | Callback to refresh the server-side license check window before download |
 
 *One of `get_pdo`, `pdo`, or `database_adapter` is required.
 
@@ -117,6 +120,51 @@ Application logging (`log()`) and activity audit (`activity()`). If not provided
 ### VersionResolverInterface
 
 Reads and writes the host application's version. Must be implemented by the host project.
+
+## Patch Signature Verification
+
+When the patch server has signing configured, each patch entry in the `/patches/check` response includes a `signature` (base64url-encoded) and a `public_key` (PEM). The module verifies these automatically using the bundled `OpenSslSignatureVerifier`.
+
+### How verification works
+
+1. **Key pinning** — If `expected_public_key_pem` is set in the config, the public key returned for each patch is compared against the pinned value using OpenSSL key details (whitespace-normalised). Patches with a mismatched key are excluded from the cache and logged at WARNING level.
+2. **Full cryptographic verification** — When the server response also includes an `exp` field in the patch entry, the module reconstructs the exact canonical payload signed by the server (`patch_id`, `sha256`, `version`, `package_id`, `exp`) and calls `openssl_verify` with SHA-256. Patches that fail are excluded and logged at WARNING level.
+3. **Partial data** — The current server release returns `signature` and `public_key` but does not yet include `exp` or `package_id` in patch entries. When `exp` is absent, full cryptographic verification is skipped and a DEBUG message is logged. Key pinning (point 1) remains active and is the primary defence in this configuration.
+4. **No signing data** — Patches without `signature`/`public_key` are accepted silently (DEBUG log). This is normal for servers without signing configured.
+
+### Pinning the server's public key
+
+```php
+$module = new PatchModule([
+    // ... required config ...
+    'expected_public_key_pem' => file_get_contents('/path/to/server-public.pem'),
+]);
+```
+
+### Custom verifier
+
+Implement `SignatureVerifierInterface` and pass it as `signature_verifier` in the config to replace the OpenSSL default with your own implementation.
+
+## Download and the Recently-Verified Precondition
+
+Patch servers running v2.8.0 or later require a recent successful license check before serving a download. The check window is configurable on the server (default: 7 days). If the window has expired, the server returns HTTP 403 with error code `license_key_not_recently_verified`.
+
+The module handles this automatically when `license_verify_callback` is configured:
+
+```php
+$module = new PatchModule([
+    // ... required config ...
+    'license_verify_callback' => function () use ($licenseModule) {
+        // Trigger a fresh license check against the same server
+        $licenseModule->check();
+    },
+]);
+```
+
+- The callback is invoked **before** every download attempt to keep the window fresh proactively.
+- If the server still rejects the download (stale window despite the pre-call), the callback is invoked again and the download is retried **once**. If the retry also fails, the error is surfaced normally — no infinite loop.
+
+Without a callback the module behaves as before: a 403 precondition failure causes the installation to fail with an error message.
 
 ## API Reference
 

@@ -370,6 +370,28 @@ The module expects the license server to return responses in this format:
 
 When a license is in grace period, the server returns `"valid": true` with `"status": "grace"`, `"in_grace_period": true` and `"grace_expires_at": "2026-02-15 00:00:00"`.
 
+## Rate Limiting (429 Too Many Requests)
+
+When the license server returns `429 Too Many Requests`, the module returns a `throttled` result instead of treating the situation as a server outage:
+
+```php
+$result = $license->validate($key, $domain);
+
+if (!empty($result['throttled'])) {
+    // Server is reachable but rate-limiting this client.
+    // Do NOT treat this as a license failure — just retry later.
+}
+```
+
+Key behaviour:
+
+- `$result['status']` is `LicenseStatus::THROTTLED` (`'throttled'`)
+- `$result['throttled']` is `true`
+- `last_check_at` is **not** updated, so the next scheduled check will retry immediately
+- The offline grace period is **not** consumed — the server is reachable, only temporarily throttled
+
+This requires a license server running v2.8.0 or later, which replaced the file-based rate limiter with a DB-backed one that correctly returns `429`.
+
 ## Grace Periods
 
 The module supports two independent grace period concepts:

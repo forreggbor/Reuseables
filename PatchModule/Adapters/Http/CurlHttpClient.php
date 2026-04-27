@@ -65,6 +65,7 @@ class CurlHttpClient implements HttpClientInterface
                 'status_code' => 0,
                 'headers' => [],
                 'error' => 'Cannot create destination file: ' . $destPath,
+                'body' => null,
             ];
         }
 
@@ -102,16 +103,20 @@ class CurlHttpClient implements HttpClientInterface
                 'status_code' => $httpCode,
                 'headers' => $responseHeaders,
                 'error' => 'Download failed: ' . $curlError,
+                'body' => null,
             ];
         }
 
         if ($httpCode !== 200) {
+            // Read the error body before deleting the temp file so callers can inspect error codes
+            $errorBody = is_readable($destPath) ? (file_get_contents($destPath) ?: null) : null;
             @unlink($destPath);
             return [
                 'success' => false,
                 'status_code' => $httpCode,
                 'headers' => $responseHeaders,
                 'error' => 'Download failed with HTTP ' . $httpCode,
+                'body' => $errorBody,
             ];
         }
 
@@ -120,6 +125,7 @@ class CurlHttpClient implements HttpClientInterface
             'status_code' => $httpCode,
             'headers' => $responseHeaders,
             'error' => null,
+            'body' => null,
         ];
     }
 }

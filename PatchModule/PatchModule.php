@@ -9,11 +9,13 @@ use PatchModule\Adapters\Archive\PharTarAdapter;
 use PatchModule\Adapters\Database\CallableAdapter;
 use PatchModule\Adapters\Database\PdoAdapter;
 use PatchModule\Adapters\Http\CurlHttpClient;
+use PatchModule\Adapters\Signature\OpenSslSignatureVerifier;
 use PatchModule\Contracts\ArchiveAdapterInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
 use PatchModule\Contracts\DatabaseAdapterInterface;
 use PatchModule\Contracts\HttpClientInterface;
 use PatchModule\Contracts\LoggerInterface;
+use PatchModule\Contracts\SignatureVerifierInterface;
 use PatchModule\Contracts\VersionResolverInterface;
 use PDO;
 
@@ -65,6 +67,9 @@ class PatchModule
     /** @var BackupAdapterInterface|null */
     private ?BackupAdapterInterface $backupAdapter;
 
+    /** @var SignatureVerifierInterface|null */
+    private ?SignatureVerifierInterface $signatureVerifier;
+
     /** @var LoggerInterface|null */
     private ?LoggerInterface $logger;
 
@@ -108,14 +113,20 @@ class PatchModule
      *   - backup_adapter: BackupAdapterInterface — Backup service (null = skip backup)
      *   - archive_adapter: ArchiveAdapterInterface — Archive extractor (null = auto-detect)
      *   - http_client: HttpClientInterface — HTTP client (null = CurlHttpClient)
+     *   - signature_verifier: SignatureVerifierInterface — Patch signature verifier (null = OpenSslSignatureVerifier)
      *   - logger: LoggerInterface — Logger (null = silent)
      *
      *   Optional settings:
-     *   - check_cache_hours: int  — Cache duration in hours (default: 6)
-     *   - min_disk_space: int     — Minimum free bytes (default: 200 MB)
-     *   - api_timeout: int        — API request timeout in seconds (default: 30)
-     *   - download_timeout: int   — Download timeout in seconds (default: 300)
-     *   - default_language: string — Maintenance page language (default: 'en')
+     *   - check_cache_hours: int        — Cache duration in hours (default: 6)
+     *   - min_disk_space: int           — Minimum free bytes (default: 200 MB)
+     *   - api_timeout: int              — API request timeout in seconds (default: 30)
+     *   - download_timeout: int         — Download timeout in seconds (default: 300)
+     *   - default_language: string      — Maintenance page language (default: 'en')
+     *   - expected_public_key_pem: string — Pinned server public key PEM; when set, patches
+     *                                       whose public_key does not match are rejected (default: null)
+     *   - license_verify_callback: callable — Invoked before download to refresh the server-side
+     *                                          license check window; also used for a single retry
+     *                                          when the server rejects a download as stale (default: null)
      *
      * @throws \InvalidArgumentException If required configuration is missing
      */
@@ -480,6 +491,13 @@ class PatchModule
         // Optional adapters
         $this->backupAdapter = $config['backup_adapter'] ?? null;
         $this->logger = $config['logger'] ?? null;
+
+        // Signature verifier: use provided adapter or default to OpenSSL implementation
+        if (isset($config['signature_verifier']) && $config['signature_verifier'] instanceof SignatureVerifierInterface) {
+            $this->signatureVerifier = $config['signature_verifier'];
+        } else {
+            $this->signatureVerifier = new OpenSslSignatureVerifier();
+        }
     }
 
     /**
@@ -499,6 +517,11 @@ class PatchModule
         $minDiskSpace = $config['min_disk_space'] ?? 209715200; // 200 MB
         $defaultLanguage = $config['default_language'] ?? 'en';
 
+        $expectedPublicKeyPem = $config['expected_public_key_pem'] ?? null;
+        $licenseVerifyCallback = isset($config['license_verify_callback']) && is_callable($config['license_verify_callback'])
+            ? $config['license_verify_callback']
+            : null;
+
         $this->progressTracker = new ProgressTracker($tempPath);
         $this->maintenanceMode = new MaintenanceMode($tempPath, $defaultLanguage);
 
@@ -509,7 +532,9 @@ class PatchModule
             $serverUrl,
             $checkCacheHours,
             $apiTimeout,
-            $this->logger
+            $this->logger,
+            $this->signatureVerifier,
+            $expectedPublicKeyPem
         );
 
         $this->downloader = new PatchDownloader(
@@ -544,7 +569,8 @@ class PatchModule
             $rootPath,
             $minDiskSpace,
             $this->backupAdapter,
-            $this->logger
+            $this->logger,
+            $licenseVerifyCallback
         );
     }
 

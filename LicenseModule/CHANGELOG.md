@@ -5,6 +5,17 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-27
+
+| Category | Description                                                                                                         |
+|----------|---------------------------------------------------------------------------------------------------------------------|
+| Added    | Graceful handling of 429 Too Many Requests from license server without consuming offline grace period               |
+
+### Added
+
+- `RateLimitedException` — thrown when the license server returns 429; caught in `validate()` and returned as a `THROTTLED` result without touching `last_check_at` or the offline grace window
+- `LicenseStatus::THROTTLED` constant for the rate-limited state
+
 ## [1.4.1] - 2026-04-27
 
 | Category | Description                                                                         |

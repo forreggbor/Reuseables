@@ -24,6 +24,9 @@ final class LicenseStatus
     /** License has been suspended by the license server */
     public const SUSPENDED = 'suspended';
 
+    /** License server is temporarily rate-limiting this client */
+    public const THROTTLED = 'throttled';
+
     /** All valid statuses */
     public const ALL_STATUSES = [
         self::ACTIVE,
@@ -31,6 +34,7 @@ final class LicenseStatus
         self::EXPIRED,
         self::INVALID,
         self::SUSPENDED,
+        self::THROTTLED,
     ];
 
     /** Statuses that allow full operation (active or grace period) */

@@ -5,6 +5,17 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.00.02] - 2026-04-27
+
+| Category | Description                                                                              |
+|----------|------------------------------------------------------------------------------------------|
+| Changed  | Version bump; documented compatibility with LicenseManager v2.8.x hardened upload validation |
+
+### Changed
+
+- Version bump only; no functional changes
+- Added "Server Compatibility" section to README.md documenting that generated archives satisfy all LicenseManager v2.8.0+ upload validation checks (extension, magic bytes, MIME type, `PharData` parsing, optional release notes and migration)
+
 ## [1.00.01] - 2026-03-11
 
 | Category | Description |

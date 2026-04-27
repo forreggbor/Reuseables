@@ -5,6 +5,26 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-27
+
+| Category | Description                                                                      |
+|----------|----------------------------------------------------------------------------------|
+| Added    | Patch metadata signature verification against server public key (RSA/Ed25519)    |
+| Changed  | Download precondition error handled with automatic license re-verification retry |
+
+### Added
+- `SignatureVerifierInterface` — contract for signature verification implementations
+- `OpenSslSignatureVerifier` — default implementation using `openssl_verify` with SHA-256
+- Patch metadata signature verification in `PatchChecker`: patches signed by the server are verified against the public key returned alongside them; patches that fail verification are excluded from the cache
+- Public key pinning: the optional `expected_public_key_pem` config key pins the trusted server key; patches presenting a different key are rejected regardless of whether the signature itself could be verified
+- Signature, public key, and expiry fields are now stored in the patch cache so re-verification is possible when server adds expiry to responses
+- `license_verify_callback` config option: a callable invoked before each download attempt to keep the server-side recently-verified window fresh
+
+### Changed
+- `PatchDownloader::download()` now returns an `error_code` key (`'not_recently_verified'`) when the server rejects the download because the license has not been checked recently enough (HTTP 403 with `license_key_not_recently_verified` or the legacy `license_key_ip_mismatch` error code)
+- `PatchInstaller::install()` automatically retries the download once after invoking `license_verify_callback` when the server returns a recently-verified precondition failure; if the retry also fails, the error surfaces normally
+- `HttpClientInterface::downloadFile()` now includes a `body` key in failure responses so error codes returned by the server can be inspected by the downloader
+
 ## [1.1.0] - 2026-03-11
 
 | Category | Description                                                                        |

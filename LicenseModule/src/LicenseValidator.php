@@ -6,6 +6,7 @@ namespace LicenseModule;
 
 use LicenseModule\Contracts\DatabaseAdapterInterface;
 use LicenseModule\Contracts\HttpClientInterface;
+use LicenseModule\Exceptions\RateLimitedException;
 
 /**
  * Core license validation logic
@@ -107,6 +108,13 @@ class LicenseValidator
                 'message' => $response['message'] ?? 'License validation failed',
                 'data' => $response,
             ];
+        } catch (RateLimitedException) {
+            return [
+                'success'   => false,
+                'status'    => LicenseStatus::THROTTLED,
+                'message'   => 'License server is temporarily rate-limiting this client; please retry later.',
+                'throttled' => true,
+            ];
         } catch (\Exception $e) {
             $licenseInfo = $this->database->getLicenseInfo();
             if ($licenseInfo !== null) {
@@ -127,6 +135,7 @@ class LicenseValidator
      *
      * @param string $licenseKey License key
      * @return array Parsed and normalized response
+     * @throws RateLimitedException When the server responds with 429 Too Many Requests
      * @throws \Exception On connection or parsing errors
      */
     private function sendValidationRequest(string $licenseKey): array
@@ -135,6 +144,10 @@ class LicenseValidator
             $this->serverUrl,
             ['license_key' => $licenseKey]
         );
+
+        if ($response['status_code'] === 429) {
+            throw new RateLimitedException();
+        }
 
         if (!$response['success']) {
             throw new \Exception('License server connection failed: ' . ($response['error'] ?? 'Unknown error'));
