@@ -13,7 +13,7 @@ namespace LicenseModule;
 class FeatureGate
 {
     /**
-     * Default tier configuration (from FlowerShop)
+     * Default tier configuration (from JupitERP)
      * Maps tier level to module list
      */
     private const DEFAULT_TIERS = [
@@ -29,7 +29,7 @@ class FeatureGate
     ];
 
     /**
-     * Default addon configuration (from FlowerShop)
+     * Default addon configuration (from JupitERP)
      * Maps addon feature_key to module list
      */
     private const DEFAULT_ADDONS = [

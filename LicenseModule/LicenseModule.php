@@ -60,8 +60,8 @@ class LicenseModule
      * @param array $config Configuration array:
      *   - get_pdo: callable():PDO - Required. Returns PDO connection
      *   - server_url: string - License server URL (optional, has default)
-     *   - tiers: array - Custom tier configuration (optional, uses FlowerShop defaults)
-     *   - addons: array - Custom addon configuration (optional, uses FlowerShop defaults)
+     *   - tiers: array - Custom tier configuration (optional, uses JupitERP defaults)
+     *   - addons: array - Custom addon configuration (optional, uses JupitERP defaults)
      *   - session_adapter: SessionAdapterInterface - Custom session adapter (optional)
      *   - http_client: HttpClientInterface - Custom HTTP client (optional)
      *   - log_callback: callable - Logging callback fn(string $message, string $level)

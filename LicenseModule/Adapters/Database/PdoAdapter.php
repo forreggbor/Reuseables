@@ -40,18 +40,38 @@ class PdoAdapter implements DatabaseAdapterInterface
 
     /**
      * {@inheritDoc}
+     *
+     * Checks for any existing row without a status filter so that the first call
+     * (empty table) performs an INSERT, and subsequent calls perform an UPDATE.
+     * getLicenseInfo() filters by status and would return null for invalid/suspended
+     * rows, causing a spurious second INSERT — this query avoids that.
      */
     public function saveLicenseInfo(array $data): bool
     {
-        $licenseInfo = $this->getLicenseInfo();
+        $stmt    = $this->pdo->query('SELECT id FROM license_info ORDER BY id DESC LIMIT 1');
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($licenseInfo === null) {
-            return false;
+        if ($existing === false) {
+            if (empty($data['license_key'])) {
+                return false;
+            }
+
+            $columns      = implode(', ', array_map(fn(string $k): string => "`{$k}`", array_keys($data)));
+            $placeholders = implode(', ', array_map(fn(string $k): string => ":{$k}", array_keys($data)));
+            $sql          = "INSERT INTO license_info ({$columns}) VALUES ({$placeholders})";
+            $stmt         = $this->pdo->prepare($sql);
+            $params       = [];
+
+            foreach ($data as $k => $v) {
+                $params[":{$k}"] = $v;
+            }
+
+            return $stmt->execute($params);
         }
 
-        $id = (int) $licenseInfo['id'];
+        $id         = (int) $existing['id'];
         $setClauses = [];
-        $params = [':id' => $id];
+        $params     = [':id' => $id];
 
         foreach ($data as $key => $value) {
             $setClauses[] = "`{$key}` = :{$key}";
@@ -62,7 +82,7 @@ class PdoAdapter implements DatabaseAdapterInterface
             return true;
         }
 
-        $sql = "UPDATE license_info SET " . implode(', ', $setClauses) . " WHERE id = :id";
+        $sql  = "UPDATE license_info SET " . implode(', ', $setClauses) . " WHERE id = :id";
         $stmt = $this->pdo->prepare($sql);
 
         return $stmt->execute($params);

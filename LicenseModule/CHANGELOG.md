@@ -5,6 +5,17 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-04-27
+
+| Category | Description                                                                         |
+|----------|-------------------------------------------------------------------------------------|
+| Fixed    | First-time license save always failed; license key was missing from save data       |
+
+### Fixed
+
+- `PdoAdapter::saveLicenseInfo()` used the status-filtered `getLicenseInfo()` to check for an existing row — on an empty table this returned `null` and the method returned `false` without ever executing an `INSERT`. The check now queries for any row regardless of status, so the very first save correctly performs an `INSERT`.
+- `LicenseValidator::validate()` did not include `license_key` in the data passed to `saveLicenseInfo()`, which would have caused a database error on the `NOT NULL` column even after the INSERT fix above.
+
 ## [1.4.0] - 2026-03-11
 
 | Category | Description                                                      |

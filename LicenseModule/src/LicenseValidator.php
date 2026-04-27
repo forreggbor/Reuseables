@@ -55,6 +55,7 @@ class LicenseValidator
 
             if ($response['valid']) {
                 $updateData = [
+                    'license_key' => $licenseKey,
                     'status' => $response['status'],
                     'validated_at' => date('Y-m-d H:i:s'),
                     'last_check_at' => date('Y-m-d H:i:s'),
@@ -85,6 +86,7 @@ class LicenseValidator
             }
 
             $this->updateLicenseInfo([
+                'license_key' => $licenseKey,
                 'status' => $response['status'],
                 'last_check_at' => date('Y-m-d H:i:s'),
             ]);
