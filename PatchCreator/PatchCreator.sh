@@ -47,7 +47,7 @@ DEFAULT_EXCLUDES=(
     'phpunit.xml'
 )
 
-# Default version detection pattern (FlowerShop convention)
+# Default version detection pattern (JupitERP convention)
 DEFAULT_VERSION_PATTERN="define\('APP_VERSION',\s*'([^']+)'\)"
 DEFAULT_VERSION_FILE="app/helpers/functions.php"
 
