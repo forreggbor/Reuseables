@@ -246,23 +246,29 @@ files/             # Optional: files to copy to project root
         "app/services/MyService.php",
         "lib/SomeModule/SomeFile.php"
     ],
+    "removed_files": [
+        "app/legacy/OldService.php"
+    ],
     "release_notes": "Bug fixes and improvements"
 }
 ```
+
+`removed_files` is optional and backward compatible — absent or empty means no deletions. When present, each listed file is deleted from the project root after the new files are copied. Files that do not exist are silently skipped (safe to re-apply). Each path is validated with path-traversal checks before any deletion occurs.
 
 ## Installation Pipeline
 
 1. **Preflight checks** — Disk space, writable root, version not already installed
 2. **Download patch** — From patch server with SHA-256 verification
-3. **Extract patch** — .tgz archive, validate manifest.json
+3. **Extract patch** — .tgz archive, validate manifest.json; symlink scan rejects unsafe archives
 4. **Create backup** — Full DB dump via BackupAdapter, only if `migration.sql` is present (skipped if no adapter or no migration)
 5. **Execute migration** — SQL statements with FK checks disabled
-6. **Copy files** — With per-file OPcache invalidation
-7. **Update version** — Via VersionResolver
-8. **Verify installation** — Database connection test
-9. **Cleanup** — Remove temp files, delete backup on success
+6. **Copy files** — With per-file OPcache invalidation; all paths validated against traversal
+7. **Remove obsolete files** — Delete files listed in `manifest.removed_files`; backed-up to snapshot before deletion for rollback
+8. **Update version** — Via VersionResolver
+9. **Verify installation** — Database connection test
+10. **Cleanup** — Remove temp files, delete backup on success
 
-On failure at any step, automatic rollback is attempted (DB from backup + files from snapshot).
+On failure at any step, automatic rollback is attempted (DB from backup + files from snapshot, including restoration of deleted files).
 
 ## Maintenance Mode Integration
 
@@ -281,12 +287,42 @@ if (file_exists($flagFile)) {
 }
 ```
 
+## Error Codes
+
+`PatchInstaller::install()`, `PatchDownloader::download()`, and `PatchChecker::checkForUpdates()` return
+an `error_code` key on failure. The full reference is in `doc/reviewed/ERROR-CODES.md`.
+
+| `error_code`              | Cause                                                        |
+|---------------------------|--------------------------------------------------------------|
+| `not_recently_verified`   | License not checked recently enough — retry after re-verification |
+| `invalid_license`         | License key not valid for this product                       |
+| `license_revoked`         | License has been revoked                                     |
+| `license_expired`         | License has expired (or is in grace period)                  |
+| `license_ip_mismatch`     | Download not allowed from this IP address                    |
+| `package_mismatch`        | Patch not compatible with installed package                  |
+| `rate_limited`            | Too many requests — check `retry_after` for seconds to wait  |
+| `signing_unavailable`     | Server signing service temporarily unavailable               |
+| `server_error`            | Unexpected server-side error                                 |
+| `network_error`           | Could not reach the patch server                             |
+| `invalid_archive`         | Archive contained symlinks (path-traversal guard)            |
+| `invalid_manifest_path`   | Manifest contained a `..`, absolute, or otherwise unsafe path |
+
+When `error_code` is `rate_limited`, the `retry_after` key contains the number of seconds to wait
+before retrying (from the server's `Retry-After` header), or `null` if the header was absent. The
+module does not retry automatically on rate-limit — the caller decides when to reschedule.
+
 ## Translations
 
-The module ships with Hungarian (hu_HU) and English (en_US) translations in `locale/`. Projects can either:
+The module ships with Hungarian (hu_HU) and English (en_US) translations as PHP arrays in `locale/`.
+No compilation step is needed.
 
-1. Use the module's text domain: `bindtextdomain('patch', $modulePath . '/locale')`
-2. Merge translation keys into the project's own PO files
+| File                              | Locale  |
+|-----------------------------------|---------|
+| `locale/en_US/messages.php`       | English |
+| `locale/hu_HU/messages.php`       | Hungarian |
+
+Projects can load translations by including the file and merging the returned array into the project's
+own translation map, or by loading it directly as the module-specific message source.
 
 ## License
 

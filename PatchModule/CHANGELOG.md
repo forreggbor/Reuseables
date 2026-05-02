@@ -5,6 +5,41 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-05-02
+
+| Category | Description                                                                                    |
+|----------|------------------------------------------------------------------------------------------------|
+| Fixed    | Download precondition detection was silently broken — the `not_recently_verified` retry path now works correctly |
+| Added    | Full server error code mapping, 429 rate-limit handling with `Retry-After`, file deletion support, `ServerErrorMapper` utility |
+| Changed  | Translations migrated from gettext `.po` to PHP-array `locale/{lang}/messages.php`            |
+| Security | Path-traversal hardening via `safeJoin()`, symlink rejection in archives and directory scans  |
+
+### Fixed
+- `PatchDownloader` was reading `error.message` from the server error response by casting the `error` object to string, which always produced the literal `"Array"`. The `not_recently_verified` precondition check never matched — the `license_verify_callback` retry path was effectively dead code in all previous versions. This is now corrected by the new `ServerErrorMapper` class that properly reads `error.message`.
+
+### Added
+- `ServerErrorMapper` — shared utility that maps every documented server HTTP response to a stable client `error_code` string and optional `retry_after` integer
+- `PatchDownloader::download()` now returns `error_code` and `retry_after` keys for all failure paths, covering: `not_recently_verified`, `invalid_license`, `license_revoked`, `license_expired`, `license_ip_mismatch`, `package_mismatch`, `rate_limited`, `signing_unavailable`, `server_error`, `network_error`
+- `PatchChecker::checkForUpdates()` now returns `error_code` and `retry_after` for failed server calls (both per-IP router-level 429 and endpoint-level 429 are handled)
+- `PatchInstaller::install()` return array now includes `error_code` and `retry_after`; `error_message` stored in `patch_history` is prefixed with `[error_code]` for easy grepping
+- 429 rate-limit handling with `Retry-After` header parsing (supports both delta-seconds and HTTP-date forms)
+- `PatchFileManager::removeFiles()` — deletes obsolete files listed in `manifest.removed_files`; validates each path via `safeJoin()` before deletion; invalidates OPcache per file; missing files are logged as INFO and counted as success (idempotent)
+- Manifest `removed_files` optional array support: files listed are deleted from the project root after `copyFiles()` succeeds; fully backward compatible (absent field treated as empty)
+- Snapshot (`snapshot_meta.json`) now includes a `files_to_remove` list: existing files scheduled for deletion are backed up before removal, and restored on rollback
+- `TEXT_PATCH_STEP_REMOVE_FILES` install step added to the progress pipeline
+- `doc/reviewed/ERROR-CODES.md` — full reference of all client `error_code` values, the server conditions that produce them, and recommended translation keys
+- `doc/reviewed/PATH-SAFETY.md` — documents `safeJoin()`, symlink rejection, and the `invalid_manifest_path` / `invalid_archive` error codes
+
+### Changed
+- Translations migrated from gettext `.po` files to project-standard PHP arrays at `locale/en_US/messages.php` and `locale/hu_HU/messages.php`. No compilation step needed. Old `locale/{lang}/LC_MESSAGES/patch.po` files removed.
+- `CurlHttpClient::postJson()` now captures and lowercases response headers (matching `downloadFile()` behaviour), so `Retry-After` headers from `/patches/check` are accessible to callers
+
+### Security
+- `PatchFileManager::safeJoin()` private helper validates every file path before any filesystem operation: rejects empty strings, absolute paths (Unix and Windows), backslashes, NUL bytes, and `..`/`.`/empty segments; any traversal attempt aborts the install with `error_code = 'invalid_manifest_path'`
+- Archive extraction is followed by a full symlink scan; any symlink found in the extracted tree causes the install to fail with `error_code = 'invalid_archive'` and the extraction directory is cleaned up
+- `scanDirectory()` skips symlinks in the project root during the post-install verification scan
+- `ExecTarAdapter` now passes `--no-same-owner --no-same-permissions` to `tar` to prevent archives from forcing unexpected file ownership or permissions
+
 ## [1.2.0] - 2026-04-27
 
 | Category | Description                                                                      |

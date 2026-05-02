@@ -86,11 +86,13 @@ class PatchChecker
      * Check for available updates from the patch server
      *
      * Results are cached for the configured duration. Uses the license key
-     * and current application version to query the server.
+     * and current application version to query the server. Maps all documented
+     * server error codes to stable error_code values; rate-limited responses
+     * include a retry_after hint in seconds.
      *
      * @param string $licenseKey License key for authentication
-     * @param bool $forceCheck Skip cache and always contact the server
-     * @return array{available: bool, count: ?int, patches: ?array, version: ?string, current_version: string, error: ?string}
+     * @param bool   $forceCheck Skip cache and always contact the server
+     * @return array{available: bool, count: ?int, patches: ?array, version: ?string, current_version: string, error: ?string, error_code: ?string, retry_after: ?int}
      */
     public function checkForUpdates(string $licenseKey, bool $forceCheck = false): array
     {
@@ -105,41 +107,60 @@ class PatchChecker
                     $cached = $this->getAvailablePatches();
                     if (!empty($cached)) {
                         return [
-                            'available' => true,
-                            'count' => count($cached),
-                            'patches' => $cached,
-                            'version' => $cached[0]['version'],
+                            'available'      => true,
+                            'count'          => count($cached),
+                            'patches'        => $cached,
+                            'version'        => $cached[0]['version'],
                             'current_version' => $currentVersion,
-                            'error' => null,
+                            'error'          => null,
+                            'error_code'     => null,
+                            'retry_after'    => null,
                         ];
                     }
-                    return ['available' => false, 'count' => 0, 'patches' => [], 'version' => null, 'current_version' => $currentVersion, 'error' => null];
+                    return [
+                        'available' => false, 'count' => 0, 'patches' => [], 'version' => null,
+                        'current_version' => $currentVersion, 'error' => null,
+                        'error_code' => null, 'retry_after' => null,
+                    ];
                 }
             }
         }
 
         if (empty($licenseKey)) {
             $this->log('Patch check: no license key provided', 'WARNING');
-            return ['available' => false, 'count' => 0, 'patches' => [], 'version' => null, 'current_version' => $currentVersion, 'error' => 'No license key provided'];
+            return [
+                'available' => false, 'count' => 0, 'patches' => [], 'version' => null,
+                'current_version' => $currentVersion, 'error' => 'No license key provided',
+                'error_code' => null, 'retry_after' => null,
+            ];
         }
 
         // Contact the patch server
         $checkUrl = $this->serverUrl . '/patches/check';
         $response = $this->httpClient->postJson($checkUrl, [
-            'license_key' => $licenseKey,
+            'license_key'     => $licenseKey,
             'current_version' => $currentVersion,
         ], $this->apiTimeout);
 
         if (!$response['success'] || $response['body'] === null) {
-            $error = $response['error'] ?? 'Connection failed';
+            $error  = $response['error'] ?? 'Connection failed';
+            $mapped = ServerErrorMapper::map($response);
             $this->log('Patch check: request failed - ' . $error, 'WARNING');
-            return ['available' => false, 'count' => 0, 'patches' => [], 'version' => null, 'current_version' => $currentVersion, 'error' => $error];
+            return [
+                'available' => false, 'count' => 0, 'patches' => [], 'version' => null,
+                'current_version' => $currentVersion, 'error' => $error,
+                'error_code' => $mapped['error_code'], 'retry_after' => $mapped['retry_after'],
+            ];
         }
 
         $responseData = json_decode($response['body'], true);
         if (!is_array($responseData)) {
             $this->log('Patch check: invalid response from server', 'WARNING');
-            return ['available' => false, 'count' => 0, 'patches' => [], 'version' => null, 'current_version' => $currentVersion, 'error' => 'Invalid server response'];
+            return [
+                'available' => false, 'count' => 0, 'patches' => [], 'version' => null,
+                'current_version' => $currentVersion, 'error' => 'Invalid server response',
+                'error_code' => null, 'retry_after' => null,
+            ];
         }
 
         // Update last check timestamp
@@ -152,7 +173,11 @@ class PatchChecker
             || empty($responseData['data']['available_patches'])
         ) {
             $this->database->setSetting('patch_available_data', null);
-            return ['available' => false, 'count' => 0, 'patches' => [], 'version' => null, 'current_version' => $currentVersion, 'error' => null];
+            return [
+                'available' => false, 'count' => 0, 'patches' => [], 'version' => null,
+                'current_version' => $currentVersion, 'error' => null,
+                'error_code' => null, 'retry_after' => null,
+            ];
         }
 
         // Process all available patches (sort by released_at ascending)
@@ -169,15 +194,15 @@ class PatchChecker
         $patchesData = [];
         foreach ($availablePatches as $patch) {
             $patchItem = [
-                'version' => $patch['version'],
+                'version'       => $patch['version'],
                 'release_notes' => $patch['release_notes'] ?? null,
-                'file_size' => (int) ($patch['file_size'] ?? 0),
-                'sha256' => $patch['sha256'] ?? null,
-                'patch_id' => (int) ($patch['id'] ?? 0),
-                'released_at' => $patch['released_at'] ?? null,
-                'signature' => $patch['signature'] ?? null,
-                'public_key' => $patch['public_key'] ?? null,
-                'exp' => isset($patch['exp']) ? (int) $patch['exp'] : null,
+                'file_size'     => (int) ($patch['file_size'] ?? 0),
+                'sha256'        => $patch['sha256'] ?? null,
+                'patch_id'      => (int) ($patch['id'] ?? 0),
+                'released_at'   => $patch['released_at'] ?? null,
+                'signature'     => $patch['signature'] ?? null,
+                'public_key'    => $patch['public_key'] ?? null,
+                'exp'           => isset($patch['exp']) ? (int) $patch['exp'] : null,
             ];
 
             if (!$this->validatePatchSignature($patchItem, $packageId)) {
@@ -197,9 +222,9 @@ class PatchChecker
         // Cache all patches
         $this->database->setSetting('patch_available_data', json_encode($patchesData));
 
-        $count = count($patchesData);
+        $count        = count($patchesData);
         $firstVersion = $patchesData[0]['version'];
-        $lastVersion = $patchesData[$count - 1]['version'];
+        $lastVersion  = $patchesData[$count - 1]['version'];
         $this->log(
             "Patch check: {$count} update(s) available - v{$firstVersion}" .
             ($count > 1 ? " to v{$lastVersion}" : '') .
@@ -208,12 +233,14 @@ class PatchChecker
         );
 
         return [
-            'available' => true,
-            'count' => $count,
-            'patches' => $patchesData,
-            'version' => $firstVersion,
+            'available'       => true,
+            'count'           => $count,
+            'patches'         => $patchesData,
+            'version'         => $firstVersion,
             'current_version' => $currentVersion,
-            'error' => null,
+            'error'           => null,
+            'error_code'      => null,
+            'retry_after'     => null,
         ];
     }
 

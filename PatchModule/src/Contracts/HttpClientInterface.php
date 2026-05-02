@@ -19,7 +19,8 @@ interface HttpClientInterface
      * @param string $url Target URL
      * @param array $data Data to JSON-encode as POST body
      * @param int $timeout Timeout in seconds
-     * @return array{success: bool, status_code: int, body: ?string, error: ?string}
+     * @return array{success: bool, status_code: int, headers: array, body: ?string, error: ?string}
+     *         headers contains response headers as lowercase-key => value pairs
      */
     public function postJson(string $url, array $data, int $timeout = 30): array;
 

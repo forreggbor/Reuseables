@@ -30,7 +30,7 @@ class ExecTarAdapter implements ArchiveAdapterInterface
         }
 
         $command = sprintf(
-            'tar -xzf %s -C %s 2>&1',
+            'tar --no-same-owner --no-same-permissions -xzf %s -C %s 2>&1',
             escapeshellarg($archivePath),
             escapeshellarg($destDir)
         );

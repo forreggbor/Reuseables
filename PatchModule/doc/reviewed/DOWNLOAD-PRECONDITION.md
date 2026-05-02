@@ -67,3 +67,18 @@ For IP-bound licenses (those with `licenses.ip_address` set on the server), the 
 ## Server Version Requirement
 
 This precondition is enforced by LicenseManager **v2.8.0 or later**. It was fully corrected in the subsequent patch (fixing reverse-proxy IP resolution and extending the window from 5 minutes to 7 days).
+
+## Compatibility
+
+### Historical bug (PatchModule before v1.3.0)
+
+The `extractErrorCode()` method in `PatchDownloader` (removed in v1.3.0) read `$decoded['error']`
+directly and cast it to string. The server returns `error` as a nested object
+`{"message": "<code>", "detail": "..."}`, so the cast always produced the literal string `"Array"`.
+
+As a result, the `=== 'license_key_not_recently_verified'` comparison never matched, the
+`license_verify_callback` was never triggered on a 403 response, and the auto-retry path described
+above was effectively dead code in all versions before v1.3.0.
+
+This was corrected in **v1.3.0** by replacing the broken extractor with `ServerErrorMapper::map()`,
+which correctly reads `$decoded['error']['message']`.

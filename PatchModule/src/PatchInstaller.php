@@ -14,9 +14,11 @@ use PatchModule\Contracts\VersionResolverInterface;
  *
  * Orchestrates the full patch installation pipeline:
  * preflight → backup → download → extract → SQL migration → file copy →
- * version update → verify → cleanup.
+ * file removal → version update → verify → cleanup.
  *
  * On failure: rolls back from backup (if available) and file snapshot.
+ * All server error codes are propagated through the result array so callers
+ * can show targeted UI messages without parsing error strings.
  *
  * @package PatchModule
  */
@@ -89,28 +91,28 @@ class PatchInstaller
         ?LoggerInterface $logger = null,
         ?callable $licenseVerifyCallback = null
     ) {
-        $this->database = $database;
-        $this->checker = $checker;
-        $this->downloader = $downloader;
-        $this->fileManager = $fileManager;
-        $this->migrator = $migrator;
-        $this->progressTracker = $progressTracker;
-        $this->versionResolver = $versionResolver;
-        $this->rootPath = $rootPath;
-        $this->minDiskSpace = $minDiskSpace;
-        $this->backupAdapter = $backupAdapter;
-        $this->logger = $logger;
+        $this->database              = $database;
+        $this->checker               = $checker;
+        $this->downloader            = $downloader;
+        $this->fileManager           = $fileManager;
+        $this->migrator              = $migrator;
+        $this->progressTracker       = $progressTracker;
+        $this->versionResolver       = $versionResolver;
+        $this->rootPath              = $rootPath;
+        $this->minDiskSpace          = $minDiskSpace;
+        $this->backupAdapter         = $backupAdapter;
+        $this->logger                = $logger;
         $this->licenseVerifyCallback = $licenseVerifyCallback;
     }
 
     /**
      * Install a patch end-to-end
      *
-     * @param int $patchHistoryId patch_history record ID
-     * @param string $licenseKey License key for download authentication
-     * @param bool $createBackup Whether to create a backup before installing
-     * @param int|null $userId User performing the installation
-     * @return array{success: bool, error: ?string}
+     * @param int      $patchHistoryId patch_history record ID
+     * @param string   $licenseKey     License key for download authentication
+     * @param bool     $createBackup   Whether to create a backup before installing
+     * @param int|null $userId         User performing the installation
+     * @return array{success: bool, error: ?string, error_code: ?string, retry_after: ?int}
      */
     public function install(
         int $patchHistoryId,
@@ -120,36 +122,33 @@ class PatchInstaller
     ): array {
         set_time_limit(600);
 
-        // Clean up stale progress files
         $this->progressTracker->cleanupStaleProgressFiles();
 
-        // Load patch history record
         $patchRecord = $this->database->getHistoryRecord($patchHistoryId);
         if (!$patchRecord) {
-            return ['success' => false, 'error' => 'Patch record not found'];
+            return ['success' => false, 'error' => 'Patch record not found', 'error_code' => null, 'retry_after' => null];
         }
 
-        $version = $patchRecord['version'];
+        $version         = $patchRecord['version'];
         $previousVersion = $this->versionResolver->getCurrentVersion();
-        $backupId = null;
-        $downloadedFile = null;
-        $extractDir = null;
+        $backupId        = null;
+        $downloadedFile  = null;
+        $extractDir      = null;
+        $installErrorCode   = null;
+        $installRetryAfter  = null;
 
-        // Skip backup if no backup adapter is available
         $canBackup = $createBackup && $this->backupAdapter !== null;
 
-        // Determine progress steps (backup is after extraction so we know if migration.sql exists)
         $steps = ['preflight_checks', 'download_patch', 'extract_patch'];
         if ($canBackup) {
             $steps[] = 'create_backup';
         }
         $steps = array_merge($steps, [
-            'execute_migration', 'copy_files', 'update_version', 'verify_installation', 'cleanup',
+            'execute_migration', 'copy_files', 'remove_files', 'update_version', 'verify_installation', 'cleanup',
         ]);
 
         $this->progressTracker->initProgress($steps);
 
-        // Update status
         $this->database->updateHistoryRecord($patchHistoryId, ['status' => 'installing']);
 
         try {
@@ -159,7 +158,6 @@ class PatchInstaller
 
             $this->runPreflightChecks($version, $previousVersion);
 
-            // Record previous version immediately after preflight (needed regardless of backup)
             $this->database->updateHistoryRecord($patchHistoryId, [
                 'previous_version' => $previousVersion,
             ]);
@@ -168,8 +166,7 @@ class PatchInstaller
             $this->progressTracker->stepProgress('download_patch');
             $this->log("Patch install: downloading patch v{$version}", 'INFO');
 
-            // Fire-and-forget license refresh before attempting the download so the server's
-            // recently-verified window is as fresh as possible
+            // Fire-and-forget license refresh before attempting the download
             if ($this->licenseVerifyCallback !== null) {
                 ($this->licenseVerifyCallback)();
             }
@@ -181,8 +178,7 @@ class PatchInstaller
                 $licenseKey
             );
 
-            // If the server rejected the download because the license check is stale, attempt a
-            // single retry after invoking the license verify callback
+            // Single retry on stale license check after invoking the verify callback
             if (
                 !$downloadResult['success']
                 && ($downloadResult['error_code'] ?? null) === 'not_recently_verified'
@@ -200,6 +196,8 @@ class PatchInstaller
             }
 
             if (!$downloadResult['success']) {
+                $installErrorCode  = $downloadResult['error_code'] ?? null;
+                $installRetryAfter = $downloadResult['retry_after'] ?? null;
                 throw new \RuntimeException('Download failed: ' . $downloadResult['error']);
             }
 
@@ -211,13 +209,13 @@ class PatchInstaller
 
             $extractResult = $this->fileManager->extractPatch($downloadedFile);
             if (!$extractResult['success']) {
+                $installErrorCode = $extractResult['error_code'] ?? null;
                 throw new \RuntimeException('Extract failed: ' . $extractResult['error']);
             }
 
             $extractDir = $extractResult['extract_dir'];
-            $manifest = $extractResult['manifest'];
+            $manifest   = $extractResult['manifest'];
 
-            // Store manifest in history
             $this->database->updateHistoryRecord($patchHistoryId, [
                 'manifest_json' => json_encode($manifest),
             ]);
@@ -274,20 +272,33 @@ class PatchInstaller
             $this->progressTracker->stepProgress('copy_files');
             $this->log("Patch install: copying files", 'INFO');
 
-            // Snapshot affected files before overwriting
             $snapshotResult = $this->fileManager->backupAffectedFiles($patchHistoryId, $manifest, $extractDir);
             if (!$snapshotResult['success']) {
+                $installErrorCode = $snapshotResult['error_code'] ?? null;
                 throw new \RuntimeException('File snapshot failed: ' . $snapshotResult['error']);
             }
 
             $copyResult = $this->fileManager->copyFiles($extractDir, $manifest);
             if (!$copyResult['success']) {
+                $installErrorCode = $copyResult['error_code'] ?? null;
                 throw new \RuntimeException('File copy failed: ' . $copyResult['error']);
             }
 
             $this->log("Patch install: {$copyResult['copied_count']} files copied", 'INFO');
 
-            // Step 7: Update version
+            // Step 7: Remove obsolete files
+            $this->progressTracker->stepProgress('remove_files');
+            $removeResult = $this->fileManager->removeFiles($manifest);
+            if (!$removeResult['success']) {
+                $installErrorCode = $removeResult['error_code'] ?? null;
+                throw new \RuntimeException('File removal failed: ' . $removeResult['error']);
+            }
+
+            if ($removeResult['removed_count'] > 0) {
+                $this->log("Patch install: {$removeResult['removed_count']} obsolete files removed", 'INFO');
+            }
+
+            // Step 8: Update version
             $this->progressTracker->stepProgress('update_version');
             $this->log("Patch install: updating version to {$version}", 'INFO');
 
@@ -295,7 +306,7 @@ class PatchInstaller
                 throw new \RuntimeException('Failed to update application version');
             }
 
-            // Step 8: Verify installation
+            // Step 9: Verify installation
             $this->progressTracker->stepProgress('verify_installation');
             $this->log("Patch install: verifying installation", 'INFO');
 
@@ -304,11 +315,10 @@ class PatchInstaller
                 throw new \RuntimeException('Verification failed: ' . $verifyResult['error']);
             }
 
-            // Step 9: Cleanup
+            // Step 10: Cleanup
             $this->progressTracker->stepProgress('cleanup');
             $this->log("Patch install: cleaning up", 'INFO');
 
-            // Remove temp files
             if ($extractDir) {
                 $this->fileManager->cleanupDir($extractDir);
             }
@@ -316,33 +326,24 @@ class PatchInstaller
                 @unlink($downloadedFile);
             }
 
-            // Clean up file snapshot (no longer needed)
             $this->fileManager->cleanupSnapshot($patchHistoryId);
-
-            // Reset OPcache
             $this->fileManager->resetOpcache();
-
-            // Remove installed version from cached data
             $this->checker->removeVersionFromCache($version);
 
-            // Delete pre-patch backup on success
             if ($backupId && $this->backupAdapter !== null) {
                 $this->log("Patch install: deleting pre-patch backup (ID: {$backupId})", 'DEBUG');
                 $this->backupAdapter->deleteBackup($backupId);
-
                 $this->database->updateHistoryRecord($patchHistoryId, ['backup_id' => null]);
             }
 
-            // Mark as completed
             $this->database->updateHistoryRecord($patchHistoryId, [
-                'status' => 'completed',
+                'status'       => 'completed',
                 'installed_at' => date('Y-m-d H:i:s'),
                 'installed_by' => $userId,
             ]);
 
             $this->progressTracker->completeProgress();
 
-            // Log activity
             $this->logActivity(
                 'install_patch',
                 'patch',
@@ -354,12 +355,13 @@ class PatchInstaller
 
             $this->log("Patch install: v{$version} installed successfully", 'INFO');
 
-            return ['success' => true, 'error' => null];
+            return ['success' => true, 'error' => null, 'error_code' => null, 'retry_after' => null];
 
         } catch (\Exception $e) {
             return $this->handleInstallFailure(
                 $e, $patchHistoryId, $version, $backupId,
-                $extractDir, $downloadedFile, $userId
+                $extractDir, $downloadedFile, $userId,
+                $installErrorCode, $installRetryAfter
             );
         }
     }
@@ -381,7 +383,6 @@ class PatchInstaller
 
         $this->log("Patch rollback: starting for v{$record['version']} (ID: {$patchHistoryId})", 'WARNING');
 
-        // Restore database from full backup (if available)
         if (!empty($record['backup_id']) && $this->backupAdapter !== null) {
             $dbResult = $this->backupAdapter->restoreDatabase((int) $record['backup_id']);
             if (!$dbResult['success']) {
@@ -391,27 +392,22 @@ class PatchInstaller
             $this->log("Patch rollback: database restored from backup ID {$record['backup_id']}", 'INFO');
         }
 
-        // Restore files from selective snapshot
         $filesResult = $this->fileManager->rollbackFiles($patchHistoryId);
         if (!$filesResult['success']) {
             $this->log("Patch rollback: file restore failed - " . $filesResult['error'], 'ERROR');
             return ['success' => false, 'error' => 'File restore failed: ' . $filesResult['error']];
         }
 
-        // Update status (may fail if DB was just restored)
         try {
             $this->database->updateHistoryRecord($patchHistoryId, [
-                'status' => 'rolled_back',
-                'rolled_back_at' => date('Y-m-d H:i:s'),
+                'status'          => 'rolled_back',
+                'rolled_back_at'  => date('Y-m-d H:i:s'),
             ]);
         } catch (\Exception $e) {
             $this->log("Patch rollback: could not update status - " . $e->getMessage(), 'WARNING');
         }
 
-        // Clean up snapshot
         $this->fileManager->cleanupSnapshot($patchHistoryId);
-
-        // Reset OPcache
         $this->fileManager->resetOpcache();
 
         $this->log("Patch rollback completed successfully", 'INFO');
@@ -432,14 +428,13 @@ class PatchInstaller
     /**
      * Run preflight checks before installation
      *
-     * @param string $version Target version
+     * @param string $version        Target version
      * @param string $currentVersion Current application version
      * @return void
      * @throws \RuntimeException If any check fails
      */
     private function runPreflightChecks(string $version, string $currentVersion): void
     {
-        // Check disk space (use backup adapter if available, otherwise disk_free_space)
         if ($this->backupAdapter !== null) {
             $freeBytes = $this->backupAdapter->getFreeDiskSpace();
         } else {
@@ -447,24 +442,21 @@ class PatchInstaller
         }
 
         if ($freeBytes < $this->minDiskSpace) {
-            $freeHuman = round($freeBytes / 1024 / 1024, 1) . ' MB';
+            $freeHuman     = round($freeBytes / 1024 / 1024, 1) . ' MB';
             $requiredHuman = round($this->minDiskSpace / 1024 / 1024, 1) . ' MB';
             throw new \RuntimeException(
                 "Insufficient disk space (minimum {$requiredHuman} required, available: {$freeHuman})"
             );
         }
 
-        // Check project root is writable
         if (!is_writable($this->rootPath)) {
             throw new \RuntimeException('Project root directory is not writable');
         }
 
-        // Check not already installed
         if ($version === $currentVersion) {
             throw new \RuntimeException("Version {$version} is already installed");
         }
 
-        // Check for previous completed install
         $existing = $this->database->findHistoryByVersion($version, ['completed']);
         if ($existing) {
             throw new \RuntimeException("Version {$version} has already been installed");
@@ -474,13 +466,10 @@ class PatchInstaller
     /**
      * Verify that the installation was successful
      *
-     * Tests database connection and basic PHP syntax check capability.
-     *
      * @return array{success: bool, error: ?string}
      */
     private function verifyInstallation(): array
     {
-        // Test database connection
         try {
             $pdo = $this->database->getPdo();
             $pdo->query("SELECT 1");
@@ -494,14 +483,19 @@ class PatchInstaller
     /**
      * Handle installation failure: rollback, cleanup, and log
      *
-     * @param \Exception $e The exception that caused the failure
-     * @param int $patchHistoryId Patch history record ID
-     * @param string $version Target version
-     * @param int|null $backupId Backup ID if backup was created
-     * @param string|null $extractDir Extract directory path
-     * @param string|null $downloadedFile Downloaded file path
-     * @param int|null $userId User who initiated the install
-     * @return array{success: bool, error: string}
+     * Prefixes the DB error_message with [error_code] when a code is known so
+     * the code is greppable in the patch history UI without a schema change.
+     *
+     * @param \Exception  $e               The exception that caused the failure
+     * @param int         $patchHistoryId  Patch history record ID
+     * @param string      $version         Target version
+     * @param int|null    $backupId        Backup ID if backup was created
+     * @param string|null $extractDir      Extract directory path
+     * @param string|null $downloadedFile  Downloaded file path
+     * @param int|null    $userId          User who initiated the install
+     * @param string|null $errorCode       Stable error code from the failed step
+     * @param int|null    $retryAfter      Retry-After hint in seconds (for rate limiting)
+     * @return array{success: bool, error: string, error_code: ?string, retry_after: ?int}
      */
     private function handleInstallFailure(
         \Exception $e,
@@ -510,28 +504,29 @@ class PatchInstaller
         ?int $backupId,
         ?string $extractDir,
         ?string $downloadedFile,
-        ?int $userId
+        ?int $userId,
+        ?string $errorCode = null,
+        ?int $retryAfter = null
     ): array {
-        $errorMsg = $e->getMessage();
+        $errorMsg   = $e->getMessage();
+        $dbErrorMsg = $errorCode !== null ? "[{$errorCode}] {$errorMsg}" : $errorMsg;
+
         $this->log("Patch install failed: {$errorMsg}", 'ERROR');
 
-        // Determine which step failed
         $failedStep = $this->progressTracker->getActiveStepId();
         $this->progressTracker->failProgress($failedStep);
 
-        // Update history
         try {
             $this->database->updateHistoryRecord($patchHistoryId, [
-                'status' => 'failed',
-                'error_message' => $errorMsg,
+                'status'        => 'failed',
+                'error_message' => $dbErrorMsg,
             ]);
         } catch (\Exception $dbException) {
             $this->log("Could not update patch_history failure status: " . $dbException->getMessage(), 'WARNING');
         }
 
-        // Attempt rollback
         $rollbackResult = null;
-        $hasSnapshot = $this->fileManager->hasSnapshot($patchHistoryId);
+        $hasSnapshot    = $this->fileManager->hasSnapshot($patchHistoryId);
         if ($backupId || $hasSnapshot) {
             $this->log(
                 "Patch install: attempting rollback (backup: " . ($backupId ?: 'none') .
@@ -541,7 +536,6 @@ class PatchInstaller
             $rollbackResult = $this->rollback($patchHistoryId);
         }
 
-        // Cleanup temp files
         if ($extractDir && is_dir($extractDir)) {
             $this->fileManager->cleanupDir($extractDir);
         }
@@ -549,7 +543,6 @@ class PatchInstaller
             @unlink($downloadedFile);
         }
 
-        // Log failure activity
         $this->logActivity(
             'install_patch_failed',
             'patch',
@@ -559,7 +552,6 @@ class PatchInstaller
             $userId
         );
 
-        // Build result error message
         $resultError = $errorMsg;
         if ($rollbackResult) {
             if ($rollbackResult['success']) {
@@ -571,14 +563,19 @@ class PatchInstaller
             $resultError .= ' (no backup or snapshot available for rollback)';
         }
 
-        return ['success' => false, 'error' => $resultError];
+        return [
+            'success'     => false,
+            'error'       => $resultError,
+            'error_code'  => $errorCode,
+            'retry_after' => $retryAfter,
+        ];
     }
 
     /**
      * Log a message if logger is available
      *
      * @param string $message Log message
-     * @param string $level Log level
+     * @param string $level   Log level
      * @return void
      */
     private function log(string $message, string $level = 'INFO'): void
@@ -591,12 +588,12 @@ class PatchInstaller
     /**
      * Log an activity if logger is available
      *
-     * @param string $action Action identifier
-     * @param string $entityType Entity type
-     * @param int|null $entityId Entity ID
-     * @param array|null $oldValues Previous state
-     * @param array|null $newValues New state
-     * @param int|null $userId User who performed the action
+     * @param string      $action     Action identifier
+     * @param string      $entityType Entity type
+     * @param int|null    $entityId   Entity ID
+     * @param array|null  $oldValues  Previous state
+     * @param array|null  $newValues  New state
+     * @param int|null    $userId     User who performed the action
      * @return void
      */
     private function logActivity(
