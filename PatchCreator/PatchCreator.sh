@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.00.02"
+VERSION="v1.01.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -586,6 +586,7 @@ header "Collecting changed files"
 ALL_EXCLUDES=("${DEFAULT_EXCLUDES[@]}" "${USER_EXCLUDES[@]}")
 
 declare -a PATCH_FILES=()
+declare -a REMOVED_FILES=()
 
 if [[ -n "$FILE_LIST" ]]; then
     # Read from file list (skip empty lines and comments)
@@ -636,31 +637,43 @@ else
         PATCH_FILES+=("$file")
     done
 
-    # Detect deleted files (warning only)
-    mapfile -t DELETED_FILES < <(git -C "$PROJECT_DIR" diff --name-only --diff-filter=D "${BASE_REF}..HEAD" 2>/dev/null)
+    # Detect deleted files and collect them for the manifest
+    mapfile -t RAW_DELETED < <(git -C "$PROJECT_DIR" diff --name-only --diff-filter=D "${BASE_REF}..HEAD" 2>/dev/null)
 
-    if [[ ${#DELETED_FILES[@]} -gt 0 ]]; then
-        echo ""
-        warn "Deleted files detected (${#DELETED_FILES[@]}). These cannot be included in a patch:"
-        for df in "${DELETED_FILES[@]}"; do
-            echo -e "  ${DIM}${RED}✗${NC} ${DIM}${df}${NC}"
-        done
-        echo -e "  ${DIM}Handle deletions via migration.sql or manual intervention.${NC}"
-    fi
+    for df in "${RAW_DELETED[@]}"; do
+        if matches_exclude "$df" "${ALL_EXCLUDES[@]}"; then
+            continue
+        fi
+        REMOVED_FILES+=("$df")
+    done
 fi
 
-# Check if we have any files
-if [[ ${#PATCH_FILES[@]} -eq 0 ]]; then
-    error "No changed files to package." $EXIT_NO_FILES
+# Check if we have any files or deletions
+if [[ ${#PATCH_FILES[@]} -eq 0 && ${#REMOVED_FILES[@]} -eq 0 ]]; then
+    error "No changed or deleted files to package." $EXIT_NO_FILES
 fi
 
-# Sort file list
-IFS=$'\n' PATCH_FILES=($(sort <<<"${PATCH_FILES[*]}")); unset IFS
+# Sort file lists
+if [[ ${#PATCH_FILES[@]} -gt 0 ]]; then
+    IFS=$'\n' PATCH_FILES=($(sort <<<"${PATCH_FILES[*]}")); unset IFS
+fi
+if [[ ${#REMOVED_FILES[@]} -gt 0 ]]; then
+    IFS=$'\n' REMOVED_FILES=($(sort <<<"${REMOVED_FILES[*]}")); unset IFS
+fi
 
-info "Files to package: ${#PATCH_FILES[@]}"
-for f in "${PATCH_FILES[@]}"; do
-    echo -e "  ${GREEN}+${NC} ${f}"
-done
+if [[ ${#PATCH_FILES[@]} -gt 0 ]]; then
+    info "Files to package: ${#PATCH_FILES[@]}"
+    for f in "${PATCH_FILES[@]}"; do
+        echo -e "  ${GREEN}+${NC} ${f}"
+    done
+fi
+
+if [[ ${#REMOVED_FILES[@]} -gt 0 ]]; then
+    info "Files to remove: ${#REMOVED_FILES[@]}"
+    for df in "${REMOVED_FILES[@]}"; do
+        echo -e "  ${RED}-${NC} ${df}"
+    done
+fi
 
 # ==============================================================================
 # Auto-Extract Release Notes
@@ -719,7 +732,7 @@ header "Package Summary"
 echo ""
 echo -e "  ${BOLD}Version:${NC}        ${TARGET_VERSION}"
 echo -e "  ${BOLD}Base ref:${NC}       ${BASE_REF} (${COMMIT_COUNT} commits)"
-echo -e "  ${BOLD}Files:${NC}          ${#PATCH_FILES[@]}"
+echo -e "  ${BOLD}Files:${NC}          ${#PATCH_FILES[@]} added/modified, ${#REMOVED_FILES[@]} to remove"
 echo -e "  ${BOLD}Migration:${NC}      $([ -n "$MIGRATION_FILE" ] && echo "Yes ($(basename "$MIGRATION_FILE"))" || echo "No")"
 echo -e "  ${BOLD}Release notes:${NC}  $([ -n "$RELEASE_NOTES_CONTENT" ] && echo "Yes (${RELEASE_NOTES_SOURCE})" || echo "No")"
 echo -e "  ${BOLD}Output:${NC}         ${ARCHIVE_PATH}"
@@ -799,17 +812,35 @@ for file in "${PATCH_FILES[@]}"; do
     else
         FILES_JSON+=","
     fi
-    # Escape any special JSON characters in filename
     ESCAPED_FILE=$(echo "$file" | sed 's/\\/\\\\/g; s/"/\\"/g')
     FILES_JSON+=$'\n'"        \"${ESCAPED_FILE}\""
 done
 FILES_JSON+=$'\n'"    ]"
 
+# Build JSON removed files array (omitted from manifest when empty)
+REMOVED_FILES_JSON=""
+if [[ ${#REMOVED_FILES[@]} -gt 0 ]]; then
+    RF_JSON="["
+    RF_FIRST=true
+    for rf in "${REMOVED_FILES[@]}"; do
+        if $RF_FIRST; then
+            RF_FIRST=false
+        else
+            RF_JSON+=","
+        fi
+        ESCAPED_RF=$(echo "$rf" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        RF_JSON+=$'\n'"        \"${ESCAPED_RF}\""
+    done
+    RF_JSON+=$'\n'"    ]"
+    REMOVED_FILES_JSON=",
+    \"removed_files\": ${RF_JSON}"
+fi
+
 cat > "${TEMP_DIR}/manifest.json" <<EOF
 {
     "version": "${TARGET_VERSION}",
     "has_migration": ${HAS_MIGRATION},
-    "files": ${FILES_JSON}
+    "files": ${FILES_JSON}${REMOVED_FILES_JSON}
 }
 EOF
 

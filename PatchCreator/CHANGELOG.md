@@ -5,6 +5,20 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.01.00] - 2026-05-02
+
+| Category | Description                                                                               |
+|----------|-------------------------------------------------------------------------------------------|
+| Added    | Automatic detection of deleted files; `removed_files` array in manifest; deletion count in summary |
+
+### Added
+- Deleted files (git `--diff-filter=D`) are now automatically detected and collected into a `REMOVED_FILES` array; the same `matches_exclude()` filter that applies to added/modified files is applied to deletions
+- `manifest.json` now includes a `removed_files` array listing all files to be deleted on the install side; the key is omitted entirely when there are no deletions (backward compatible with all existing PatchModule versions)
+- Package summary now shows both counts: "X added/modified, Y to remove"
+- Deletion-only patches (no added/modified files, only removed ones) are now valid and can be packaged
+- Deletions are not detected when using `-f` (explicit file list override) — the explicit list wins; deletion auto-detection is only active in git diff mode
+- PatchModule v1.3.0+ is required to act on `removed_files`; older versions silently ignore the field
+
 ## [1.00.02] - 2026-04-27
 
 | Category | Description                                                                              |

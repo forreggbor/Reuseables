@@ -4,7 +4,7 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 
 ## Features
 
-- **Git-based file detection** — Automatically finds changed files between a base reference and HEAD
+- **Git-based file detection** — Automatically finds added, modified, and deleted files between a base reference and HEAD
 - **Version auto-detection** — Reads the current version from project source files
 - **CHANGELOG.md extraction** — Parses Keep a Changelog format to include release notes
 - **SHA-256 verification** — Generates a `.sha256` hash file alongside the archive
@@ -160,9 +160,14 @@ patch-2.33.0.tgz
         "app/helpers/functions.php",
         "app/services/OrderService.php",
         "public/js/common.js"
+    ],
+    "removed_files": [
+        "app/legacy/OldService.php"
     ]
 }
 ```
+
+`removed_files` is omitted entirely when no files were deleted. PatchModule v1.3.0+ deletes the listed files from the project root during installation and backs them up to the snapshot for rollback. Older PatchModule versions silently ignore the field.
 
 ## Default Exclude Patterns
 
@@ -197,7 +202,7 @@ PatchCreator.sh -p "const VERSION = '([^']+)'"
 |------|---------|
 | 0 | Success |
 | 1 | General error (invalid arguments, missing files) |
-| 2 | No changed files to package |
+| 2 | No changed or deleted files to package |
 | 3 | Git error (not a repository, invalid reference) |
 | 4 | User cancelled |
 
@@ -217,3 +222,5 @@ PatchCreator output is validated by the LicenseManager server upload pipeline (v
 ## Compatibility
 
 Designed to work with [PatchModule](../PatchModule/) v1.00.00+. The generated archive format matches the expected structure for `PatchInstaller::install()`.
+
+The `removed_files` manifest field requires **PatchModule v1.3.0 or later** to take effect. Archives produced by this version of PatchCreator are fully backward compatible — older PatchModule versions install the archive normally and silently ignore the new field.
