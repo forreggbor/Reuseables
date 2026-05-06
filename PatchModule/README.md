@@ -82,6 +82,9 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `archive_adapter`  | `ArchiveAdapterInterface`   | No       | auto-detect    | Archive extractor                          |
 | `http_client`      | `HttpClientInterface`       | No       | CurlHttpClient | HTTP client                                |
 | `logger`           | `LoggerInterface`           | No       | `null`         | Logger (null = silent)                     |
+| `auth_adapter`     | `AuthAdapterInterface`      | No†      | `null`         | Host auth bridge (required for admin UI)   |
+| `csrf_adapter`     | `CsrfAdapterInterface`      | No†      | `null`         | Host CSRF bridge (required for admin UI)   |
+| `translator`       | `TranslatorInterface`       | No       | `null`         | Host translator (null = built-in en_US)    |
 | `check_cache_hours`       | `int`                          | No       | `6`            | Hours to cache patch check results              |
 | `min_disk_space`          | `int`                          | No       | `209715200`    | Minimum free bytes (200 MB)                     |
 | `api_timeout`             | `int`                          | No       | `30`           | API request timeout in seconds                  |
@@ -93,7 +96,31 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `cache_paths_to_clear`    | `string[]`                     | No       | `[]`           | Absolute paths to compiled-cache directories (e.g. Twig) cleared after each file-mutation step and after rollback |
 | `keep_last_snapshots`     | `int`                          | No       | `3`            | Number of completed installs whose snapshot and DB backup are retained for rollback; older ones are pruned |
 
-*One of `get_pdo`, `pdo`, or `database_adapter` is required.
+*One of `get_pdo`, `pdo`, or `database_adapter` is required.  
+†Required together when using the built-in admin UI (`getAdminActions()`).
+
+## Admin UI
+
+PatchModule v1.5.0 ships a complete admin patch-management UI (banner,
+modal, index page, progress tracking, multi-patch queue) that can be
+integrated into any PHP MVC project by implementing two thin adapter
+classes and adding one route block.
+
+Quick integration summary:
+
+1. Implement `AuthAdapterInterface` and `CsrfAdapterInterface` (see below).
+2. Pass them as `auth_adapter` and `csrf_adapter` in the factory config.
+3. Add 9 routes delegating to `$module->getAdminActions()->{method}()`.
+4. Include `views/admin/_banner.php` in your admin layout.
+5. Link `css/patch-update.css` and `js/patch-update.js` in your admin layout.
+
+See [`doc/INTEGRATION-GUIDE.md`](doc/INTEGRATION-GUIDE.md) for the full
+step-by-step recipe (adapters, route examples for Slim / Laravel / vanilla,
+translator wiring, security checklist, migration recipes for TrafficJournal /
+JupitERP / UniCMS).
+
+See [`doc/WIRE-FORMAT.md`](doc/WIRE-FORMAT.md) for the frozen HTTP contract
+for all 9 endpoints.
 
 ## Adapter Interfaces
 
@@ -122,6 +149,25 @@ Application logging (`log()`) and activity audit (`activity()`). If not provided
 ### VersionResolverInterface
 
 Reads and writes the host application's version. Must be implemented by the host project.
+
+### AuthAdapterInterface (admin UI)
+
+Bridges the host's auth system to the admin UI. Required when using the built-in
+admin views and `AdminActions`. Methods: `isSysadmin()`, `verifyPassword()`,
+`getCurrentUserId()`, `getUserMap()`, `issueInstallAuthorization()`,
+`consumeInstallAuthorization()`. The install authorization methods replace
+direct `$_SESSION` writes so any auth backend (Laravel session, Symfony session,
+DB-backed token) can be supported.
+
+### CsrfAdapterInterface (admin UI)
+
+Bridges the host's CSRF system. Methods: `getToken()` and `validate(string $token)`.
+`validate()` receives the value of the `X-CSRF-Token` request header.
+
+### TranslatorInterface (admin UI, optional)
+
+Optional bridge to the host's translator. Single method: `t(string $key, array $params = []): string`.
+When omitted, the module reads its own `locale/en_US/messages.php` file.
 
 ## Patch Signature Verification
 

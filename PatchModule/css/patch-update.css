@@ -1,0 +1,215 @@
+/**
+ * PatchModule Admin UI — patch-update.css
+ * Patch management UI styles. Requires Bootstrap 5 + Bootstrap Icons.
+ */
+
+/* ─── Custom Properties ─────────────────────────────────────── */
+:root {
+    --patch-color-success:       #198754;
+    --patch-color-primary:       #0d6efd;
+    --patch-color-danger:        #dc3545;
+    --patch-color-muted:         #6c757d;
+    --patch-color-muted-light:   #adb5bd;
+    --patch-border-color:        #dee2e6;
+    --patch-border-radius:       0.375rem;
+    --patch-border-radius-lg:    0.5rem;
+    --patch-bg-light:            #f8f9fa;
+    --patch-bg-success-subtle:   #d1e7dd;
+    --patch-border-success:      #badbcc;
+    --patch-bg-active-row:       #e7f1ff;
+    --patch-bg-completed-row:    #f0faf4;
+    --patch-bg-failed-row:       #fdf0f0;
+    --patch-separator-color:     #f0f0f0;
+    --patch-font-mono:           'Courier New', monospace;
+}
+
+/* ─── Modal Header ───────────────────────────────────────────── */
+.patch-modal-header {
+    background: linear-gradient(135deg, var(--patch-color-primary), #0b5ed7);
+    color: #fff;
+    border-bottom: none;
+}
+
+.patch-modal-header .btn-close {
+    filter: invert(1);
+}
+
+/* ─── Version Cards ──────────────────────────────────────────── */
+.patch-version-card {
+    background: var(--patch-bg-light);
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius-lg);
+    padding: 0.75rem;
+    text-align: center;
+}
+
+.patch-version-card.patch-version-new {
+    background: var(--patch-bg-success-subtle);
+    border-color: var(--patch-border-success);
+}
+
+.patch-version-label {
+    font-size: 0.75rem;
+    color: var(--patch-color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.patch-version-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    font-family: var(--patch-font-mono);
+}
+
+/* ─── Release Notes ──────────────────────────────────────────── */
+.patch-release-notes {
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--patch-bg-light);
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius);
+    padding: 1rem;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* ─── Queue List Container ───────────────────────────────────── */
+.patch-queue-list {
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius);
+    overflow: hidden;
+}
+
+/* ─── Queue Items ────────────────────────────────────────────── */
+.patch-queue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    border-bottom: 1px solid var(--patch-separator-color);
+    background: #fff;
+}
+
+.patch-queue-item:last-child {
+    border-bottom: none;
+}
+
+.patch-queue-item.queue-active {
+    background: var(--patch-bg-active-row);
+}
+
+.patch-queue-item.queue-completed {
+    background: var(--patch-bg-completed-row);
+}
+
+.patch-queue-item.queue-failed {
+    background: var(--patch-bg-failed-row);
+}
+
+/* Queue icon — fixed-width column */
+.patch-queue-icon {
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* Override Bootstrap's text-* utilities inside queue icons for specificity */
+.patch-queue-icon .text-success { color: var(--patch-color-success) !important; }
+.patch-queue-icon .text-primary  { color: var(--patch-color-primary)  !important; }
+.patch-queue-icon .text-danger   { color: var(--patch-color-danger)   !important; }
+.patch-queue-icon .text-muted    { color: var(--patch-color-muted-light) !important; }
+
+.patch-queue-version {
+    font-family: var(--patch-font-mono);
+    font-weight: 600;
+    min-width: 70px;
+}
+
+.patch-queue-date {
+    color: var(--patch-color-muted);
+    min-width: 80px;
+}
+
+.patch-queue-size {
+    color: var(--patch-color-muted);
+    min-width: 60px;
+}
+
+.patch-queue-status {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Spin animation for the active queue row icon */
+.patch-queue-item.queue-active .patch-queue-icon i {
+    animation: patch-spin 1s linear infinite;
+}
+
+/* ─── Step List ──────────────────────────────────────────────── */
+.patch-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.patch-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    font-size: 0.875rem;
+    color: var(--patch-color-muted);
+}
+
+.patch-step.pending {
+    color: var(--patch-color-muted);
+}
+
+.patch-step.active {
+    color: var(--patch-color-primary);
+    font-weight: 500;
+}
+
+.patch-step.completed {
+    color: var(--patch-color-success);
+}
+
+.patch-step.failed {
+    color: var(--patch-color-danger);
+}
+
+/* Step icon — fixed-width column */
+.patch-step-icon {
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.patch-step.pending   .patch-step-icon { color: var(--patch-color-muted);   }
+.patch-step.active    .patch-step-icon { color: var(--patch-color-primary);  animation: patch-spin 1s linear infinite; }
+.patch-step.completed .patch-step-icon { color: var(--patch-color-success);  }
+.patch-step.failed    .patch-step-icon { color: var(--patch-color-danger);   }
+
+.patch-step-label {
+    flex-grow: 1;
+}
+
+/* ─── Spin Animation ─────────────────────────────────────────── */
+@keyframes patch-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* ─── Update Banner ──────────────────────────────────────────── */
+/*
+ * #patchUpdateBanner uses Bootstrap alert classes for layout and color.
+ * No extra positioning is needed unless the banner is rendered outside
+ * normal document flow (e.g. fixed/sticky). Add overrides here if required.
+ */
+#patchUpdateBanner {
+    /* Reserved for project-specific positioning overrides. */
+}

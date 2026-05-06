@@ -5,6 +5,39 @@
  * password verification, patch installation, and progress polling.
  * Supports sequential multi-patch installation with queue tracking.
  */
+
+/**
+ * Escape a string for safe insertion into HTML.
+ * Hosts that already provide a global escapeHtml are not overridden.
+ *
+ * @param {*} str
+ * @returns {string}
+ */
+if (typeof escapeHtml !== 'function') {
+    var escapeHtml = function (str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    };
+}
+
+/**
+ * Show a notification to the user.
+ * Hosts that already provide a global showNotification are not overridden.
+ * The built-in fallback writes to the console only.
+ *
+ * @param {string} message
+ * @param {'info'|'error'|'success'|'warning'} type
+ */
+if (typeof showNotification !== 'function') {
+    var showNotification = function (message, type) {
+        console.warn('[PatchUpdate] ' + type + ': ' + message);
+    };
+}
+
 const PatchUpdate = {
     /** @type {bootstrap.Modal|null} Modal instance */
     modal: null,
@@ -31,23 +64,50 @@ const PatchUpdate = {
     installedCount: 0,
 
     /**
-     * Step labels for progress display (set from PHP via window.patchStepLabels)
+     * Step labels for progress display
      * @type {Object<string, string>}
      */
     stepLabels: {},
 
     /**
-     * Queue status labels (set from PHP via window.patchQueueLabels)
+     * Queue status labels
      * @type {Object<string, string>}
      */
     queueLabels: {},
 
+    /** @type {string} Base URL for patch-management routes (no trailing slash) */
+    baseUrl: '',
+
+    /** @type {string} CSRF token (may be rotated after verifyPassword) */
+    csrfToken: '',
+
     /**
-     * Initialize labels from PHP-provided translations
+     * Error code labels for user-facing messages
+     * @type {Object<string, string>}
+     */
+    errorLabels: {},
+
+    /**
+     * i18n strings read from data-i18n attribute
+     * @type {Object<string, string>}
+     */
+    i18n: {},
+
+    /** @type {string|null} One-time install authorization token; cleared after each install POST */
+    installToken: null,
+
+    /**
+     * Initialize configuration from the mount element's data attributes
      */
     init: function () {
-        this.stepLabels = window.patchStepLabels || {};
-        this.queueLabels = window.patchQueueLabels || {};
+        var mount = document.getElementById('patch-mount') || document.getElementById('patchUpdateBanner');
+        if (!mount) return;
+        this.baseUrl     = (mount.dataset.baseUrl || '').replace(/\/$/, '');
+        this.csrfToken   = mount.dataset.csrfToken || '';
+        this.stepLabels  = JSON.parse(mount.dataset.stepLabels  || '{}');
+        this.queueLabels = JSON.parse(mount.dataset.queueLabels || '{}');
+        this.errorLabels = JSON.parse(mount.dataset.errorLabels || '{}');
+        this.i18n        = JSON.parse(mount.dataset.i18n        || '{}');
     },
 
     /**
@@ -55,10 +115,8 @@ const PatchUpdate = {
      * Fetches latest details from the server and populates the modal.
      */
     showDetails: function () {
-        this.init();
-
-        fetch('/admin/settings/patch-management/details', {
-            headers: { 'Accept': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN }
+        fetch(this.baseUrl + '/details', {
+            headers: { 'Accept': 'application/json', 'X-CSRF-Token': this.csrfToken }
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -122,13 +180,13 @@ const PatchUpdate = {
         if (patch.release_notes) {
             notesEl.textContent = patch.release_notes;
         } else {
-            notesEl.innerHTML = '<p class="text-muted">' + escapeHtml(window.patchNoReleaseNotes || 'No release notes available') + '</p>';
+            notesEl.innerHTML = '<p class="text-muted">' + escapeHtml(PatchUpdate.i18n.noReleaseNotes || 'No release notes available') + '</p>';
         }
 
         // Update counter (e.g. "Update 1 of 3")
         var counterEl = document.getElementById('patchUpdateCounter');
         if (this.totalPatches > 1) {
-            counterEl.textContent = (window.patchUpdateXofN || 'Update %d of %d')
+            counterEl.textContent = (PatchUpdate.i18n.updateXofN || 'Update %d of %d')
                 .replace('%d', this.currentPatchIndex + 1)
                 .replace('%d', this.totalPatches);
             counterEl.style.display = '';
@@ -242,7 +300,7 @@ const PatchUpdate = {
         if (!btn) return;
 
         if (this.totalPatches > 1) {
-            var label = (window.patchInstallAllLabel || 'Install all %d updates')
+            var label = (PatchUpdate.i18n.installAll || 'Install all %d updates')
                 .replace('%d', this.totalPatches);
             btn.innerHTML = '<i class="bi bi-arrow-up-circle me-1"></i>' + escapeHtml(label);
         }
@@ -252,11 +310,11 @@ const PatchUpdate = {
      * Dismiss all available patches (used from banner)
      */
     dismissAll: function () {
-        fetch('/admin/settings/patch-management/dismiss-all', {
+        fetch(this.baseUrl + '/dismiss-all', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': window.CSRF_TOKEN
+                'X-CSRF-Token': this.csrfToken
             },
             body: JSON.stringify({})
         })
@@ -303,11 +361,11 @@ const PatchUpdate = {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>...';
 
-        fetch('/admin/settings/patch-management/verify-password', {
+        fetch(PatchUpdate.baseUrl + '/verify-password', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': window.CSRF_TOKEN
+                'X-CSRF-Token': PatchUpdate.csrfToken
             },
             body: JSON.stringify({ password: password })
         })
@@ -317,6 +375,8 @@ const PatchUpdate = {
                 btn.innerHTML = '<i class="bi bi-shield-lock me-1"></i>' + (btn.getAttribute('data-original-text') || 'Confirm');
 
                 if (data.success) {
+                    PatchUpdate.installToken = data.install_token;
+                    if (data.csrf_token) PatchUpdate.csrfToken = data.csrf_token;
                     PatchUpdate.startInstall();
                 } else {
                     document.getElementById('patchPassword').classList.add('is-invalid');
@@ -344,92 +404,37 @@ const PatchUpdate = {
      */
     startInstall: function () {
         this.installing = true;
-
-        // Generate progress token on client side so polling can start immediately
         this.progressToken = this.generateToken();
 
         var currentPatch = this.patches[this.currentPatchIndex];
         var isFirstPatch = this.currentPatchIndex === 0;
-
-        // Prevent modal from closing during installation
-        document.getElementById('patchModalCloseBtn').style.display = 'none';
-
-        // Switch to progress state
-        this.switchState('progress');
-
-        // Update queue status to installing
-        if (this.totalPatches > 1) {
-            this.updateQueueItemStatus(this.currentPatchIndex, 'installing');
-
-            // Show progress label
-            var progressLabel = document.getElementById('patchProgressLabel');
-            var labelText = (window.patchUpdateXofN || 'Update %d of %d')
-                .replace('%d', this.currentPatchIndex + 1)
-                .replace('%d', this.totalPatches);
-            progressLabel.textContent = labelText + ': v' + currentPatch.version;
-            progressLabel.style.display = '';
-        }
-
-        // Build initial steps list
         var createBackup = isFirstPatch && document.getElementById('patchCreateBackup').checked;
-        var steps = ['preflight_checks'];
-        if (createBackup) {
-            steps.push('create_backup');
-        }
-        steps = steps.concat([
-            'download_patch', 'extract_patch', 'execute_migration',
-            'copy_files', 'update_version', 'verify_installation', 'cleanup'
-        ]);
 
-        this.renderSteps(steps);
-
-        // Reset progress bar
-        var bar = document.getElementById('patchProgressBar');
-        bar.style.width = '0%';
-        bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
-
-        // Reset result messages
-        document.getElementById('patchResultSuccess').style.display = 'none';
-        document.getElementById('patchResultError').style.display = 'none';
-
-        // Start polling BEFORE sending the install request
+        this.setupInstallUI(currentPatch, createBackup);
         this.startPolling();
 
-        // Start installation (long-running request)
-        fetch('/admin/settings/patch-management/install', {
+        var installToken = this.installToken;
+        this.installToken = null;
+
+        fetch(PatchUpdate.baseUrl + '/install', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': window.CSRF_TOKEN
+                'X-CSRF-Token': PatchUpdate.csrfToken
             },
             body: JSON.stringify({
-                version: currentPatch.version,
-                create_backup: createBackup,
-                progress_token: this.progressToken
+                patch_history_id: currentPatch.id,
+                install_token:    installToken,
+                create_backup:    createBackup,
+                progress_token:   PatchUpdate.progressToken
             })
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 PatchUpdate.installing = false;
                 PatchUpdate.stopPolling();
-
-                // Final poll to get the latest step statuses
                 PatchUpdate.pollOnce(PatchUpdate.progressToken, function () {
-                    if (data.success) {
-                        PatchUpdate.installedCount++;
-                        PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'installed');
-
-                        if (data.has_next && data.next_version) {
-                            // More patches to install — show "Install next" button
-                            PatchUpdate.showNextPrompt(data.next_version);
-                        } else {
-                            // All patches installed
-                            PatchUpdate.showResult(true);
-                        }
-                    } else {
-                        PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'failed');
-                        PatchUpdate.showResult(false, data.error || 'Installation failed');
-                    }
+                    PatchUpdate.handleInstallResponse(data);
                 });
             })
             .catch(function () {
@@ -438,6 +443,68 @@ const PatchUpdate = {
                 PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'failed');
                 PatchUpdate.showResult(false, 'Connection lost during installation');
             });
+    },
+
+    /**
+     * Prepare the progress modal UI before an install starts
+     * @param {Object} currentPatch - The patch about to be installed
+     * @param {boolean} createBackup - Whether a DB backup step will run
+     */
+    setupInstallUI: function (currentPatch, createBackup) {
+        document.getElementById('patchModalCloseBtn').style.display = 'none';
+        this.switchState('progress');
+
+        if (this.totalPatches > 1) {
+            this.updateQueueItemStatus(this.currentPatchIndex, 'installing');
+            var progressLabel = document.getElementById('patchProgressLabel');
+            var labelText = (PatchUpdate.i18n.updateXofN || 'Update %d of %d')
+                .replace('%d', this.currentPatchIndex + 1)
+                .replace('%d', this.totalPatches);
+            progressLabel.textContent = labelText + ': v' + currentPatch.version;
+            progressLabel.style.display = '';
+        }
+
+        var steps = ['preflight_checks'];
+        if (createBackup) { steps.push('create_backup'); }
+        steps = steps.concat([
+            'download_patch', 'extract_patch', 'execute_migration',
+            'copy_files', 'update_version', 'verify_installation', 'cleanup'
+        ]);
+        this.renderSteps(steps);
+
+        var bar = document.getElementById('patchProgressBar');
+        bar.style.width = '0%';
+        bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+
+        document.getElementById('patchResultSuccess').style.display = 'none';
+        document.getElementById('patchResultError').style.display = 'none';
+    },
+
+    /**
+     * Handle the server response from a completed install request
+     * @param {Object} data - Parsed JSON response from the install endpoint
+     */
+    handleInstallResponse: function (data) {
+        if (data.success) {
+            PatchUpdate.installedCount++;
+            PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'installed');
+
+            if (data.has_next && data.next_install_token) {
+                PatchUpdate.installToken = data.next_install_token;
+            }
+
+            if (data.has_next && data.next_version) {
+                PatchUpdate.showNextPrompt(data.next_version);
+            } else {
+                PatchUpdate.showResult(true);
+            }
+        } else {
+            var errMsg = (data.error_code && PatchUpdate.errorLabels[data.error_code])
+                ? PatchUpdate.errorLabels[data.error_code]
+                : (data.error || 'Installation failed');
+            PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'failed');
+            PatchUpdate.showResult(false, errMsg);
+        }
     },
 
     /**
@@ -462,7 +529,7 @@ const PatchUpdate = {
 
         // Show "Install next" button
         var nextBtn = document.getElementById('patchNextBtn');
-        var nextLabel = (window.patchInstallNextLabel || 'Install next: v%s')
+        var nextLabel = (PatchUpdate.i18n.installNext || 'Install next: v%s')
             .replace('%s', nextVersion);
         document.getElementById('patchNextBtnLabel').textContent = nextLabel;
         nextBtn.style.display = '';
@@ -533,7 +600,7 @@ const PatchUpdate = {
     pollOnce: function (token, callback) {
         if (!token) return;
 
-        fetch('/admin/settings/patch-management/install-progress?token=' + encodeURIComponent(token), {
+        fetch(PatchUpdate.baseUrl + '/progress?token=' + encodeURIComponent(token), {
             headers: { 'Accept': 'application/json' }
         })
             .then(function (r) { return r.json(); })
@@ -576,9 +643,6 @@ const PatchUpdate = {
      * @param {Array<{id: string, status: string}>} steps - Steps with status
      */
     updateStepsUI: function (steps) {
-        var completedCount = 0;
-        var totalCount = steps.length;
-
         for (var i = 0; i < steps.length; i++) {
             var step = steps[i];
             var el = document.getElementById('patch-step-' + step.id);
@@ -590,11 +654,9 @@ const PatchUpdate = {
             switch (step.status) {
                 case 'completed':
                     iconEl.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
-                    completedCount++;
                     break;
                 case 'active':
                     iconEl.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
-                    completedCount += 0.5;
                     break;
                 case 'failed':
                     iconEl.innerHTML = '<i class="bi bi-x-circle-fill"></i>';
@@ -605,21 +667,30 @@ const PatchUpdate = {
             }
         }
 
-        // Update progress bar
-        var percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+        this.updateProgressBar(steps);
+    },
+
+    /**
+     * Update the progress bar width and colour based on step statuses
+     * @param {Array<{status: string}>} steps - Current step list
+     */
+    updateProgressBar: function (steps) {
+        var completedCount = 0;
+        for (var i = 0; i < steps.length; i++) {
+            if (steps[i].status === 'completed') completedCount++;
+            else if (steps[i].status === 'active') completedCount += 0.5;
+        }
+
+        var percent = steps.length > 0 ? Math.round((completedCount / steps.length) * 100) : 0;
         var bar = document.getElementById('patchProgressBar');
         bar.style.width = percent + '%';
 
-        // Check if all completed
-        var allCompleted = steps.every(function (s) { return s.status === 'completed'; });
-        if (allCompleted) {
+        if (steps.every(function (s) { return s.status === 'completed'; })) {
             bar.classList.remove('progress-bar-animated');
             bar.classList.add('bg-success');
         }
 
-        // Check if any failed
-        var hasFailed = steps.some(function (s) { return s.status === 'failed'; });
-        if (hasFailed) {
+        if (steps.some(function (s) { return s.status === 'failed'; })) {
             bar.classList.remove('progress-bar-animated');
             bar.classList.add('bg-danger');
         }
@@ -639,7 +710,7 @@ const PatchUpdate = {
 
             if (this.installedCount > 1) {
                 // All patches done
-                var allDoneMsg = (window.patchAllDoneLabel || 'All %d updates installed successfully.')
+                var allDoneMsg = (PatchUpdate.i18n.allDone || 'All %d updates installed successfully.')
                     .replace('%d', this.installedCount);
                 messageEl.textContent = allDoneMsg;
             }
@@ -687,6 +758,38 @@ const PatchUpdate = {
     },
 
     /**
+     * Trigger a server-side update check and reload the page on success
+     */
+    checkUpdates: function () {
+        var btn = document.getElementById('patchCheckUpdatesBtn');
+        if (btn) { btn.disabled = true; }
+        fetch(this.baseUrl + '/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken }
+        })
+            .then(function (r) { return r.json(); })
+            .then(function () { window.location.reload(); })
+            .catch(function () { if (btn) btn.disabled = false; });
+    },
+
+    /**
+     * Roll back a previously installed patch after user confirmation
+     * @param {number} id - patch_history record ID to roll back
+     */
+    rollback: function (id) {
+        if (!window.confirm('Roll back this patch?')) return;
+        fetch(PatchUpdate.baseUrl + '/rollback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': PatchUpdate.csrfToken },
+            body: JSON.stringify({ id: id })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) { window.location.reload(); }
+            });
+    },
+
+    /**
      * Format file size in human-readable form
      * @param {number} bytes - File size in bytes
      * @returns {string} Formatted size (e.g., "15.2 MB")
@@ -711,14 +814,64 @@ const PatchUpdate = {
     }
 };
 
-// Handle Enter key on password input
 document.addEventListener('DOMContentLoaded', function () {
+    PatchUpdate.init();
+
+    // Password input Enter key
     var passInput = document.getElementById('patchPassword');
     if (passInput) {
         passInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                PatchUpdate.verifyPassword();
-            }
+            if (e.key === 'Enter') PatchUpdate.verifyPassword();
         });
     }
+
+    // Banner buttons
+    var bannerDetailsBtn = document.getElementById('patchBannerDetailsBtn');
+    if (bannerDetailsBtn) {
+        bannerDetailsBtn.addEventListener('click', function () { PatchUpdate.showDetails(); });
+    }
+    var bannerDismissBtn = document.getElementById('patchBannerDismissBtn');
+    if (bannerDismissBtn) {
+        bannerDismissBtn.addEventListener('click', function () { PatchUpdate.dismissAll(); });
+    }
+
+    // Modal buttons
+    var installBtn = document.getElementById('patchInstallBtn');
+    if (installBtn) {
+        installBtn.addEventListener('click', function () { PatchUpdate.showPasswordStep(); });
+    }
+    var backBtn = document.getElementById('patchBackBtn');
+    if (backBtn) {
+        backBtn.addEventListener('click', function () { PatchUpdate.backToDetails(); });
+    }
+    var verifyBtn = document.getElementById('patchVerifyBtn');
+    if (verifyBtn) {
+        verifyBtn.addEventListener('click', function () { PatchUpdate.verifyPassword(); });
+    }
+    var reloadBtn = document.getElementById('patchReloadBtn');
+    if (reloadBtn) {
+        reloadBtn.addEventListener('click', function () { window.location.reload(); });
+    }
+    var nextBtn = document.getElementById('patchNextBtn');
+    if (nextBtn) {
+        nextBtn.addEventListener('click', function () { PatchUpdate.installNext(); });
+    }
+
+    // Index page: Check Updates button
+    var checkBtn = document.getElementById('patchCheckUpdatesBtn');
+    if (checkBtn) {
+        checkBtn.addEventListener('click', function () { PatchUpdate.checkUpdates(); });
+    }
+
+    // Index page: per-patch buttons (Install, Details, Rollback) — delegated
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('.patch-install-btn') || e.target.closest('.patch-details-btn')) {
+            PatchUpdate.showDetails();
+        }
+        var rollbackBtn = e.target.closest('.patch-rollback-btn');
+        if (rollbackBtn) {
+            var id = parseInt(rollbackBtn.dataset.id || '0', 10);
+            if (id > 0) PatchUpdate.rollback(id);
+        }
+    });
 });

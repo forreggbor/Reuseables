@@ -10,12 +10,16 @@ use PatchModule\Adapters\Database\CallableAdapter;
 use PatchModule\Adapters\Database\PdoAdapter;
 use PatchModule\Adapters\Http\CurlHttpClient;
 use PatchModule\Adapters\Signature\OpenSslSignatureVerifier;
+use PatchModule\AdminActions;
 use PatchModule\Contracts\ArchiveAdapterInterface;
+use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
+use PatchModule\Contracts\CsrfAdapterInterface;
 use PatchModule\Contracts\DatabaseAdapterInterface;
 use PatchModule\Contracts\HttpClientInterface;
 use PatchModule\Contracts\LoggerInterface;
 use PatchModule\Contracts\SignatureVerifierInterface;
+use PatchModule\Contracts\TranslatorInterface;
 use PatchModule\Contracts\VersionResolverInterface;
 use PDO;
 
@@ -47,7 +51,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 1.4.0
+ * @version 1.5.0
  * @license MIT
  */
 class PatchModule
@@ -72,6 +76,18 @@ class PatchModule
 
     /** @var LoggerInterface|null */
     private ?LoggerInterface $logger;
+
+    /** @var AuthAdapterInterface|null */
+    private ?AuthAdapterInterface $authAdapter;
+
+    /** @var CsrfAdapterInterface|null */
+    private ?CsrfAdapterInterface $csrfAdapter;
+
+    /** @var TranslatorInterface|null */
+    private ?TranslatorInterface $translator;
+
+    /** @var AdminActions|null */
+    private ?AdminActions $adminActions = null;
 
     /** @var PatchChecker */
     private PatchChecker $checker;
@@ -115,6 +131,9 @@ class PatchModule
      *   - http_client: HttpClientInterface — HTTP client (null = CurlHttpClient)
      *   - signature_verifier: SignatureVerifierInterface — Patch signature verifier (null = OpenSslSignatureVerifier)
      *   - logger: LoggerInterface — Logger (null = silent)
+     *   - auth_adapter: AuthAdapterInterface — Required for admin UI (null = admin UI disabled)
+     *   - csrf_adapter: CsrfAdapterInterface — Required for admin UI (null = admin UI disabled)
+     *   - translator: TranslatorInterface — Optional for admin UI (null = module uses its own locale)
      *
      *   Optional settings:
      *   - check_cache_hours: int        — Cache duration in hours (default: 6)
@@ -427,6 +446,56 @@ class PatchModule
         return $this->versionResolver;
     }
 
+    /**
+     * Get the admin actions handler for the patch management UI
+     *
+     * Returns null when auth_adapter or csrf_adapter is not configured,
+     * in which case the admin UI is not available.
+     *
+     * @return AdminActions|null
+     */
+    public function getAdminActions(): ?AdminActions
+    {
+        if ($this->authAdapter === null || $this->csrfAdapter === null) {
+            return null;
+        }
+
+        if ($this->adminActions === null) {
+            $this->adminActions = new AdminActions(
+                $this,
+                $this->authAdapter,
+                $this->csrfAdapter,
+                $this->config['temp_path'],
+                $this->config['root_path'],
+                $this->translator,
+            );
+        }
+
+        return $this->adminActions;
+    }
+
+    /**
+     * Check whether the admin patch-management UI is available
+     *
+     * Returns enabled=false when auth_adapter or csrf_adapter are not configured,
+     * or when patch_server_url is empty. The reason field gives a human-readable
+     * explanation suitable for showing a disabled-state banner.
+     *
+     * @return array{enabled: bool, reason: string}
+     */
+    public function isAvailable(): array
+    {
+        if (empty($this->config['patch_server_url'])) {
+            return ['enabled' => false, 'reason' => 'patch_server_url not configured'];
+        }
+
+        if ($this->authAdapter === null || $this->csrfAdapter === null) {
+            return ['enabled' => false, 'reason' => 'auth_adapter and csrf_adapter required for admin UI'];
+        }
+
+        return ['enabled' => true, 'reason' => ''];
+    }
+
     // =========================================================================
     // Initialization
     // =========================================================================
@@ -509,6 +578,11 @@ class PatchModule
         } else {
             $this->signatureVerifier = new OpenSslSignatureVerifier();
         }
+
+        // Admin UI adapters
+        $this->authAdapter = $config['auth_adapter'] ?? null;
+        $this->csrfAdapter = $config['csrf_adapter'] ?? null;
+        $this->translator  = $config['translator'] ?? null;
     }
 
     /**

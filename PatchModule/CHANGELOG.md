@@ -5,6 +5,50 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-05-06
+
+| Category | Description                                                                      |
+|----------|----------------------------------------------------------------------------------|
+| Added    | Built-in admin UI: banner, modal, index page, multi-patch queue, progress view   |
+| Added    | AuthAdapterInterface, CsrfAdapterInterface, TranslatorInterface contracts        |
+| Added    | AdminActions class: 9 typed HTTP action methods, no framework assumptions        |
+| Added    | PatchHistoryStatus class with constants for all patch_history status values      |
+| Added    | WIRE-FORMAT.md and INTEGRATION-GUIDE.md for host-side integration                |
+| Fixed    | escapeHtml and showNotification helpers defined in patch-update.js               |
+| Changed  | AdminActions refactored: install lock, path validation, and response building extracted to private helpers |
+| Changed  | patch-update.js refactored: install UI setup, response handling, and progress bar update extracted to named methods |
+| Security | Failed password attempts are now logged by AdminActions                          |
+
+### Fixed
+- **`escapeHtml` and `showNotification` now self-contained** — both helper functions were called in `js/patch-update.js` but never defined there, causing a `ReferenceError` crash in all HTML-building code paths. Both are now defined at the top of the file with a host-override guard so hosts that already provide a global version are unaffected.
+
+### Security
+- **Failed password attempts logged** — `AdminActions::verifyPassword()` now calls `error_log()` on every incorrect password so failed attempts appear in the PHP error log unconditionally, regardless of whether the host has throttling middleware in place.
+
+### Changed
+- **`AdminActions` install/rollback lock handling centralised** — duplicate lock-acquire/release code extracted to `withInstallLock(callable $fn)`. Both `install()` and `rollback()` now delegate lock management to this single helper; the lock can never be left held on exception.
+- **`AdminActions::install()` input validation extracted** — five guard clauses (sysadmin, CSRF, auth token, ID bounds, progress token format) moved to `validateInstallRequest()` so `install()` is a concise orchestrator rather than a wall of defensive checks.
+- **Path-safety check centralised in `AdminActions`** — the repeated three-condition path guard in `buildFilesManifest()` extracted to `isUnsafePath()`, eliminating duplicated logic between the files and removed-files loops.
+- **`PatchHistoryStatus` constants replace bare string literals** — `'completed'`, `'rolled_back'`, and the other history status values are now referenced via `PatchHistoryStatus::COMPLETED` etc. throughout `AdminActions` and `views/admin/index.php`.
+- **`patchStatusBadge()` guarded against redeclaration** — the view-local function is now wrapped in `if (!function_exists(...))` so including `index.php` twice in the same request no longer causes a fatal PHP error.
+- **`patch-update.js` install flow split into focused methods** — `startInstall()` reduced from 107 to 42 lines by extracting `setupInstallUI(currentPatch, createBackup)` (modal state and steps list) and `handleInstallResponse(data)` (success/failure branching); nesting depth reduced from 5 to 2.
+- **`updateProgressBar(steps)` extracted from `updateStepsUI()`** — progress bar width, colour, and animation state are now updated by a dedicated method called at the end of the steps loop, keeping icon rendering and progress display separate.
+
+### Added
+- **`PatchHistoryStatus` class** — central constants for all `patch_history.status` values (`available`, `downloading`, `installing`, `completed`, `failed`, `rolled_back`), following the same pattern as `ErrorCode`. Eliminates bare string literals in `AdminActions` and the admin index view.
+- **Built-in admin UI views** — `views/admin/index.php`, `_modal.php`, and `_banner.php` provide a complete patch-management interface. No per-project view duplication needed.
+- **`AdminActions` class** — 9 methods, one per HTTP endpoint (index, check, details, dismiss, dismissAll, verifyPassword, install, progress, rollback). Each returns a plain `['status' => int, 'data' => array]` array — no `echo`, no `header()`, no superglobals. Host controllers are 5-line pass-throughs.
+- **`AuthAdapterInterface`** — framework-agnostic contract for sysadmin check, password verify, user map, and one-time install authorization tokens. Replaces direct `$_SESSION` writes so Laravel, Symfony, JWT, and custom session backends all work.
+- **`CsrfAdapterInterface`** — wraps the host CSRF token getter and validator.
+- **`TranslatorInterface`** — optional; module falls back to its own `locale/en_US/messages.php` when not provided.
+- **`PatchModule::getAdminActions()`** — lazy factory returning an `AdminActions` instance, or `null` when auth/csrf adapters are not configured.
+- **`PatchModule::isAvailable()`** — returns `{enabled: bool, reason: string}`; used by the banner to skip all DB queries when the module is not fully configured.
+- **CSP-strict views** — no inline `<script>`, `<style>`, or `onclick=` anywhere. All PHP-to-JS config bridged via `data-*` attributes on `#patch-mount` / `#patchUpdateBanner`.
+- **Multi-patch install token chaining** — install success response includes `next_install_token` when `has_next` is true, so the user does not need to re-enter their password for queued patches.
+- **`css/patch-update.css`** — extracted from per-project inline styles; step-icon, version-card, queue-item, and banner CSS in one file.
+- **`doc/WIRE-FORMAT.md`** — frozen HTTP contract for all 9 endpoints.
+- **`doc/INTEGRATION-GUIDE.md`** — complete host-side recipe including adapter samples, route examples for Slim / Laravel / vanilla PHP, translator wiring, security requirements, and migration recipes for TrafficJournal, JupitERP, and UniCMS.
+
 ## [1.4.0] - 2026-05-06
 
 | Category | Description                                                                                             |
