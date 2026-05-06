@@ -60,6 +60,15 @@ class PatchInstaller
     /** @var callable|null Fire-and-forget callback to refresh the server-side license check window */
     private $licenseVerifyCallback;
 
+    /** @var MaintenanceMode|null Maintenance mode toggle (engaged during install/rollback) */
+    private ?MaintenanceMode $maintenanceMode;
+
+    /** @var string[] Absolute paths to compiled-cache directories cleared after file mutations */
+    private array $cachePathsToClear;
+
+    /** @var int Number of successful installs whose snapshot/backup is kept for rollback */
+    private int $keepLastSnapshots;
+
     /**
      * @param DatabaseAdapterInterface    $database              Database adapter
      * @param PatchChecker                $checker               Patch checker instance
@@ -76,6 +85,11 @@ class PatchInstaller
      *                                                           refresh the server-side license check window;
      *                                                           also used for a single retry when the server
      *                                                           rejects the download due to a stale check
+     * @param MaintenanceMode|null        $maintenanceMode       Optional maintenance mode handler engaged during install
+     * @param string[]                    $cachePathsToClear     Absolute paths to compiled-cache dirs cleared after
+     *                                                           file mutations (e.g. Twig template cache)
+     * @param int                         $keepLastSnapshots     Number of successful installs whose rollback
+     *                                                           artifacts are retained (default: 3)
      */
     public function __construct(
         DatabaseAdapterInterface $database,
@@ -89,7 +103,10 @@ class PatchInstaller
         int $minDiskSpace = 209715200,
         ?BackupAdapterInterface $backupAdapter = null,
         ?LoggerInterface $logger = null,
-        ?callable $licenseVerifyCallback = null
+        ?callable $licenseVerifyCallback = null,
+        ?MaintenanceMode $maintenanceMode = null,
+        array $cachePathsToClear = [],
+        int $keepLastSnapshots = 3
     ) {
         $this->database              = $database;
         $this->checker               = $checker;
@@ -103,6 +120,9 @@ class PatchInstaller
         $this->backupAdapter         = $backupAdapter;
         $this->logger                = $logger;
         $this->licenseVerifyCallback = $licenseVerifyCallback;
+        $this->maintenanceMode       = $maintenanceMode;
+        $this->cachePathsToClear     = $cachePathsToClear;
+        $this->keepLastSnapshots     = max(1, $keepLastSnapshots);
     }
 
     /**
@@ -118,9 +138,11 @@ class PatchInstaller
         int $patchHistoryId,
         string $licenseKey,
         bool $createBackup = true,
-        ?int $userId = null
+        ?int $userId = null,
+        ?string $language = null
     ): array {
-        set_time_limit(600);
+        set_time_limit(0);
+        ignore_user_abort(true);
 
         $this->progressTracker->cleanupStaleProgressFiles();
 
@@ -151,10 +173,16 @@ class PatchInstaller
 
         $this->database->updateHistoryRecord($patchHistoryId, ['status' => 'installing']);
 
+        if ($this->maintenanceMode !== null) {
+            $this->maintenanceMode->enable($version, $language);
+        }
+
         try {
             // Step 1: Preflight checks
             $this->progressTracker->stepProgress('preflight_checks');
             $this->log("Patch install: starting preflight checks for v{$version}", 'INFO');
+
+            $this->fileManager->sweepStaleTmpFiles();
 
             $this->runPreflightChecks($version, $previousVersion);
 
@@ -298,6 +326,11 @@ class PatchInstaller
                 $this->log("Patch install: {$removeResult['removed_count']} obsolete files removed", 'INFO');
             }
 
+            // Clear compiled-template caches (e.g. Twig) so updated files take effect immediately
+            if (!empty($this->cachePathsToClear)) {
+                $this->fileManager->clearCachePaths($this->cachePathsToClear);
+            }
+
             // Step 8: Update version
             $this->progressTracker->stepProgress('update_version');
             $this->log("Patch install: updating version to {$version}", 'INFO');
@@ -310,8 +343,9 @@ class PatchInstaller
             $this->progressTracker->stepProgress('verify_installation');
             $this->log("Patch install: verifying installation", 'INFO');
 
-            $verifyResult = $this->verifyInstallation();
+            $verifyResult = $this->verifyInstallation($manifest, $version, $extractDir);
             if (!$verifyResult['success']) {
+                $installErrorCode = ErrorCode::VERIFICATION_FAILED;
                 throw new \RuntimeException('Verification failed: ' . $verifyResult['error']);
             }
 
@@ -326,21 +360,17 @@ class PatchInstaller
                 @unlink($downloadedFile);
             }
 
-            $this->fileManager->cleanupSnapshot($patchHistoryId);
             $this->fileManager->resetOpcache();
             $this->checker->removeVersionFromCache($version);
-
-            if ($backupId && $this->backupAdapter !== null) {
-                $this->log("Patch install: deleting pre-patch backup (ID: {$backupId})", 'DEBUG');
-                $this->backupAdapter->deleteBackup($backupId);
-                $this->database->updateHistoryRecord($patchHistoryId, ['backup_id' => null]);
-            }
 
             $this->database->updateHistoryRecord($patchHistoryId, [
                 'status'       => 'completed',
                 'installed_at' => date('Y-m-d H:i:s'),
                 'installed_by' => $userId,
             ]);
+
+            // Prune rollback artifacts from older completed installs (keep the last N)
+            $this->pruneOldRollbackArtifacts($patchHistoryId);
 
             $this->progressTracker->completeProgress();
 
@@ -363,6 +393,14 @@ class PatchInstaller
                 $extractDir, $downloadedFile, $userId,
                 $installErrorCode, $installRetryAfter
             );
+        } finally {
+            if ($this->maintenanceMode !== null) {
+                try {
+                    $this->maintenanceMode->disable();
+                } catch (\Throwable $me) {
+                    $this->log("Patch install: failed to disable maintenance mode: " . $me->getMessage(), 'ERROR');
+                }
+            }
         }
     }
 
@@ -383,6 +421,32 @@ class PatchInstaller
 
         $this->log("Patch rollback: starting for v{$record['version']} (ID: {$patchHistoryId})", 'WARNING');
 
+        if ($this->maintenanceMode !== null) {
+            $this->maintenanceMode->enable($record['version'] ?? '');
+        }
+
+        try {
+            return $this->doRollback($record, $patchHistoryId);
+        } finally {
+            if ($this->maintenanceMode !== null) {
+                try {
+                    $this->maintenanceMode->disable();
+                } catch (\Throwable $me) {
+                    $this->log("Patch rollback: failed to disable maintenance mode: " . $me->getMessage(), 'ERROR');
+                }
+            }
+        }
+    }
+
+    /**
+     * Execute rollback logic (called from rollback() within the maintenance-mode try/finally)
+     *
+     * @param array $record          patch_history record
+     * @param int   $patchHistoryId  patch_history record ID
+     * @return array{success: bool, error: ?string}
+     */
+    private function doRollback(array $record, int $patchHistoryId): array
+    {
         if (!empty($record['backup_id']) && $this->backupAdapter !== null) {
             $dbResult = $this->backupAdapter->restoreDatabase((int) $record['backup_id']);
             if (!$dbResult['success']) {
@@ -405,6 +469,10 @@ class PatchInstaller
             ]);
         } catch (\Exception $e) {
             $this->log("Patch rollback: could not update status - " . $e->getMessage(), 'WARNING');
+        }
+
+        if (!empty($this->cachePathsToClear)) {
+            $this->fileManager->clearCachePaths($this->cachePathsToClear);
         }
 
         $this->fileManager->cleanupSnapshot($patchHistoryId);
@@ -466,10 +534,18 @@ class PatchInstaller
     /**
      * Verify that the installation was successful
      *
+     * Checks: database connectivity, app_version in system_settings matches the
+     * installed version, and all files listed in the manifest exist on disk.
+     * Falls back to archive scan when manifest.files is empty.
+     *
+     * @param array  $manifest   Parsed manifest.json
+     * @param string $version    Expected new version
+     * @param string $extractDir Path to extracted patch (for scan-fallback file list)
      * @return array{success: bool, error: ?string}
      */
-    private function verifyInstallation(): array
+    private function verifyInstallation(array $manifest, string $version, string $extractDir): array
     {
+        // Database connectivity check
         try {
             $pdo = $this->database->getPdo();
             $pdo->query("SELECT 1");
@@ -477,7 +553,95 @@ class PatchInstaller
             return ['success' => false, 'error' => 'Database connection test failed: ' . $e->getMessage()];
         }
 
+        // Verify the stored version matches what was installed
+        $currentVersion = $this->versionResolver->getCurrentVersion();
+        if ($currentVersion !== $version) {
+            return [
+                'success' => false,
+                'error'   => "Version mismatch: expected {$version}, got {$currentVersion}",
+            ];
+        }
+
+        // Build file list for verification (mirror copyFiles scan-fallback logic)
+        $filesList = $manifest['files'] ?? [];
+        if (empty($filesList)) {
+            $filesDir = $extractDir . '/files';
+            if (is_dir($filesDir)) {
+                $filesList = $this->fileManager->scanDirectory($filesDir, $filesDir);
+            }
+        }
+
+        foreach ($filesList as $relativePath) {
+            $destPath = $this->rootPath . '/' . $relativePath;
+
+            if (!file_exists($destPath)) {
+                return [
+                    'success' => false,
+                    'error'   => "Installed file missing: {$relativePath}",
+                ];
+            }
+
+            // Compare size to archive source when available (zero-byte files are legitimate)
+            $sourcePath = $extractDir . '/files/' . $relativePath;
+            if (file_exists($sourcePath) && filesize($destPath) !== filesize($sourcePath)) {
+                return [
+                    'success' => false,
+                    'error'   => "Installed file size mismatch: {$relativePath}",
+                ];
+            }
+        }
+
         return ['success' => true, 'error' => null];
+    }
+
+    /**
+     * Prune rollback artifacts (snapshots and DB backups) from old completed installs
+     *
+     * Keeps the most recent $keepLastSnapshots completed rows intact.
+     * Deletes snapshot directories and backup files for all older completed installs.
+     * Failed installs are intentionally retained for diagnostics and must be dismissed
+     * manually. Rolled-back installs have their artifacts cleaned up during the rollback.
+     *
+     * @param int $currentPatchHistoryId The ID just completed (always kept)
+     * @return void
+     */
+    private function pruneOldRollbackArtifacts(int $currentPatchHistoryId): void
+    {
+        try {
+            $completed = $this->database->getHistory();
+        } catch (\Exception $e) {
+            $this->log("Patch prune: could not load history - " . $e->getMessage(), 'WARNING');
+            return;
+        }
+
+        // Filter to completed rows only, sort newest first
+        $completed = array_filter($completed, fn($r) => ($r['status'] ?? '') === 'completed');
+        usort($completed, fn($a, $b) => strcmp($b['installed_at'] ?? '', $a['installed_at'] ?? ''));
+
+        $kept = 0;
+        foreach ($completed as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+
+            $kept++;
+            if ($kept <= $this->keepLastSnapshots) {
+                continue;
+            }
+
+            // Prune this old completed row
+            if (!empty($row['backup_id']) && $this->backupAdapter !== null) {
+                $this->backupAdapter->deleteBackup((int) $row['backup_id']);
+                try {
+                    $this->database->updateHistoryRecord($id, ['backup_id' => null]);
+                } catch (\Exception $e) {
+                    $this->log("Patch prune: could not clear backup_id for #{$id}: " . $e->getMessage(), 'WARNING');
+                }
+            }
+
+            $this->fileManager->cleanupSnapshot($id);
+        }
     }
 
     /**

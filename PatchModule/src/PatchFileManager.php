@@ -126,8 +126,49 @@ class PatchFileManager
                 'extract_dir' => null,
                 'manifest'    => null,
                 'error'       => 'Invalid manifest.json: missing version field',
-                'error_code'  => null,
+                'error_code'  => ErrorCode::INVALID_MANIFEST_SCHEMA,
             ];
+        }
+
+        // Validate version is a well-formed semver string
+        if (!preg_match('/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/', (string) $manifest['version'])) {
+            $this->cleanupDir($extractDir);
+            return [
+                'success'     => false,
+                'extract_dir' => null,
+                'manifest'    => null,
+                'error'       => 'Invalid manifest.json: version must be a valid semver string',
+                'error_code'  => ErrorCode::INVALID_MANIFEST_SCHEMA,
+            ];
+        }
+
+        // Validate files and removed_files are arrays of strings when present
+        foreach (['files', 'removed_files'] as $field) {
+            if (!isset($manifest[$field])) {
+                continue;
+            }
+            if (!is_array($manifest[$field])) {
+                $this->cleanupDir($extractDir);
+                return [
+                    'success'     => false,
+                    'extract_dir' => null,
+                    'manifest'    => null,
+                    'error'       => "Invalid manifest.json: '{$field}' must be an array",
+                    'error_code'  => ErrorCode::INVALID_MANIFEST_SCHEMA,
+                ];
+            }
+            foreach ($manifest[$field] as $entry) {
+                if (!is_string($entry)) {
+                    $this->cleanupDir($extractDir);
+                    return [
+                        'success'     => false,
+                        'extract_dir' => null,
+                        'manifest'    => null,
+                        'error'       => "Invalid manifest.json: all entries in '{$field}' must be strings",
+                        'error_code'  => ErrorCode::INVALID_MANIFEST_SCHEMA,
+                    ];
+                }
+            }
         }
 
         $this->log("Patch extracted to: {$extractDir}, version: {$manifest['version']}", 'DEBUG');
@@ -144,8 +185,10 @@ class PatchFileManager
     /**
      * Copy files from extracted patch to project root
      *
-     * Reads the files list from manifest and copies each file, preserving
-     * directory structure. Creates parent directories as needed.
+     * Writes each file atomically: copies to a .patchtmp sibling first, then
+     * renames (POSIX-atomic on the same filesystem). Preserves the original
+     * file's permission mode. Creates parent directories as needed.
+     * Falls back to copy+unlink if rename fails across filesystem boundaries.
      * Each path is validated against the project root to block traversal.
      * Invalidates OPcache per file.
      *
@@ -177,7 +220,7 @@ class PatchFileManager
                     'success'      => false,
                     'copied_count' => $copiedCount,
                     'error'        => 'Path traversal attempt blocked in manifest files list',
-                    'error_code'   => 'invalid_manifest_path',
+                    'error_code'   => ErrorCode::INVALID_MANIFEST_PATH,
                 ];
             }
 
@@ -200,13 +243,37 @@ class PatchFileManager
                 }
             }
 
-            if (!copy($sourcePath, $destPath)) {
+            // Preserve original file mode; default 0644 for new files
+            $existingMode = file_exists($destPath) ? fileperms($destPath) : false;
+            $targetMode   = ($existingMode !== false) ? ($existingMode & 0777) : 0644;
+
+            $tmpPath = $destPath . '.patchtmp';
+
+            if (!copy($sourcePath, $tmpPath)) {
+                @unlink($tmpPath);
                 return [
                     'success'      => false,
                     'copied_count' => $copiedCount,
-                    'error'        => "Failed to copy: {$relativePath}",
+                    'error'        => "Failed to copy to temp: {$relativePath}",
                     'error_code'   => null,
                 ];
+            }
+
+            chmod($tmpPath, $targetMode);
+
+            // Atomic rename (same filesystem). Falls back across filesystem boundaries.
+            if (!rename($tmpPath, $destPath)) {
+                $this->log("Patch rename failed for {$relativePath}, using non-atomic fallback", 'WARNING');
+                if (!copy($tmpPath, $destPath)) {
+                    @unlink($tmpPath);
+                    return [
+                        'success'      => false,
+                        'copied_count' => $copiedCount,
+                        'error'        => "Failed to install: {$relativePath}",
+                        'error_code'   => null,
+                    ];
+                }
+                @unlink($tmpPath);
             }
 
             if (function_exists('opcache_invalidate')) {
@@ -244,7 +311,7 @@ class PatchFileManager
                     'success'       => false,
                     'removed_count' => $removedCount,
                     'error'         => 'Path traversal attempt blocked in manifest removed_files list',
-                    'error_code'    => 'invalid_manifest_path',
+                    'error_code'    => ErrorCode::INVALID_MANIFEST_PATH,
                 ];
             }
 
@@ -295,6 +362,7 @@ class PatchFileManager
 
         $backedUp = [];
         $newFiles = [];
+        $modes    = []; // relativePath => original permission mode (int, e.g. 0644)
 
         foreach ($filesList as $relativePath) {
             try {
@@ -306,7 +374,7 @@ class PatchFileManager
                     'success'      => false,
                     'snapshot_dir' => null,
                     'error'        => 'Path traversal attempt blocked in manifest files list',
-                    'error_code'   => 'invalid_manifest_path',
+                    'error_code'   => ErrorCode::INVALID_MANIFEST_PATH,
                 ];
             }
 
@@ -334,6 +402,12 @@ class PatchFileManager
                     ];
                 }
 
+                // Record the original mode so rollback can restore it
+                $rawMode = fileperms($projectPath);
+                if ($rawMode !== false) {
+                    $modes[$relativePath] = $rawMode & 0777;
+                }
+
                 $backedUp[] = $relativePath;
             } else {
                 $newFiles[] = $relativePath;
@@ -341,8 +415,8 @@ class PatchFileManager
         }
 
         // Backup files scheduled for removal (so rollback can restore them)
-        $filesToRemove     = [];
-        $removedFilesList  = $manifest['removed_files'] ?? [];
+        $filesToRemove    = [];
+        $removedFilesList = $manifest['removed_files'] ?? [];
 
         foreach ($removedFilesList as $relativePath) {
             try {
@@ -354,7 +428,7 @@ class PatchFileManager
                     'success'      => false,
                     'snapshot_dir' => null,
                     'error'        => 'Path traversal attempt blocked in manifest removed_files list',
-                    'error_code'   => 'invalid_manifest_path',
+                    'error_code'   => ErrorCode::INVALID_MANIFEST_PATH,
                 ];
             }
 
@@ -383,6 +457,12 @@ class PatchFileManager
                         'error_code'   => null,
                     ];
                 }
+
+                // Record mode for files_to_remove so rollback can restore them correctly
+                $rawMode = fileperms($projectPath);
+                if ($rawMode !== false) {
+                    $modes[$relativePath] = $rawMode & 0777;
+                }
             }
         }
 
@@ -392,6 +472,7 @@ class PatchFileManager
             'files_backed_up'  => $backedUp,
             'new_files'        => $newFiles,
             'files_to_remove'  => $filesToRemove,
+            'modes'            => $modes,
         ];
         file_put_contents(
             $snapshotDir . '/snapshot_meta.json',
@@ -442,8 +523,9 @@ class PatchFileManager
 
         $restoredCount = 0;
         $deletedCount  = 0;
+        $modes         = is_array($meta['modes'] ?? null) ? $meta['modes'] : [];
 
-        // Restore backed-up files
+        // Restore backed-up files (atomically) with original mode
         foreach ($meta['files_backed_up'] ?? [] as $relativePath) {
             try {
                 $projectPath = $this->safeJoin($this->rootPath, $relativePath);
@@ -464,7 +546,11 @@ class PatchFileManager
                 mkdir($destDir, 0775, true);
             }
 
-            if (copy($snapshotPath, $projectPath)) {
+            $restored = $this->atomicCopy($snapshotPath, $projectPath);
+            if ($restored) {
+                if (isset($modes[$relativePath])) {
+                    chmod($projectPath, (int) $modes[$relativePath]);
+                }
                 $restoredCount++;
                 if (function_exists('opcache_invalidate')) {
                     opcache_invalidate($projectPath, true);
@@ -492,7 +578,7 @@ class PatchFileManager
             }
         }
 
-        // Restore files that the patch removed
+        // Restore files that the patch removed (atomically) with original mode
         foreach ($meta['files_to_remove'] ?? [] as $relativePath) {
             try {
                 $projectPath = $this->safeJoin($this->rootPath, $relativePath);
@@ -513,7 +599,11 @@ class PatchFileManager
                 mkdir($destDir, 0775, true);
             }
 
-            if (copy($snapshotPath, $projectPath)) {
+            $restored = $this->atomicCopy($snapshotPath, $projectPath);
+            if ($restored) {
+                if (isset($modes[$relativePath])) {
+                    chmod($projectPath, (int) $modes[$relativePath]);
+                }
                 $restoredCount++;
                 if (function_exists('opcache_invalidate')) {
                     opcache_invalidate($projectPath, true);
@@ -551,6 +641,118 @@ class PatchFileManager
         if (is_dir($snapshotDir)) {
             $this->cleanupDir($snapshotDir);
         }
+    }
+
+    /**
+     * Delete all compiled-cache content under each registered path
+     *
+     * Recursively removes directory contents while preserving the root directories
+     * themselves. Skips paths that don't exist (cache disabled) or aren't writable.
+     * Called after file copy/remove and after rollback to prevent stale compiled output.
+     *
+     * @param string[] $paths Absolute paths to cache directories (e.g. storage/cache/twig)
+     * @return void
+     */
+    public function clearCachePaths(array $paths): void
+    {
+        foreach ($paths as $cacheDir) {
+            if (!is_dir($cacheDir)) {
+                continue;
+            }
+
+            if (!is_writable($cacheDir)) {
+                $this->log("Patch cache clear: directory not writable, skipping: {$cacheDir}", 'WARNING');
+                continue;
+            }
+
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($cacheDir, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+
+            foreach ($iterator as $item) {
+                if ($item->isDir()) {
+                    @rmdir($item->getPathname());
+                } else {
+                    @unlink($item->getPathname());
+                }
+            }
+
+            $this->log("Patch cache cleared: {$cacheDir}", 'DEBUG');
+        }
+    }
+
+    /**
+     * Remove stale .patchtmp files left behind by a previous interrupted install
+     *
+     * Walks the project root looking for files with the .patchtmp extension and
+     * an mtime older than $maxAgeSeconds. Safe to call at install start after
+     * the install lock is acquired.
+     *
+     * @param int $maxAgeSeconds Files older than this many seconds are removed (default: 86400)
+     * @return void
+     */
+    public function sweepStaleTmpFiles(int $maxAgeSeconds = 86400): void
+    {
+        if (!is_dir($this->rootPath)) {
+            return;
+        }
+
+        $cutoff = time() - $maxAgeSeconds;
+
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($this->rootPath, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::LEAVES_ONLY
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile()) {
+                    continue;
+                }
+                if (substr($file->getFilename(), -8) !== '.patchtmp') {
+                    continue;
+                }
+                if ($file->getMTime() < $cutoff) {
+                    @unlink($file->getPathname());
+                    $this->log("Patch: removed stale tmp file: " . $file->getPathname(), 'DEBUG');
+                }
+            }
+        } catch (\Exception $e) {
+            $this->log("Patch: stale tmp sweep failed: " . $e->getMessage(), 'WARNING');
+        }
+    }
+
+    /**
+     * Copy a file atomically using rename; falls back to copy+unlink across filesystems
+     *
+     * @param string $source Source file path
+     * @param string $dest   Destination file path
+     * @return bool True on success
+     */
+    private function atomicCopy(string $source, string $dest): bool
+    {
+        $tmpPath = $dest . '.patchtmp';
+
+        if (!copy($source, $tmpPath)) {
+            @unlink($tmpPath);
+            return false;
+        }
+
+        if (rename($tmpPath, $dest)) {
+            return true;
+        }
+
+        // Cross-filesystem fallback
+        $this->log("Patch atomicCopy: rename failed for {$dest}, using non-atomic fallback", 'WARNING');
+
+        if (copy($tmpPath, $dest)) {
+            @unlink($tmpPath);
+            return true;
+        }
+
+        @unlink($tmpPath);
+        return false;
     }
 
     /**

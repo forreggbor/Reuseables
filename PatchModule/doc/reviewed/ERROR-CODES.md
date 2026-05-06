@@ -20,6 +20,40 @@ server-side condition that produces it and the recommended user-facing message k
 | `network_error`           | 0 / timeout | Could not reach the patch server                             | `TEXT_PATCH_ERROR_NETWORK_ERROR`              |
 | `invalid_archive`         | —           | Extracted archive contained a symlink (path-traversal guard) | `TEXT_PATCH_ERROR_INVALID_ARCHIVE`           |
 | `invalid_manifest_path`   | —           | Manifest contained a path with `..`, absolute path, or backslash | `TEXT_PATCH_ERROR_INVALID_MANIFEST_PATH` |
+| `invalid_manifest_schema` | —           | Manifest `version` failed semver validation, or `files`/`removed_files` contained a non-string entry | `TEXT_PATCH_ERROR_INVALID_MANIFEST_SCHEMA` |
+| `install_in_progress`     | —           | A concurrent install is already running (progress file exists) | `TEXT_PATCH_ERROR_INSTALL_IN_PROGRESS`    |
+| `verification_failed`     | —           | Post-install check found a missing file, size mismatch, or version mismatch; rolled back automatically | `TEXT_PATCH_ERROR_VERIFICATION_FAILED` |
+
+## Notes on `invalid_manifest_schema`
+
+Validation runs immediately after the archive is extracted, before any filesystem writes. It rejects:
+
+- A `version` field that does not match `x.y.z` or `x.y.z-pre` (strict semver, no `v` prefix).
+- A `files` or `removed_files` value that is not an array, or that contains any non-string element.
+
+This is a separate, earlier check from `invalid_manifest_path`: schema validation catches malformed
+types and version strings; path validation catches dangerous filesystem paths.
+
+The install aborts without touching the project tree. All error code constants are centralised in
+`PatchModule\ErrorCode`.
+
+## Notes on `install_in_progress`
+
+Returned when `ProgressTracker` finds an active progress file at install start, indicating a concurrent
+install is already running. The installer does not block and wait — it returns this code immediately so
+the caller can poll the progress API and surface a suitable UI message.
+
+## Notes on `verification_failed`
+
+Returned when `verifyInstallation()` detects a problem after files have been written:
+
+- The version stored in `system_settings` does not match the installed version.
+- A file listed in `manifest.files` is missing from the project root.
+- An installed file's size differs from its archive source (zero-byte files pass this check).
+
+When verification fails, the installer triggers the standard rollback pipeline before surfacing the
+error, so the project is restored to its pre-install state. The user-facing message from
+`TEXT_PATCH_ERROR_VERIFICATION_FAILED` should confirm that the rollback occurred.
 
 ## Notes on `rate_limited`
 

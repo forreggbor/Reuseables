@@ -96,38 +96,102 @@ class PatchMigrator
     /**
      * Parse SQL content into individual statements
      *
-     * Splits on semicolons while respecting string literals and comments.
-     * Removes block comments. Does NOT support DELIMITER changes.
+     * Processes the SQL content line-by-line to handle DELIMITER directives, then
+     * character-by-character to split on the active terminator while respecting
+     * single-quoted and double-quoted string literals and -- line comments.
+     * Standard block comments (/* ... *\/) are stripped before processing.
+     *
+     * Supports arbitrary terminators: ;, //, $$, ;;, END_OF_PROC, etc.
+     * This allows migration.sql files to define stored procedures and triggers.
+     *
+     * Known limitation: MySQL conditional comments (/*!50000 ... *\/) are treated
+     * as regular block comments and stripped. Do not use them in patch migrations.
      *
      * @param string $sql Raw SQL content
-     * @return string[] List of individual SQL statements
+     * @return string[] List of individual SQL statements ready for execution
      */
     public function parseSqlStatements(string $sql): array
     {
-        // Remove block comments
-        $sql = preg_replace('/\/\*.*?\*\//s', '', $sql);
+        // Remove standard block comments — but preserve MySQL conditional comments /*!...*/
+        $sql = (string) preg_replace('/\/\*(?!\!)[^*]*(?:\*(?!\/)[^*]*)*\*\//s', '', $sql);
 
-        $statements = [];
-        $current = '';
+        $delimiter = ';';
+        $pending   = '';
+        $collected = [];
+
+        foreach (explode("\n", $sql) as $line) {
+            // DELIMITER directive must appear at the start of a line (after optional whitespace)
+            if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $m)) {
+                // Flush any accumulated partial statement before the delimiter changes
+                $flushed = trim($pending);
+                if ($flushed !== '') {
+                    $collected[] = $flushed;
+                    $pending = '';
+                }
+                $delimiter = $m[1];
+                continue;
+            }
+
+            $pending .= $line . "\n";
+
+            // Extract all complete statements ending with the current delimiter
+            $extracted = $this->splitOnDelimiter($pending, $delimiter, $pending);
+            $collected = array_merge($collected, $extracted);
+        }
+
+        // Handle any trailing content not followed by a delimiter
+        $flushed = trim($pending);
+        if ($flushed !== '') {
+            $delimLen = strlen($delimiter);
+            if ($delimLen > 0 && substr($flushed, -$delimLen) === $delimiter) {
+                $flushed = rtrim(substr($flushed, 0, -$delimLen));
+            }
+            if ($flushed !== '') {
+                $collected[] = $flushed;
+            }
+        }
+
+        return $collected;
+    }
+
+    /**
+     * Split a buffer on the given delimiter, respecting string literals and line comments
+     *
+     * Returns an array of complete statements (delimiter stripped). The text after
+     * the last complete statement is passed back via $remaining.
+     *
+     * @param string $buffer    Input text (may span multiple lines)
+     * @param string $delimiter Active statement terminator
+     * @param string $remaining Output: content after the last complete statement
+     * @return string[] Complete statements with delimiter stripped
+     */
+    private function splitOnDelimiter(string $buffer, string $delimiter, string &$remaining): array
+    {
+        $statements    = [];
+        $current       = '';
         $inSingleQuote = false;
         $inDoubleQuote = false;
-        $length = strlen($sql);
+        $length        = strlen($buffer);
+        $delimLen      = strlen($delimiter);
 
         for ($i = 0; $i < $length; $i++) {
-            $char = $sql[$i];
-            $nextChar = $sql[$i + 1] ?? '';
+            $char     = $buffer[$i];
+            $nextChar = $buffer[$i + 1] ?? '';
 
-            // Handle line comments
+            // Skip -- line comments outside string literals
             if (!$inSingleQuote && !$inDoubleQuote && $char === '-' && $nextChar === '-') {
-                $eol = strpos($sql, "\n", $i);
+                $eol = strpos($buffer, "\n", $i);
                 if ($eol === false) {
+                    $current .= substr($buffer, $i);
+                    $i = $length;
                     break;
                 }
+                $current .= substr($buffer, $i, $eol - $i + 1);
                 $i = $eol;
                 continue;
             }
 
-            // Handle string literals
+            // Track single-quoted strings (handle '' escape)
             if ($char === "'" && !$inDoubleQuote) {
                 if ($inSingleQuote && $nextChar === "'") {
                     $current .= "''";
@@ -139,24 +203,23 @@ class PatchMigrator
                 $inDoubleQuote = !$inDoubleQuote;
             }
 
-            // Split on semicolons outside strings
-            if ($char === ';' && !$inSingleQuote && !$inDoubleQuote) {
+            // Check for delimiter match outside string literals
+            if (!$inSingleQuote && !$inDoubleQuote && $delimLen > 0
+                && substr($buffer, $i, $delimLen) === $delimiter
+            ) {
                 $trimmed = trim($current);
-                if (!empty($trimmed)) {
+                if ($trimmed !== '') {
                     $statements[] = $trimmed;
                 }
                 $current = '';
+                $i += $delimLen - 1;
                 continue;
             }
 
             $current .= $char;
         }
 
-        // Last statement without trailing semicolon
-        $trimmed = trim($current);
-        if (!empty($trimmed)) {
-            $statements[] = $trimmed;
-        }
+        $remaining = $current;
 
         return $statements;
     }

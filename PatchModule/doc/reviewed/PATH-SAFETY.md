@@ -89,6 +89,40 @@ tar --no-same-owner --no-same-permissions -xzf <archive> -C <dest>
 Path-traversal in `..`-named tar members is caught by the post-extraction realpath walk described
 above, making the defence portable across different `tar` implementations.
 
+## Atomic File Writes
+
+`PatchFileManager::copyFiles()` and `atomicCopy()` (used during rollback) write files atomically:
+
+1. The source is copied to a `.patchtmp` sibling (`destPath . '.patchtmp'`).
+2. `rename()` moves the temp file into place — POSIX guarantees this is atomic on the same filesystem.
+3. If `rename()` fails (cross-filesystem `EXDEV`), the module falls back to a non-atomic `copy()` +
+   `unlink()` of the temp file. A WARNING is logged when the fallback is used.
+4. The temp file is removed on any failure before returning an error.
+
+The effect: a PHP process killed mid-install cannot leave a half-written file visible to web requests.
+Any surviving `.patchtmp` files are swept at the start of the next install (files older than 24 hours
+are deleted by `sweepStaleTmpFiles()`).
+
+## File Mode Preservation
+
+When `backupAffectedFiles()` creates a snapshot, it records the original `chmod` value of every file
+being replaced or removed in `snapshot_meta.json` under the `modes` key:
+
+```json
+{
+  "modes": {
+    "bin/deploy.sh": 493,
+    "config/app.php": 420
+  }
+}
+```
+
+(Values are the integer result of `fileperms() & 0777`.)
+
+On rollback, `rollbackFiles()` reads `modes` and calls `chmod()` after each file is restored, so
+executable scripts and configuration files keep their original permissions. New files (not previously
+present) receive the default mode `0644`.
+
 ## `PharTarAdapter`
 
 `PharTarAdapter` (the fallback when shell extraction is unavailable) relies on PHP's `PharData` class,

@@ -1,0 +1,12 @@
+This directory is the upstream source for the PatchModule reusable module.
+
+When syncing to a project, use:
+
+    rsync -av --delete /home/gabor/development/reusables/PatchModule/ lib/PatchModule/
+
+Run a diff before every sync to detect unexpected local drift in the project copy:
+
+    diff -r /home/gabor/development/reusables/PatchModule/ lib/PatchModule/
+
+DO NOT edit files in the project's lib/PatchModule/ directory directly.
+All changes must be made here (upstream) first, then synced.

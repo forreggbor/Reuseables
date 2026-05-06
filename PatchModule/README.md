@@ -90,6 +90,8 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `expected_public_key_pem` | `string`                       | No       | `null`         | Pinned server public key PEM for key pinning    |
 | `signature_verifier`      | `SignatureVerifierInterface`   | No       | OpenSSL impl  | Custom signature verifier implementation        |
 | `license_verify_callback` | `callable`                     | No       | `null`         | Callback to refresh the server-side license check window before download |
+| `cache_paths_to_clear`    | `string[]`                     | No       | `[]`           | Absolute paths to compiled-cache directories (e.g. Twig) cleared after each file-mutation step and after rollback |
+| `keep_last_snapshots`     | `int`                          | No       | `3`            | Number of completed installs whose snapshot and DB backup are retained for rollback; older ones are pruned |
 
 *One of `get_pdo`, `pdo`, or `database_adapter` is required.
 

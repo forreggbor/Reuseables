@@ -5,6 +5,34 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-05-06
+
+| Category | Description                                                                                             |
+|----------|---------------------------------------------------------------------------------------------------------|
+| Added    | Atomic file writes with mode preservation, install lock, abort protection, and Twig cache invalidation |
+| Added    | DELIMITER-aware SQL parser for stored procedures and triggers                                           |
+| Added    | Completed install snapshots and backups are now retained for rollback (configurable, default 3)        |
+| Fixed    | Manifest schema validation now rejects non-string file paths and invalid version formats               |
+| Fixed    | Verification step now confirms every manifest file exists and the new version reads back correctly     |
+| Fixed    | Maintenance mode was never engaged during installs; it is now enabled for the full install/rollback    |
+
+### Added
+- **Atomic file writes** — files are first written to a `.patchtmp` staging name, then renamed into place (POSIX-atomic); avoids serving a half-written file if PHP is killed mid-install. A cross-filesystem `EXDEV` fallback (copy + unlink) is used when source and destination are on different mounts.
+- **File mode preservation** — the original `chmod` value of every file being replaced or removed is recorded in `snapshot_meta.json` at snapshot time and restored on rollback, so executable scripts and configuration files keep their permissions after an install or rollback.
+- **Stale temp file cleanup** — at the start of every install, any `*.patchtmp` files older than 24 hours are deleted from the project root to prevent debris from previously killed installs.
+- **`ignore_user_abort(true)` + `set_time_limit(0)`** — the install/rollback entry point now survives a browser disconnect and sets no PHP execution time limit for the duration of the operation. A `finally` block guarantees maintenance mode is disabled even on an uncaught exception.
+- **Maintenance mode activation** — `MaintenanceMode::enable()` is called at the start of every install and rollback, and disabled in a `finally` block. It was previously wired into the module but never called during the install pipeline.
+- **Configurable compiled-cache flushing** — a new `cache_paths_to_clear` config key accepts a list of absolute directory paths (e.g. the Twig compiled-template cache). The module empties those directories after each file-mutation step and after every rollback, preventing stale rendered output.
+- **Configurable rollback retention** — a new `keep_last_snapshots` config key (default `3`) controls how many completed installs retain their snapshot and DB backup for later rollback. Older snapshots are pruned automatically after each successful install. Failed install snapshots are kept until manually dismissed.
+- **DELIMITER-aware SQL parser** — `PatchMigrator::parseSqlStatements()` now recognises `DELIMITER` directives so patches can ship stored procedures, triggers, and functions. Arbitrary terminators (`//`, `$$`, `;;`, etc.) are supported. Custom terminators are stripped from statement bodies before execution.
+- **Centralised error codes** — `ErrorCode` class holds constants for all internal error code strings (`INVALID_MANIFEST_SCHEMA`, `INSTALL_IN_PROGRESS`, `VERIFICATION_FAILED`, and all pre-existing codes). All internal usages migrated to the constants.
+
+### Fixed
+- Manifest schema validation now checks that `version` matches a strict semver pattern (`x.y.z` or `x.y.z-pre`) and that every element in `files` and `removed_files` is a `string` — previously a mixed-type array or a path like `../../etc/passwd` would not be rejected at the schema level.
+- Verification step (`verifyInstallation`) now checks that every file listed in `manifest.files` exists at its destination path, and reads back the stored `app_version` to confirm it matches the newly installed version. A scan-fallback install (empty `manifest.files`) re-scans the archive directory for the file list so that fallback installs are also verified. File sizes are compared against the archive source rather than requiring a non-zero size, so legitimate zero-byte files pass verification.
+- Maintenance mode was injected into the module but never called during the install or rollback pipeline; it is now unconditionally engaged for the full duration of the operation.
+- Rollback mode and size checks are now applied consistently when restoring files removed by a patch (previously only applied to replaced files).
+
 ## [1.3.0] - 2026-05-02
 
 | Category | Description                                                                                    |

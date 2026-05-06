@@ -47,7 +47,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 1.3.0
+ * @version 1.4.0
  * @license MIT
  */
 class PatchModule
@@ -127,6 +127,12 @@ class PatchModule
      *   - license_verify_callback: callable — Invoked before download to refresh the server-side
      *                                          license check window; also used for a single retry
      *                                          when the server rejects a download as stale (default: null)
+     *   - cache_paths_to_clear: string[] — Absolute paths to compiled-cache directories (e.g. Twig)
+     *                                      cleared after each file-mutation step and after rollback
+     *                                      (default: [])
+     *   - keep_last_snapshots: int      — Number of completed installs whose snapshot and DB backup
+     *                                     are retained for later rollback; older ones are pruned
+     *                                     (default: 3)
      *
      * @throws \InvalidArgumentException If required configuration is missing
      */
@@ -204,15 +210,20 @@ class PatchModule
     /**
      * Install a patch end-to-end
      *
-     * @param int $patchHistoryId patch_history record ID
-     * @param bool $createBackup Whether to create a backup before installing
-     * @param int|null $userId User performing the installation
+     * @param int      $patchHistoryId patch_history record ID
+     * @param bool     $createBackup   Whether to create a backup before installing
+     * @param int|null $userId         User performing the installation
+     * @param string|null $language    Language code for the maintenance page (null = module default)
      * @return array{success: bool, error: ?string}
      */
-    public function install(int $patchHistoryId, bool $createBackup = true, ?int $userId = null): array
-    {
+    public function install(
+        int $patchHistoryId,
+        bool $createBackup = true,
+        ?int $userId = null,
+        ?string $language = null
+    ): array {
         $licenseKey = $this->resolveLicenseKey();
-        return $this->installer->install($patchHistoryId, $licenseKey, $createBackup, $userId);
+        return $this->installer->install($patchHistoryId, $licenseKey, $createBackup, $userId, $language);
     }
 
     /**
@@ -558,6 +569,9 @@ class PatchModule
             $this->logger
         );
 
+        $cachePathsToClear  = $config['cache_paths_to_clear'] ?? [];
+        $keepLastSnapshots  = (int) ($config['keep_last_snapshots'] ?? 3);
+
         $this->installer = new PatchInstaller(
             $this->database,
             $this->checker,
@@ -570,7 +584,10 @@ class PatchModule
             $minDiskSpace,
             $this->backupAdapter,
             $this->logger,
-            $licenseVerifyCallback
+            $licenseVerifyCallback,
+            $this->maintenanceMode,
+            is_array($cachePathsToClear) ? $cachePathsToClear : [],
+            $keepLastSnapshots
         );
     }
 
