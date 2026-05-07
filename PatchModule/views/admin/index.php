@@ -102,6 +102,9 @@ if (!function_exists('patchStatusBadge')) {
          'installNext'    => $tr('TEXT_BUTTON_INSTALL_NEXT'),
          'allDone'        => $tr('TEXT_MESSAGE_ALL_PATCHES_DONE'),
          'noReleaseNotes' => $tr('TEXT_LABEL_NO_RELEASE_NOTES'),
+         'checkNoUpdates' => $tr('TEXT_MESSAGE_PATCH_CHECK_NO_UPDATES'),
+         'checkFound'     => $tr('TEXT_MESSAGE_PATCH_CHECK_FOUND'),
+         'checkFailed'    => $tr('TEXT_MESSAGE_PATCH_CHECK_FAILED'),
      ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'>
 
 <?php if ($disabled): ?>

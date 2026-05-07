@@ -5,6 +5,22 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-05-07
+
+| Category | Description                                                                                          |
+|----------|------------------------------------------------------------------------------------------------------|
+| Fixed    | "Check for updates" button showed no feedback when nothing was found or when the check failed        |
+| Added    | Three translation keys for update-check outcomes (`CHECK_FAILED`, `CHECK_FOUND`, `CHECK_NO_UPDATES`) |
+
+### Fixed
+- **`checkUpdates()` now shows a toast instead of unconditionally reloading** — previously `PatchUpdate.checkUpdates()` called `window.location.reload()` regardless of `data.available`. The page now reloads only when `data.available === true` (new patches found). When `data.available === false` a localised "Your installation is up to date." toast is shown and the button re-enables. Network or server errors that previously left the button permanently disabled now show a "Update check failed." toast and also re-enable the button.
+
+### Added
+- **Three new translation keys** for update-check outcomes — `TEXT_MESSAGE_PATCH_CHECK_FAILED`, `TEXT_MESSAGE_PATCH_CHECK_FOUND`, and `TEXT_MESSAGE_PATCH_CHECK_NO_UPDATES` added to both `locale/en_US/messages.php` and `locale/hu_HU/messages.php`. `CHECK_FOUND` is included for symmetry and future use; the other two are wired into `checkUpdates()`.
+- **`checkFailed`, `checkFound`, `checkNoUpdates` i18n keys** exposed via the `data-i18n` JSON on `#patch-mount` so the JS client picks them up without page reload.
+
+---
+
 ## [1.6.0] - 2026-05-07
 
 | Category | Description                                                                                                    |

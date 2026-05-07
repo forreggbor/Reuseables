@@ -606,6 +606,26 @@ The JS file has no global side-effects during load. It initializes by reading
 `data-*` attributes from `#patch-mount` or `#patchUpdateBanner` on
 `DOMContentLoaded`.
 
+#### Host notification bridge (required for toasts)
+
+`patch-update.js` calls `showNotification(message, type)` to surface toast
+messages to the user. The file ships a console-only fallback — you must define
+`window.showNotification` **before** `patch-update.js` loads for toasts to
+actually appear.
+
+Type values used by the module: `'info'`, `'success'`, `'warning'`, `'error'`.
+Map `'error'` to your framework's `'danger'` class if needed:
+
+```js
+// In your shared JS file (loaded before patch-update.js):
+if (typeof window.showNotification !== 'function') {
+    window.showNotification = function (message, type) {
+        var mapped = type === 'error' ? 'danger' : (type || 'danger');
+        window.showAlert('', message, mapped); // adapt to your toast API
+    };
+}
+```
+
 ---
 
 ## 11. Step 10: Security & deployment requirements
@@ -909,3 +929,25 @@ check your `expected_public_key_pem` config value.
 - **Rollback audit events** — `PatchInstaller` now emits `rollback_patch` and `rollback_patch_failed` via `LoggerInterface::activity()`. No changes needed unless you inspect or filter activity event types.
 
 - **`AdminActions::getViewTranslator()`** — if you embed module views from your own layout (e.g. `_banner.php`), call `$tr = $actions->getViewTranslator()` to get a compatible closure instead of building the bridge yourself.
+
+---
+
+## 17. Upgrade notes (v1.6.0 → v1.6.1)
+
+### Breaking changes
+
+None.
+
+### Action required
+
+**Define `window.showNotification` in your host JS** if you have not done so
+already (see [Step 9 — Host notification bridge](#host-notification-bridge-required-for-toasts)). Without it, the new "Your installation is up to date." and "Update check failed." messages fall back to `console.warn` only and are invisible to the sysadmin.
+
+### What changed
+
+- `checkUpdates()` no longer unconditionally reloads the page. It reloads only
+  when `data.available === true`. In all other cases it shows a toast and
+  re-enables the button.
+- Three new translation keys added to both locale files. Existing integrations
+  pick them up automatically on the next rsync — no controller or adapter
+  changes needed.

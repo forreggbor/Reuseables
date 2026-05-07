@@ -768,7 +768,8 @@ const PatchUpdate = {
     },
 
     /**
-     * Trigger a server-side update check and reload the page on success
+     * Trigger a server-side update check.
+     * Reloads the page only when new patches are available; otherwise shows a toast.
      */
     checkUpdates: function () {
         var btn = document.getElementById('patchCheckUpdatesBtn');
@@ -778,8 +779,19 @@ const PatchUpdate = {
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken }
         })
             .then(function (r) { return r.json(); })
-            .then(function (data) { PatchUpdate.applyCsrfFromResponse(data); window.location.reload(); })
-            .catch(function () { if (btn) btn.disabled = false; });
+            .then(function (data) {
+                PatchUpdate.applyCsrfFromResponse(data);
+                if (data.available) {
+                    window.location.reload();
+                } else {
+                    showNotification(PatchUpdate.i18n.checkNoUpdates || 'Your installation is up to date.', 'info');
+                    if (btn) { btn.disabled = false; }
+                }
+            })
+            .catch(function () {
+                showNotification(PatchUpdate.i18n.checkFailed || 'Update check failed.', 'error');
+                if (btn) { btn.disabled = false; }
+            });
     },
 
     /**
