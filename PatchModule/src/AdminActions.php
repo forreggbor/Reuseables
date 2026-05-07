@@ -544,7 +544,10 @@ class AdminActions
      *
      * The patch server returns patches identified by version. This method
      * looks up each version in the local history to add the DB record ID,
-     * which is needed by the install and dismiss actions.
+     * which is needed by the install and dismiss actions. When no row exists
+     * yet (e.g. the cache was refreshed after a manual clear) the method
+     * self-heals by creating an 'available' record so that the UI stays
+     * functional without requiring a fresh update-check cycle.
      *
      * @param array $patches List of patch objects from the patch server
      * @return array Patch list with 'id' populated where a local record exists
@@ -553,11 +556,39 @@ class AdminActions
     {
         foreach ($patches as &$patch) {
             $version = (string) ($patch['version'] ?? '');
-            if ($version !== '') {
-                $existing = $this->module->findHistoryByVersion($version);
-                if ($existing !== null) {
-                    $patch['id'] = (int) $existing['id'];
+            if ($version === '') {
+                continue;
+            }
+
+            $existing = $this->module->findHistoryByVersion($version);
+            if ($existing !== null) {
+                $patch['id'] = (int) $existing['id'];
+                continue;
+            }
+
+            // Self-heal: the cache has this version but no local history row exists.
+            // Create one so that the install/dismiss actions have a valid ID to work with.
+            try {
+                $this->module->getDatabase()->createHistoryRecord([
+                    'version'         => $version,
+                    'status'          => PatchHistoryStatus::AVAILABLE,
+                    'release_notes'   => $patch['release_notes'] ?? null,
+                    'file_size'       => isset($patch['file_size']) ? (int) $patch['file_size'] : null,
+                    'sha256_hash'     => $patch['sha256'] ?? null,
+                    'patch_server_id' => $patch['patch_id'] ?? null,
+                    'released_at'     => $patch['released_at'] ?? null,
+                ]);
+
+                $created = $this->module->findHistoryByVersion($version);
+                if ($created !== null) {
+                    $patch['id'] = (int) $created['id'];
                 }
+            } catch (\Throwable $e) {
+                error_log(sprintf(
+                    '[PatchModule] enrichPatchesWithLocalIds: failed to self-heal patch_history for v%s — %s',
+                    $version,
+                    $e->getMessage()
+                ));
             }
         }
         unset($patch);

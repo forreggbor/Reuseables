@@ -175,15 +175,13 @@ if (!function_exists('patchStatusBadge')) {
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-secondary me-1 patch-details-btn"
                                                 data-patch-id="<?= $patchId ?>"
-                                                data-patch-version="<?= $patchVersion ?>"
-                                                <?= $patchId === 0 ? 'disabled' : '' ?>>
+                                                data-patch-version="<?= $patchVersion ?>">
                                             <i class="bi bi-info-circle me-1"></i><?= htmlspecialchars($tr('TEXT_PATCH_VIEW_DETAILS')) ?>
                                         </button>
                                         <button type="button"
                                                 class="btn btn-sm btn-primary patch-install-btn"
                                                 data-patch-id="<?= $patchId ?>"
-                                                data-patch-version="<?= $patchVersion ?>"
-                                                <?= $patchId === 0 ? 'disabled' : '' ?>>
+                                                data-patch-version="<?= $patchVersion ?>">
                                             <i class="bi bi-arrow-up-circle me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_INSTALL_PATCH')) ?>
                                         </button>
                                     </td>

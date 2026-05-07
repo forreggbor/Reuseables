@@ -5,6 +5,19 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-05-07
+
+| Category | Description                                                                                  |
+|----------|----------------------------------------------------------------------------------------------|
+| Fixed    | "Details" and "Install" buttons in the available patches table were incorrectly disabled     |
+| Fixed    | Update banner rendered as unstyled plain text — CSS rules for the banner were missing        |
+
+### Fixed
+- **Action buttons in the available patches table are now always enabled** — the "Details" and "Install" buttons were disabled whenever the patch had no matching `patch_history` row with status `available` or `downloading`. This happened when the patch cache was refreshed after a manual clear or after a previous row had moved to `failed`/`rolled_back`. The admin page now self-heals: if no suitable row exists it creates one before rendering, so the buttons are always clickable. On any DB failure during self-healing, the error is logged and the page still renders.
+- **Update banner now has a styled design** — the sticky top banner advertising available updates had no visual appearance because its custom CSS classes (`patch-update-banner`, `patch-banner-inner`, etc.) had no rules. The missing styles have been added using the same dark-blue gradient as the modal header, with responsive stacking on narrow screens.
+
+---
+
 ## [1.6.1] - 2026-05-07
 
 | Category | Description                                                                                          |
