@@ -146,6 +146,8 @@ The module ships with `MysqldumpBackupAdapter` (in `Adapters/Backup/`) as a read
 
 Application logging (`log()`) and activity audit (`activity()`). If not provided, all logging is silently skipped.
 
+See [`doc/LOGGING.md`](doc/LOGGING.md) for a complete reference of every emitted message and activity event, with implementation guidance.
+
 ### VersionResolverInterface
 
 Reads and writes the host application's version. Must be implemented by the host project.

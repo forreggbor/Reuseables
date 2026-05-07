@@ -5,6 +5,15 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-05-07
+
+| Category | Description                                                    |
+|----------|----------------------------------------------------------------|
+| Added    | Logging integration guide covering every emitted log message and activity event |
+
+### Added
+- **`doc/LOGGING.md`** — complete reference for implementing `LoggerInterface` in the host application: all four activity events with exact payload shapes, every `log()` message with level and source line, constructor wiring examples, and a minimal ready-to-use implementation.
+
 ## [1.5.0] - 2026-05-06
 
 | Category | Description                                                                      |
