@@ -409,10 +409,11 @@ class PatchInstaller
      *
      * Restores database from backup (if available) and files from snapshot.
      *
-     * @param int $patchHistoryId patch_history record ID
+     * @param int      $patchHistoryId patch_history record ID
+     * @param int|null $userId         User who triggered the rollback (null for internal/automated rollbacks)
      * @return array{success: bool, error: ?string}
      */
-    public function rollback(int $patchHistoryId): array
+    public function rollback(int $patchHistoryId, ?int $userId = null): array
     {
         $record = $this->database->getHistoryRecord($patchHistoryId);
         if (!$record) {
@@ -426,7 +427,7 @@ class PatchInstaller
         }
 
         try {
-            return $this->doRollback($record, $patchHistoryId);
+            return $this->doRollback($record, $patchHistoryId, $userId);
         } finally {
             if ($this->maintenanceMode !== null) {
                 try {
@@ -441,16 +442,25 @@ class PatchInstaller
     /**
      * Execute rollback logic (called from rollback() within the maintenance-mode try/finally)
      *
-     * @param array $record          patch_history record
-     * @param int   $patchHistoryId  patch_history record ID
+     * @param array    $record          patch_history record
+     * @param int      $patchHistoryId  patch_history record ID
+     * @param int|null $userId          User who triggered the rollback; null for automated rollbacks
      * @return array{success: bool, error: ?string}
      */
-    private function doRollback(array $record, int $patchHistoryId): array
+    private function doRollback(array $record, int $patchHistoryId, ?int $userId = null): array
     {
         if (!empty($record['backup_id']) && $this->backupAdapter !== null) {
             $dbResult = $this->backupAdapter->restoreDatabase((int) $record['backup_id']);
             if (!$dbResult['success']) {
                 $this->log("Patch rollback: database restore failed - " . $dbResult['error'], 'ERROR');
+                $this->logActivity(
+                    'rollback_patch_failed',
+                    'patch',
+                    $patchHistoryId,
+                    null,
+                    ['version' => $record['version'] ?? null, 'error' => 'Database restore failed: ' . ($dbResult['error'] ?? 'unknown')],
+                    $userId
+                );
                 return ['success' => false, 'error' => 'Database restore failed: ' . $dbResult['error']];
             }
             $this->log("Patch rollback: database restored from backup ID {$record['backup_id']}", 'INFO');
@@ -459,6 +469,14 @@ class PatchInstaller
         $filesResult = $this->fileManager->rollbackFiles($patchHistoryId);
         if (!$filesResult['success']) {
             $this->log("Patch rollback: file restore failed - " . $filesResult['error'], 'ERROR');
+            $this->logActivity(
+                'rollback_patch_failed',
+                'patch',
+                $patchHistoryId,
+                null,
+                ['version' => $record['version'] ?? null, 'error' => 'File restore failed: ' . ($filesResult['error'] ?? 'unknown')],
+                $userId
+            );
             return ['success' => false, 'error' => 'File restore failed: ' . $filesResult['error']];
         }
 
@@ -479,6 +497,15 @@ class PatchInstaller
         $this->fileManager->resetOpcache();
 
         $this->log("Patch rollback completed successfully", 'INFO');
+
+        $this->logActivity(
+            'rollback_patch',
+            'patch',
+            $patchHistoryId,
+            null,
+            ['version' => $record['version'] ?? null],
+            $userId
+        );
 
         return ['success' => true, 'error' => null];
     }

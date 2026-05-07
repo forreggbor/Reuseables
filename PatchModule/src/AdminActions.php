@@ -11,6 +11,7 @@ namespace PatchModule;
 
 use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
+use PatchModule\Contracts\CsrfRotatableInterface;
 use PatchModule\Contracts\TranslatorInterface;
 
 /**
@@ -86,7 +87,8 @@ class AdminActions
                 'disabled'       => !($availability['enabled'] ?? true),
                 'disabledReason' => $availability['reason'] ?? '',
                 'csrfToken'      => $this->csrf->getToken(),
-                'tr'             => fn(string $k, mixed ...$p): string => $this->t($k, ...$p),
+                'baseUrl'        => $this->module->getBaseUrl(),
+                'tr'             => $this->getViewTranslator(),
             ],
         ];
     }
@@ -112,10 +114,11 @@ class AdminActions
         return [
             'status' => 200,
             'data'   => [
-                'success'   => true,
-                'available' => $result['available'] ?? false,
-                'count'     => $result['count'] ?? 0,
-                'patches'   => $result['patches'] ?? [],
+                'success'    => true,
+                'available'  => $result['available'] ?? false,
+                'count'      => $result['count'] ?? 0,
+                'patches'    => $result['patches'] ?? [],
+                'csrf_token' => $this->csrfToken(),
             ],
         ];
     }
@@ -180,7 +183,7 @@ class AdminActions
 
         return [
             'status' => 200,
-            'data'   => ['success' => true],
+            'data'   => ['success' => true, 'csrf_token' => $this->csrfToken()],
         ];
     }
 
@@ -204,7 +207,7 @@ class AdminActions
 
         return [
             'status' => 200,
-            'data'   => ['success' => true],
+            'data'   => ['success' => true, 'csrf_token' => $this->csrfToken()],
         ];
     }
 
@@ -260,7 +263,7 @@ class AdminActions
             'data'   => [
                 'success'       => true,
                 'install_token' => $installToken,
-                'csrf_token'    => $this->csrf->getToken(),
+                'csrf_token'    => $this->csrfToken(),
             ],
         ];
     }
@@ -326,6 +329,7 @@ class AdminActions
                     'has_next'           => $hasNext,
                     'next_version'       => $hasNext && $nextPatch !== null ? ($nextPatch['version'] ?? null) : null,
                     'next_install_token' => $hasNext ? $this->auth->issueInstallAuthorization(1800) : null,
+                    'csrf_token'         => $this->csrfToken(),
                 ],
             ];
         });
@@ -399,7 +403,7 @@ class AdminActions
         }
 
         return $this->withInstallLock(function () use ($id): array {
-            $result = $this->module->rollback($id);
+            $result = $this->module->rollback($id, $this->auth->getCurrentUserId());
 
             if (!$result['success']) {
                 return [
@@ -413,9 +417,27 @@ class AdminActions
 
             return [
                 'status' => 200,
-                'data'   => ['success' => true],
+                'data'   => ['success' => true, 'csrf_token' => $this->csrfToken()],
             ];
         });
+    }
+
+    /**
+     * Get a translation callable pre-wired to the module's variadic-to-array bridge
+     *
+     * Returns a closure compatible with the variadic positional argument convention
+     * used by all module views: $tr('TEXT_KEY', $param1, $param2, ...). Hosts
+     * embedding module views (such as _banner.php) from their own layout templates
+     * should use this method instead of building the bridge closure themselves:
+     *
+     *   $tr = $actions->getViewTranslator();
+     *   include __DIR__ . '/../lib/PatchModule/views/admin/_banner.php';
+     *
+     * @return \Closure fn(string $key, mixed ...$params): string
+     */
+    public function getViewTranslator(): \Closure
+    {
+        return fn(string $k, mixed ...$p): string => $this->t($k, ...$p);
     }
 
     // =========================================================================
@@ -653,6 +675,23 @@ class AdminActions
                 'error'      => $this->t('TEXT_PATCH_ERROR_SERVER_ERROR'),
             ],
         ];
+    }
+
+    /**
+     * Get the current CSRF token, rotating it when the adapter supports rotation
+     *
+     * When the injected adapter implements CsrfRotatableInterface, calls rotate() to
+     * invalidate the old token, generate a fresh one, and return it. Otherwise returns
+     * the session-stable token via getToken(). Call this exactly once per successful
+     * mutating response — never on error responses or read-only endpoints.
+     *
+     * @return string The active (potentially new) CSRF token
+     */
+    private function csrfToken(): string
+    {
+        return $this->csrf instanceof CsrfRotatableInterface
+            ? $this->csrf->rotate()
+            : $this->csrf->getToken();
     }
 
     /**

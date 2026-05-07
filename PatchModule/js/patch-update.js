@@ -307,6 +307,14 @@ const PatchUpdate = {
     },
 
     /**
+     * Apply a refreshed CSRF token from a server response if one is present
+     * @param {Object} data - Parsed JSON response that may contain csrf_token
+     */
+    applyCsrfFromResponse: function (data) {
+        if (data && data.csrf_token) PatchUpdate.csrfToken = data.csrf_token;
+    },
+
+    /**
      * Dismiss all available patches (used from banner)
      */
     dismissAll: function () {
@@ -320,6 +328,7 @@ const PatchUpdate = {
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                PatchUpdate.applyCsrfFromResponse(data);
                 if (data.success) {
                     var banner = document.getElementById('patchUpdateBanner');
                     if (banner) {
@@ -374,9 +383,9 @@ const PatchUpdate = {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="bi bi-shield-lock me-1"></i>' + (btn.getAttribute('data-original-text') || 'Confirm');
 
+                PatchUpdate.applyCsrfFromResponse(data);
                 if (data.success) {
                     PatchUpdate.installToken = data.install_token;
-                    if (data.csrf_token) PatchUpdate.csrfToken = data.csrf_token;
                     PatchUpdate.startInstall();
                 } else {
                     document.getElementById('patchPassword').classList.add('is-invalid');
@@ -431,6 +440,7 @@ const PatchUpdate = {
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                PatchUpdate.applyCsrfFromResponse(data);
                 PatchUpdate.installing = false;
                 PatchUpdate.stopPolling();
                 PatchUpdate.pollOnce(PatchUpdate.progressToken, function () {
@@ -768,7 +778,7 @@ const PatchUpdate = {
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken }
         })
             .then(function (r) { return r.json(); })
-            .then(function () { window.location.reload(); })
+            .then(function (data) { PatchUpdate.applyCsrfFromResponse(data); window.location.reload(); })
             .catch(function () { if (btn) btn.disabled = false; });
     },
 
@@ -785,6 +795,7 @@ const PatchUpdate = {
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
+                PatchUpdate.applyCsrfFromResponse(data);
                 if (data.success) { window.location.reload(); }
             });
     },

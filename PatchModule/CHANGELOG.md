@@ -5,6 +5,40 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-05-07
+
+| Category | Description                                                                                                    |
+|----------|----------------------------------------------------------------------------------------------------------------|
+| Added    | `base_url` config key and `PatchModule::getBaseUrl()` for self-contained admin UI URL management              |
+| Added    | Rollback audit events (`rollback_patch`, `rollback_patch_failed`) — closes compliance gap vs. old controllers |
+| Added    | `AdminActions::getViewTranslator()` — public closure factory for host-embedded module views                    |
+| Added    | `CsrfRotatableInterface` — optional contract enabling per-request CSRF token rotation                          |
+| Changed  | Admin views now receive the base URL automatically — host controllers no longer inject it manually              |
+| Changed  | Every successful mutating response now includes `csrf_token` so JS always has the current token               |
+| Changed  | `PatchModule::rollback()` and `PatchInstaller::rollback()` accept optional `?int $userId`                      |
+| Security | `base_url` validated at construction against eight rules to prevent unsafe URL patterns                        |
+| Security | Rollback audit trail closes a compliance gap; error responses never include or rotate the CSRF token           |
+
+### Added
+- **`base_url` config key** — required when `auth_adapter` and `csrf_adapter` are set. Accepted format: same-origin path starting with `/`, no trailing slash, no `..`, `?`, `#`, `//`, whitespace, control characters, or percent-encoded sequences. Fails fast at `PatchModule::__construct()` with a descriptive error, eliminating a silent integration foot-gun where a forgotten base URL caused all admin JS endpoints to 404.
+- **`PatchModule::getBaseUrl(): string`** — returns the validated and normalised admin UI base path. Use `$module->getBaseUrl()` in the host layout banner include instead of repeating the literal URL string.
+- **Rollback audit events** — `PatchInstaller::doRollback()` now emits `rollback_patch` on success and `rollback_patch_failed` on failure via `LoggerInterface::activity()`. User ID is threaded through from `AdminActions::rollback()` via the new `?int $userId` parameter. Internal rollbacks triggered by install failures also emit these events (with whatever `userId` the install carried), alongside the existing `install_patch_failed` event — the dual emission mirrors the old per-project `PatchController` behaviour and gives each operation its own audit row.
+- **`AdminActions::getViewTranslator(): \Closure`** — returns a variadic-to-array bridge closure identical to the one already used internally by the module's index view. Hosts embedding module views from their own layout (e.g. `_banner.php` in an admin layout include) should call `$tr = $actions->getViewTranslator()` rather than building the bridge manually.
+- **`CsrfRotatableInterface`** (`src/Contracts/CsrfRotatableInterface.php`) — optional interface with a single `rotate(): string` method. Hosts whose CSRF implementation generates a new token after each mutating action implement this alongside `CsrfAdapterInterface`. The module calls `rotate()` exactly once per successful mutating action and includes the new token in the response. Existing adapters that implement only `CsrfAdapterInterface` are unaffected.
+
+### Changed
+- **`AdminActions::index()` injects `baseUrl` automatically** — the data array returned by `index()` now includes `baseUrl` sourced from the module config. Host controllers no longer need to merge the URL in before calling `renderView()`.
+- **Integration guide and README updated** — `INTEGRATION-GUIDE.md` Steps 5, 7, 8, and 11 and `README.md` config table and quick-start checklist updated to document the new features.
+- **`base_url` validation extracted to `validateBaseUrl()`** — the eight validation rules are now in a dedicated private method, keeping `validateConfig()` focused on core required keys.
+- **Every successful mutating response includes `csrf_token`** — `check`, `dismiss`, `dismissAll`, `verifyPassword`, `install`, and `rollback` now always return `csrf_token` in the response body. When the adapter implements `CsrfRotatableInterface` the value is a freshly rotated token; otherwise it is the unchanged session token. The JS client applies it on every response, keeping its internal token in sync without page reloads.
+- **`PatchModule::rollback()` and `PatchInstaller::rollback()` accept `?int $userId = null`** — backwards-compatible; calling `rollback($id)` without a user ID continues to work. The parameter is forwarded to the audit event.
+- **`AdminActions::index()` uses `getViewTranslator()`** — removed the inline closure duplicate; the `'tr'` data key is now provided by the new public factory method.
+
+### Security
+- **`base_url` validated at construction** — eight sequential checks reject: non-string or empty value; path not starting with `/`; protocol-relative prefix (`//…`); absolute URL (`scheme://…`); path traversal (`..`); percent-encoded sequences (`%`); query string (`?`), fragment (`#`), whitespace, or non-ASCII characters (including high-byte UTF-8, 0x80–0xFF); and consecutive slashes inside the path (`//`). Any violation throws `\InvalidArgumentException` immediately, before the object is used.
+- **Rollback audit trail** — admin-initiated and automatic rollbacks are now audit-logged, closing a compliance gap where rollback operations were invisible to the activity log. The host's existing `LoggerInterface` implementation receives these events without any changes.
+- **CSRF token not returned on error paths** — `csrfError()`, `forbidden()`, and all 4xx/5xx error responses do not call `rotate()` or append `csrf_token`. This prevents an attacker from repeatedly triggering CSRF validation errors as a token-churn denial-of-service against the admin user.
+
 ## [1.5.1] - 2026-05-07
 
 | Category | Description                                                    |

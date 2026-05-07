@@ -51,7 +51,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 1.5.0
+ * @version 1.6.0
  * @license MIT
  */
 class PatchModule
@@ -88,6 +88,9 @@ class PatchModule
 
     /** @var AdminActions|null */
     private ?AdminActions $adminActions = null;
+
+    /** @var string Normalized admin UI base URL (empty when admin UI is not configured) */
+    private readonly string $baseUrl;
 
     /** @var PatchChecker */
     private PatchChecker $checker;
@@ -133,6 +136,9 @@ class PatchModule
      *   - logger: LoggerInterface — Logger (null = silent)
      *   - auth_adapter: AuthAdapterInterface — Required for admin UI (null = admin UI disabled)
      *   - csrf_adapter: CsrfAdapterInterface — Required for admin UI (null = admin UI disabled)
+     *   - base_url: string — Admin UI base path, e.g. '/admin/patch-management' (required when
+     *                        auth_adapter and csrf_adapter are set); must start with '/', same-origin
+     *                        path only, no trailing slash, no '..', '?', '#', '//', or whitespace
      *   - translator: TranslatorInterface — Optional for admin UI (null = module uses its own locale)
      *
      *   Optional settings:
@@ -159,6 +165,11 @@ class PatchModule
     {
         $this->config = $config;
         $this->validateConfig($config);
+        $rawUrl = (string) ($config['base_url'] ?? '');
+        if ($rawUrl !== '' && strlen($rawUrl) > 1 && str_ends_with($rawUrl, '/')) {
+            $rawUrl = rtrim($rawUrl, '/');
+        }
+        $this->baseUrl = $rawUrl;
         $this->initializeAdapters($config);
         $this->initializeComponents($config);
     }
@@ -248,12 +259,13 @@ class PatchModule
     /**
      * Rollback a failed patch installation
      *
-     * @param int $patchHistoryId patch_history record ID
+     * @param int      $patchHistoryId patch_history record ID
+     * @param int|null $userId         User performing the rollback (null for automated rollbacks)
      * @return array{success: bool, error: ?string}
      */
-    public function rollback(int $patchHistoryId): array
+    public function rollback(int $patchHistoryId, ?int $userId = null): array
     {
-        return $this->installer->rollback($patchHistoryId);
+        return $this->installer->rollback($patchHistoryId, $userId);
     }
 
     // =========================================================================
@@ -447,6 +459,21 @@ class PatchModule
     }
 
     /**
+     * Get the normalized admin UI base URL path
+     *
+     * Returns the validated and trailing-slash-stripped value of the 'base_url'
+     * config key. Returns an empty string when the admin UI is not configured
+     * (no auth_adapter or csrf_adapter). The returned value is safe to use
+     * directly as an HTML attribute value after htmlspecialchars().
+     *
+     * @return string Same-origin path without trailing slash, e.g. '/admin/patch-management'
+     */
+    public function getBaseUrl(): string
+    {
+        return $this->baseUrl;
+    }
+
+    /**
      * Get the admin actions handler for the patch management UI
      *
      * Returns null when auth_adapter or csrf_adapter is not configured,
@@ -533,6 +560,71 @@ class PatchModule
 
         if (empty($config['temp_path'])) {
             throw new \InvalidArgumentException('PatchModule requires "temp_path"');
+        }
+
+        $this->validateBaseUrl($config);
+    }
+
+    /**
+     * Validate the base_url config key when admin UI adapters are configured
+     *
+     * Enforces that the value is a safe, same-origin absolute path so it can be
+     * used as the JS fetch() prefix without risk of cross-origin requests or
+     * log-injection. Only fires when at least one of auth_adapter or csrf_adapter
+     * is present in config; passes silently when neither is set.
+     *
+     * @param array $config Configuration array
+     * @return void
+     * @throws \InvalidArgumentException If base_url is missing or contains an unsafe value
+     */
+    private function validateBaseUrl(array $config): void
+    {
+        $hasAdminAdapters = !empty($config['auth_adapter']) || !empty($config['csrf_adapter']);
+        if (!$hasAdminAdapters) {
+            return;
+        }
+
+        $url = $config['base_url'] ?? '';
+        if (!is_string($url) || $url === '') {
+            throw new \InvalidArgumentException(
+                'PatchModule requires "base_url" when admin UI adapters are configured (string starting with "/")'
+            );
+        }
+        if ($url[0] !== '/') {
+            throw new \InvalidArgumentException(
+                'PatchModule requires "base_url" (string starting with "/")'
+            );
+        }
+        if (strlen($url) > 1 && $url[1] === '/') {
+            throw new \InvalidArgumentException(
+                'PatchModule "base_url" must be a same-origin path; protocol-relative ("//...") and absolute ("scheme://...") URLs are rejected'
+            );
+        }
+        if (str_contains($url, '://')) {
+            throw new \InvalidArgumentException(
+                'PatchModule "base_url" must be a same-origin path; protocol-relative ("//...") and absolute ("scheme://...") URLs are rejected'
+            );
+        }
+        if (str_contains($url, '..')) {
+            throw new \InvalidArgumentException(
+                'PatchModule "base_url" must not contain path traversal sequences ("..")'
+            );
+        }
+        if (str_contains($url, '%')) {
+            throw new \InvalidArgumentException(
+                'PatchModule "base_url" must not contain percent-encoded sequences'
+            );
+        }
+        // \x00-\x1F = C0 control characters, \x7F = DEL, \x80-\xFF = high-byte UTF-8
+        if (preg_match('/[?#\s\x00-\x1F\x7F\x80-\xFF]/', $url)) {
+            throw new \InvalidArgumentException(
+                'PatchModule "base_url" must not contain "?", "#", whitespace, or non-ASCII characters'
+            );
+        }
+        if (preg_match('#//#', substr($url, 1))) {
+            throw new \InvalidArgumentException(
+                'PatchModule "base_url" must not contain consecutive slashes ("//")'
+            );
         }
     }
 

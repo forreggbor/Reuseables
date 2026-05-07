@@ -70,7 +70,7 @@ interface LoggerInterface
 
 ## Activity Events
 
-These are the four audit events emitted via `activity()`. Store them in your activity log table.
+These are the six audit events emitted via `activity()`. Store them in your activity log table.
 
 ### `install_patch`
 
@@ -125,6 +125,71 @@ oldValues:  null
 newValues:  {"version": "1.5.0", "error": "SQL migration failed at statement 3/5: ...", "rolled_back": true}
 userId:     7
 ```
+
+---
+
+### `rollback_patch`
+
+Emitted after a successful admin-initiated or install-failure rollback.
+
+**Source:** `src/PatchInstaller.php` (success branch of `doRollback()`)
+
+| Field        | Value                                 |
+|--------------|---------------------------------------|
+| `action`     | `rollback_patch`                      |
+| `entityType` | `patch`                               |
+| `entityId`   | `patch_history.id` of the record      |
+| `oldValues`  | `null`                                |
+| `newValues`  | `['version' => '<rolled_back_version>']` |
+| `userId`     | user who clicked Rollback, or `null` for automated rollbacks |
+
+**Example:**
+```
+action:     rollback_patch
+entityType: patch
+entityId:   42
+oldValues:  null
+newValues:  {"version": "1.5.0"}
+userId:     7
+```
+
+---
+
+### `rollback_patch_failed`
+
+Emitted when a rollback fails (database restore or file restore step failed).
+
+**Source:** `src/PatchInstaller.php` (failure branches of `doRollback()`)
+
+| Field        | Value                                                          |
+|--------------|----------------------------------------------------------------|
+| `action`     | `rollback_patch_failed`                                        |
+| `entityType` | `patch`                                                        |
+| `entityId`   | `patch_history.id` of the record                               |
+| `oldValues`  | `null`                                                         |
+| `newValues`  | `['version' => '<target_version>', 'error' => '<message>']`   |
+| `userId`     | user who clicked Rollback, or `null` for automated rollbacks   |
+
+**Example:**
+```
+action:     rollback_patch_failed
+entityType: patch
+entityId:   42
+oldValues:  null
+newValues:  {"version": "1.5.0", "error": "File restore failed: snapshot not found"}
+userId:     7
+```
+
+---
+
+### Dual emission on install failure with automatic rollback
+
+When a patch install fails and the module automatically rolls back, two audit events are emitted:
+
+1. `rollback_patch` or `rollback_patch_failed` — from `doRollback()`, with `userId` carrying the user who started the install
+2. `install_patch_failed` — from `handleInstallFailure()`, with the same `userId` and the `rolled_back` boolean in `newValues`
+
+The `rolled_back` boolean in `install_patch_failed` is retained for backwards compatibility. The standalone `rollback_patch[_failed]` events are the canonical audit source for rollback outcomes.
 
 ---
 

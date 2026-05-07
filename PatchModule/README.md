@@ -13,7 +13,8 @@ Framework-agnostic patch management module for PHP applications. Handles checkin
 - **Maintenance mode** via flag file (no DB dependency)
 - **OPcache invalidation** per-file and full reset
 - **Optional backup integration** (graceful skip if not available)
-- **Optional logging** (app log + activity audit)
+- **Optional logging** (app log + 6 activity audit events, including rollback outcomes)
+- **Optional CSRF rotation** (`CsrfRotatableInterface`) — module returns fresh token on every mutating response
 - **Shared hosting support** (PharData fallback for tar extraction)
 
 ## Requirements
@@ -84,6 +85,7 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `logger`           | `LoggerInterface`           | No       | `null`         | Logger (null = silent)                     |
 | `auth_adapter`     | `AuthAdapterInterface`      | No†      | `null`         | Host auth bridge (required for admin UI)   |
 | `csrf_adapter`     | `CsrfAdapterInterface`      | No†      | `null`         | Host CSRF bridge (required for admin UI)   |
+| `base_url`         | `string`                    | No†      | —              | Admin UI base path, e.g. `/admin/patch-management`; same-origin, no trailing slash (required when auth_adapter and csrf_adapter are set) |
 | `translator`       | `TranslatorInterface`       | No       | `null`         | Host translator (null = built-in en_US)    |
 | `check_cache_hours`       | `int`                          | No       | `6`            | Hours to cache patch check results              |
 | `min_disk_space`          | `int`                          | No       | `209715200`    | Minimum free bytes (200 MB)                     |
@@ -109,9 +111,9 @@ classes and adding one route block.
 Quick integration summary:
 
 1. Implement `AuthAdapterInterface` and `CsrfAdapterInterface` (see below).
-2. Pass them as `auth_adapter` and `csrf_adapter` in the factory config.
+2. Pass them as `auth_adapter`, `csrf_adapter`, and `base_url` in the factory config.
 3. Add 9 routes delegating to `$module->getAdminActions()->{method}()`.
-4. Include `views/admin/_banner.php` in your admin layout.
+4. Include `views/admin/_banner.php` in your admin layout (use `$module->getBaseUrl()` for the `$baseUrl` local variable).
 5. Link `css/patch-update.css` and `js/patch-update.js` in your admin layout.
 
 See [`doc/INTEGRATION-GUIDE.md`](doc/INTEGRATION-GUIDE.md) for the full

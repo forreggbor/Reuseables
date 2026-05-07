@@ -260,6 +260,7 @@ $module = new PatchModule([
     // ── Admin UI adapters (required for the admin UI) ───────────────────────
     'auth_adapter'     => new AuthAdapter($getCurrentUser),
     'csrf_adapter'     => new CsrfAdapter(),
+    'base_url'         => '/admin/patch-management', // same-origin path, no trailing slash
 
     // ── Optional translator (omit to use module's built-in en_US locale) ────
     // 'translator'    => new MyTranslatorAdapter($container->get(Translator::class)),
@@ -487,8 +488,8 @@ if (isset($isSysadmin) && $isSysadmin) {
     $availability = $module->isAvailable();
     $patches      = $availability['enabled'] ? $module->getAvailablePatches() : [];
     $actions      = $module->getAdminActions();
-    $tr           = fn(string $k, mixed ...$p): string => $actions ? /* see translator section */ $k : $k;
-    $baseUrl      = '/admin/patch-management';
+    $tr           = $actions ? $actions->getViewTranslator() : fn(string $k, mixed ...$p): string => $k;
+    $baseUrl      = $module->getBaseUrl(); // reads the 'base_url' you configured in the factory
     $csrfToken    = $csrfAdapter->getToken();
     $disabled     = !$availability['enabled'];
 
@@ -497,13 +498,17 @@ if (isset($isSysadmin) && $isSysadmin) {
 ?>
 ```
 
+`$module` here is whatever local variable name your project uses for the
+`PatchModule` instance — substitute accordingly.
+
 When the module is not configured (no `auth_adapter` / `csrf_adapter`),
 `$module->isAvailable()['enabled']` is `false` and the banner never renders —
 no DB query is executed.
 
 The `_modal.php` partial is included automatically by `_banner.php` via a
 once-guard, so it will render only once even when both the banner and the
-index page include it on the same request.
+index page include it on the same request. `_modal.php` does **not** require
+`$baseUrl` in scope — no host action is needed for it.
 
 ---
 
@@ -555,6 +560,24 @@ $appLocale    = array_merge($appLocale, $moduleLocale); // module keys take prec
 Omit the `translator` config key entirely. The module reads its own
 `locale/en_US/messages.php` file and all UI strings appear in English.
 Switch to Option A or B when you need localized output.
+
+### `AdminActions::getViewTranslator()`
+
+Module views call `$tr` with variadic positional arguments:
+`$tr('TEXT_KEY', $param1, $param2)`. This is incompatible with a raw
+`TranslatorInterface::t($key, array $params)` callable. `AdminActions` bridges
+the two signatures internally. When embedding module views directly from your
+own layout (e.g. the banner snippet above), use `getViewTranslator()` to get
+the same bridge closure rather than building it yourself:
+
+```php
+$tr = $actions->getViewTranslator();
+// Now safe to include any module view that calls $tr(...)
+include __DIR__ . '/../../../lib/PatchModule/views/admin/_banner.php';
+```
+
+The method returns `fn(string $k, mixed ...$p): string => $this->t($k, ...$p)`
+and can be called multiple times — each call returns an equivalent closure.
 
 ---
 
@@ -622,6 +645,58 @@ $app->post('/admin/patch-management/verify-password', $handler)
 ```
 
 For Laravel: use `throttle:5,1` on the route.
+
+### CSRF token contract
+
+The module's JS client (`patch-update.js`) reads the CSRF token once at page
+load and reuses it across the entire install flow. Every successful mutating
+response (`check`, `dismiss`, `dismissAll`, `verifyPassword`, `install`,
+`rollback`) includes a `csrf_token` field in the JSON body so the client can
+update its copy before the next request.
+
+**Default (single-token) mode** — implement only `CsrfAdapterInterface`:
+
+Your `validate()` MUST NOT rotate the token. The same token is valid for the
+lifetime of the admin session. The module returns it in every mutating response
+as a no-op update. This is the correct mode for most simple session-token
+implementations.
+
+**Rotating mode** — additionally implement `CsrfRotatableInterface`:
+
+```php
+use PatchModule\Contracts\CsrfAdapterInterface;
+use PatchModule\Contracts\CsrfRotatableInterface;
+
+class PatchCsrfAdapter implements CsrfAdapterInterface, CsrfRotatableInterface
+{
+    public function getToken(): string
+    {
+        return $_SESSION['csrf_token'] ?? '';
+    }
+
+    public function validate(string $token): bool
+    {
+        // MUST NOT rotate here — rotation happens only in rotate()
+        return hash_equals($_SESSION['csrf_token'] ?? '', $token);
+    }
+
+    public function rotate(): string
+    {
+        $new = bin2hex(random_bytes(32));
+        $_SESSION['csrf_token'] = $new;
+        return $new;
+    }
+}
+```
+
+The module calls `rotate()` exactly once per successful mutating action and
+returns the new token to the client.
+
+> ⚠️ **Do not rotate in `validate()`** when implementing `CsrfRotatableInterface`.
+> If your existing `validateCsrf(rotate: true)` pattern rotates on every call,
+> refactor it to a non-rotating `validate()` before using the optional interface.
+> Rotating in both places means the token is renewed twice per request and the
+> client token becomes stale immediately after the first call.
 
 ### Single-node deployment / sticky sessions
 
