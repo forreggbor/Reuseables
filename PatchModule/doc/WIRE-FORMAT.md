@@ -1,4 +1,4 @@
-# PatchModule v1.5.0 — HTTP Wire Format
+# PatchModule v1.6.0 — HTTP Wire Format
 
 Frozen request/response contract for all 9 admin endpoints. Any change to this
 document must be accompanied by matching changes in both `src/AdminActions.php`
@@ -117,7 +117,8 @@ list of available patches.
   "patches": [
     { "id": 12, "version": "1.2.0", "released_at": "...", "file_size": 524288 },
     { "id": 13, "version": "1.3.0", "released_at": "...", "file_size": 102400 }
-  ]
+  ],
+  "csrf_token": "new-csrf-token-value"
 }
 ```
 
@@ -142,7 +143,7 @@ Dismisses the update notification for a specific version.
 
 **Response 200**
 ```json
-{ "success": true }
+{ "success": true, "csrf_token": "new-csrf-token-value" }
 ```
 
 **Response 403** — not sysadmin or invalid CSRF
@@ -163,7 +164,7 @@ Dismisses all pending update notifications.
 
 **Response 200**
 ```json
-{ "success": true }
+{ "success": true, "csrf_token": "new-csrf-token-value" }
 ```
 
 **Response 403** — not sysadmin or invalid CSRF
@@ -253,7 +254,8 @@ arrives).
   "success": true,
   "has_next": true,
   "next_version": "1.3.0",
-  "next_install_token": "c5e8d2f1..."
+  "next_install_token": "c5e8d2f1...",
+  "csrf_token": "new-csrf-token-value"
 }
 ```
 
@@ -263,7 +265,8 @@ When `has_next` is `false`:
   "success": true,
   "has_next": false,
   "next_version": null,
-  "next_install_token": null
+  "next_install_token": null,
+  "csrf_token": "new-csrf-token-value"
 }
 ```
 
@@ -360,7 +363,7 @@ backup. Acquires the same exclusive file lock as `install`.
 
 **Response 200**
 ```json
-{ "success": true }
+{ "success": true, "csrf_token": "new-csrf-token-value" }
 ```
 
 **Response 400** — invalid id

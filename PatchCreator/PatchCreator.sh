@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.01.00"
+VERSION="v1.02.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -157,6 +157,7 @@ ${BOLD}OPTIONS:${NC}
     -p <pattern>    Version detection regex pattern
     --no-changelog  Skip automatic CHANGELOG.md extraction
     --dry-run       Show what would be packaged without creating archive
+    --no-validate   Skip PatchModule compatibility validation of the manifest
     -y              Auto-confirm (skip prompts)
     -h              Show this help message
     --version       Show script version
@@ -267,7 +268,7 @@ detect_version() {
 # @return 0 if valid semver, non-zero otherwise
 ##
 is_valid_semver() {
-    [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]
+    [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
 }
 
 ##
@@ -311,6 +312,100 @@ matches_exclude() {
     done
 
     return 1
+}
+
+##
+# Check that a relative file path is safe to include in the manifest.
+#
+# Mirrors PatchModule's PatchFileManager::safeJoin() rules so that any path
+# that passes here is guaranteed to pass PatchModule's validation.
+#
+# @param string $1 Path to validate
+# @return 0 if safe, non-zero otherwise
+##
+validate_safe_path() {
+    local path="$1"
+
+    [[ -z "$path" ]]         && return 1  # empty
+    [[ "$path" == /* ]]      && return 1  # absolute (Unix)
+    [[ "$path" =~ ^[A-Za-z]: ]] && return 1  # Windows drive letter
+    [[ "$path" == *\\* ]]    && return 1  # backslash
+
+    # Reject any dotdot, lone-dot, or empty segment (from double slashes)
+    local IFS='/'
+    read -ra segments <<< "$path"
+    for seg in "${segments[@]}"; do
+        [[ "$seg" == ".." || "$seg" == "." || -z "$seg" ]] && return 1
+    done
+
+    return 0
+}
+
+##
+# Validate manifest.json against PatchModule's acceptance rules.
+#
+# Checks the same constraints that PatchFileManager::extractPatch() enforces,
+# so failures are caught at build time rather than at install time.
+#
+# @param string $1 Path to manifest.json
+# @param string $2 Path to temp build directory (for symlink check)
+##
+validate_manifest() {
+    local manifest_path="$1"
+    local temp_dir="$2"
+
+    info "Validating manifest against PatchModule rules..."
+
+    # Must parse as a JSON object
+    if ! jq -e 'type == "object"' "$manifest_path" > /dev/null 2>&1; then
+        error "Manifest validation failed: manifest.json is not a valid JSON object [invalid_manifest_schema]"
+    fi
+
+    # version must be a non-empty string
+    local version
+    version=$(jq -r '.version // empty' "$manifest_path" 2>/dev/null)
+    if [[ -z "$version" ]]; then
+        error "Manifest validation failed: missing or empty 'version' field [invalid_manifest_schema]"
+    fi
+
+    # version must match PatchModule's semver regex exactly
+    if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+        error "Manifest validation failed: 'version' is not a valid semver string [invalid_manifest_schema]"
+    fi
+
+    # files and removed_files (when present) must be arrays of strings with safe paths
+    for field in files removed_files; do
+        local field_type
+        field_type=$(jq -r --arg f "$field" 'if has($f) then (.[$f] | type) else "absent" end' "$manifest_path" 2>/dev/null)
+
+        [[ "$field_type" == "absent" ]] && continue
+
+        if [[ "$field_type" != "array" ]]; then
+            error "Manifest validation failed: '${field}' must be an array [invalid_manifest_schema]"
+        fi
+
+        local non_strings
+        non_strings=$(jq -r --arg f "$field" '.[$f] | map(select(type != "string")) | length' "$manifest_path")
+        if [[ "${non_strings:-0}" -gt 0 ]]; then
+            error "Manifest validation failed: all entries in '${field}' must be strings [invalid_manifest_schema]"
+        fi
+
+        local entry
+        while IFS= read -r entry; do
+            if ! validate_safe_path "$entry"; then
+                error "Manifest validation failed: unsafe path in '${field}': '${entry}' [invalid_manifest_path]"
+            fi
+        done < <(jq -r --arg f "$field" '.[$f][]' "$manifest_path" 2>/dev/null)
+    done
+
+    # No symlinks anywhere in the build tree
+    local first_symlink
+    first_symlink=$(find "$temp_dir" -type l | head -1)
+    if [[ -n "$first_symlink" ]]; then
+        error "Manifest validation failed: archive would contain a symbolic link: ${first_symlink} [invalid_archive]"
+    fi
+
+    success "Manifest validation passed"
 }
 
 ##
@@ -403,6 +498,7 @@ VERSION_PATTERN="$DEFAULT_VERSION_PATTERN"
 NO_CHANGELOG=false
 DRY_RUN=false
 AUTO_CONFIRM=false
+VALIDATE=true
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -455,6 +551,10 @@ while [[ $# -gt 0 ]]; do
             NO_CHANGELOG=true
             shift
             ;;
+        --no-validate)
+            VALIDATE=false
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -481,6 +581,11 @@ done
 # ==============================================================================
 
 header "Validating environment"
+
+# jq is required for JSON escaping and manifest validation
+if ! command -v jq &>/dev/null; then
+    error "Required tool not found: jq. Install it with: sudo apt install jq"
+fi
 
 # Validate project directory
 if [[ ! -d "$PROJECT_DIR" ]]; then
@@ -788,8 +893,8 @@ for file in "${PATCH_FILES[@]}"; do
     # Create parent directory
     mkdir -p "$(dirname "$dest")"
 
-    # Copy file
-    cp "$src" "$dest"
+    # -L: always dereference symlinks — PatchModule rejects any archive that contains a symlink
+    cp -L "$src" "$dest"
     COPY_COUNT=$((COPY_COUNT + 1))
 done
 
@@ -798,12 +903,15 @@ success "Copied ${COPY_COUNT} files"
 # Generate manifest.json
 info "Generating manifest.json..."
 
+# has_migration is informational metadata for upload pipelines.
+# PatchModule does NOT read it — installation is triggered by the presence
+# of migration.sql on disk, not by this field.
 HAS_MIGRATION=false
 if [[ -n "$MIGRATION_FILE" ]]; then
     HAS_MIGRATION=true
 fi
 
-# Build JSON file list array
+# Build JSON file list array — jq handles all escaping (control chars, Unicode, etc.)
 FILES_JSON="["
 FIRST=true
 for file in "${PATCH_FILES[@]}"; do
@@ -812,8 +920,8 @@ for file in "${PATCH_FILES[@]}"; do
     else
         FILES_JSON+=","
     fi
-    ESCAPED_FILE=$(echo "$file" | sed 's/\\/\\\\/g; s/"/\\"/g')
-    FILES_JSON+=$'\n'"        \"${ESCAPED_FILE}\""
+    JSON_FILE=$(jq -Rn --arg s "$file" '$s')
+    FILES_JSON+=$'\n'"        ${JSON_FILE}"
 done
 FILES_JSON+=$'\n'"    ]"
 
@@ -828,8 +936,8 @@ if [[ ${#REMOVED_FILES[@]} -gt 0 ]]; then
         else
             RF_JSON+=","
         fi
-        ESCAPED_RF=$(echo "$rf" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        RF_JSON+=$'\n'"        \"${ESCAPED_RF}\""
+        JSON_RF=$(jq -Rn --arg s "$rf" '$s')
+        RF_JSON+=$'\n'"        ${JSON_RF}"
     done
     RF_JSON+=$'\n'"    ]"
     REMOVED_FILES_JSON=",
@@ -848,7 +956,8 @@ success "Created manifest.json"
 
 # Copy migration file
 if [[ -n "$MIGRATION_FILE" ]]; then
-    cp "$MIGRATION_FILE" "${TEMP_DIR}/migration.sql"
+    # -L: match the file-copy loop — always dereference symlinks
+    cp -L "$MIGRATION_FILE" "${TEMP_DIR}/migration.sql"
     success "Included migration.sql"
 fi
 
@@ -856,6 +965,12 @@ fi
 if [[ -n "$RELEASE_NOTES_CONTENT" ]]; then
     echo "$RELEASE_NOTES_CONTENT" > "${TEMP_DIR}/release_notes.md"
     success "Included release_notes.md"
+fi
+
+# Validate manifest against PatchModule's acceptance rules (on by default, disable with --no-validate).
+# Runs after all files are in TEMP_DIR so the symlink check covers the full archive contents.
+if $VALIDATE; then
+    validate_manifest "${TEMP_DIR}/manifest.json" "${TEMP_DIR}"
 fi
 
 # Create output directory

@@ -5,6 +5,23 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.02.00] - 2026-05-07
+
+| Category | Description |
+|----------|-------------|
+| Added    | Build-time manifest validator (`--validate`, on by default) that mirrors PatchModule's install-time rules |
+| Changed  | Semver prerelease allows hyphens (matches PatchModule's format); JSON escaping uses `jq` for full Unicode safety; symlink dereferencing is now explicit |
+
+### Added
+
+- Build-time manifest validator enabled by default: after assembling the archive contents but before creating the `.tgz`, the script now checks that `manifest.json` is a valid JSON object, `version` is a proper semver string, `files` and `removed_files` (when present) are string arrays, every path is safe (no traversal, no absolute paths, no backslash), and no symbolic links exist in the archive tree. Incompatible archives are rejected at build time rather than on the customer's machine. Use `--no-validate` to skip.
+
+### Changed
+
+- Semver prerelease validation now matches PatchModule's accepted range: hyphens are allowed in the prerelease segment (e.g. `2.0.0-beta-1`)
+- JSON string escaping in `manifest.json` now uses `jq` instead of `sed`, correctly handling Unicode, control characters, and NUL bytes in file paths
+- Symlink dereferencing in the file copy step is now explicit (`cp -L`), ensuring source symlinks are always resolved to regular files and never appear as links inside the archive
+
 ## [1.01.00] - 2026-05-02
 
 | Category | Description                                                                               |

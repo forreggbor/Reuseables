@@ -1,4 +1,4 @@
-# PatchModule v1.5.0 — Integration Guide
+# PatchModule v1.6.0 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -24,6 +24,7 @@ one sidebar entry + one banner include.
 13. [Step 12: Verification checklist](#13-step-12-verification-checklist)
 14. [Troubleshooting](#14-troubleshooting)
 15. [Upgrade notes (v1.4.0 → v1.5.0)](#15-upgrade-notes-v140--v150)
+16. [Upgrade notes (v1.5.x → v1.6.0)](#16-upgrade-notes-v15x--v160)
 
 ---
 
@@ -877,3 +878,34 @@ check your `expected_public_key_pem` config value.
 - `PatchModule::isAvailable()` for zero-cost banner suppression when module
   is not configured.
 - `WIRE-FORMAT.md` — frozen HTTP contract for all 9 endpoints.
+
+---
+
+## 16. Upgrade notes (v1.5.x → v1.6.0)
+
+### Breaking changes
+
+1. **`base_url` is now required** when `auth_adapter` and `csrf_adapter` are set. The factory validates it at construction time and throws a descriptive `\InvalidArgumentException` if it is missing or malformed (must be a same-origin path starting with `/`, no trailing slash, no `..`, `?`, `#`, `//`, whitespace, control characters, or percent-encoded sequences). If you integrated without this key in v1.5.x (relying on a hardcoded URL in your layout), add it now:
+   ```php
+   $module = new PatchModule([
+       // ...
+       'base_url' => '/admin/patch-management',
+   ]);
+   ```
+
+2. **Every successful mutating response now includes `csrf_token`.** The responses for `check`, `dismiss`, `dismiss-all`, `install`, and `rollback` all carry a `csrf_token` field (in addition to `verify-password`, which already included it). The JS client reads this value and updates its stored token automatically — no changes needed on the host side unless you have custom code consuming these responses.
+
+### New features in v1.6.0
+
+- **`PatchModule::getBaseUrl(): string`** — use `$module->getBaseUrl()` in your banner layout instead of repeating the literal URL:
+  ```php
+  $baseUrl = $module->getBaseUrl();
+  include __DIR__ . '/../../../lib/PatchModule/views/admin/_banner.php';
+  ```
+
+- **`CsrfRotatableInterface`** — optional interface for hosts that rotate the CSRF token on every mutating request. Implement `rotate(): string` alongside `CsrfAdapterInterface`. The module calls `rotate()` exactly once per successful mutating action.
+  > **Do not** rotate inside `validate()` when implementing this interface. If your existing pattern rotates in `validate()`, refactor it to a non-rotating `validate()` before adding `CsrfRotatableInterface`.
+
+- **Rollback audit events** — `PatchInstaller` now emits `rollback_patch` and `rollback_patch_failed` via `LoggerInterface::activity()`. No changes needed unless you inspect or filter activity event types.
+
+- **`AdminActions::getViewTranslator()`** — if you embed module views from your own layout (e.g. `_banner.php`), call `$tr = $actions->getViewTranslator()` to get a compatible closure instead of building the bridge yourself.

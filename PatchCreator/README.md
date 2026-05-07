@@ -19,6 +19,7 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 - Git
 - tar, sha256sum
 - grep with Perl-compatible regex (`-P` flag)
+- jq (JSON processing — used for escaping and manifest validation)
 
 ## Installation
 
@@ -69,6 +70,7 @@ PatchCreator.sh [options]
 | `-p` | `<pattern>` | APP_VERSION define | Version detection regex |
 | `--no-changelog` | — | — | Skip CHANGELOG.md extraction |
 | `--dry-run` | — | — | Preview without creating archive |
+| `--no-validate` | — | — | Skip PatchModule compatibility validation of the manifest |
 | `-y` | — | — | Auto-confirm (skip prompts) |
 | `-h` | — | — | Show help |
 | `--version` | — | — | Show script version |
@@ -94,6 +96,8 @@ PatchCreator.sh -b abc1234
 ```bash
 PatchCreator.sh -v 2.33.0 -m database/migrations/2026_02_16_new_feature.sql
 ```
+
+> **Warning:** PatchModule's SQL parser strips both standard block comments (`/* ... */`) and MySQL conditional comments (`/*! ... */`). Do not rely on `/*! */` for version-gated SQL in migration files — rewrite the logic as plain SQL or split it into separate migrations.
 
 ### Use an explicit file list
 
@@ -167,7 +171,9 @@ patch-2.33.0.tgz
 }
 ```
 
-`removed_files` is omitted entirely when no files were deleted. PatchModule v1.3.0+ deletes the listed files from the project root during installation and backs them up to the snapshot for rollback. Older PatchModule versions silently ignore the field.
+**`has_migration`** is informational metadata included for upload-pipeline tooling. PatchModule itself does **not** read this field — it triggers migration execution based solely on the presence of `migration.sql` inside the archive.
+
+**`removed_files`** is omitted entirely when no files were deleted. PatchModule v1.3.0+ deletes the listed files from the project root during installation and backs them up to the snapshot for rollback. Older PatchModule versions silently ignore the field.
 
 ## Default Exclude Patterns
 
@@ -224,3 +230,5 @@ PatchCreator output is validated by the LicenseManager server upload pipeline (v
 Designed to work with [PatchModule](../PatchModule/) v1.00.00+. The generated archive format matches the expected structure for `PatchInstaller::install()`.
 
 The `removed_files` manifest field requires **PatchModule v1.3.0 or later** to take effect. Archives produced by this version of PatchCreator are fully backward compatible — older PatchModule versions install the archive normally and silently ignore the new field.
+
+By default, PatchCreator validates the generated manifest against the same rules that PatchModule v1.6.0 enforces (JSON schema, semver format, path safety, no symlinks). This catches incompatible output at build time rather than at customer install time. Disable with `--no-validate` if needed.
