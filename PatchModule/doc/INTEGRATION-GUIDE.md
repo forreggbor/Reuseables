@@ -1,4 +1,4 @@
-# PatchModule v1.6.0 — Integration Guide
+# PatchModule v1.6.3 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -25,6 +25,9 @@ one sidebar entry + one banner include.
 14. [Troubleshooting](#14-troubleshooting)
 15. [Upgrade notes (v1.4.0 → v1.5.0)](#15-upgrade-notes-v140--v150)
 16. [Upgrade notes (v1.5.x → v1.6.0)](#16-upgrade-notes-v15x--v160)
+17. [Upgrade notes (v1.6.0 → v1.6.1)](#17-upgrade-notes-v160--v161)
+18. [Upgrade notes (v1.6.1 → v1.6.2)](#18-upgrade-notes-v161--v162)
+19. [Upgrade notes (v1.6.2 → v1.6.3)](#19-upgrade-notes-v162--v163)
 
 ---
 
@@ -951,3 +954,40 @@ already (see [Step 9 — Host notification bridge](#host-notification-bridge-req
 - Three new translation keys added to both locale files. Existing integrations
   pick them up automatically on the next rsync — no controller or adapter
   changes needed.
+
+---
+
+## 18. Upgrade notes (v1.6.1 → v1.6.2)
+
+### Breaking changes
+
+None.
+
+### Action required
+
+None — `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` and you are done. No controller, adapter, or config changes are needed.
+
+### What changed
+
+- **Action buttons in the available patches table are always enabled.** The "Details" and "Install" buttons were previously disabled whenever no `patch_history` row with status `available` or `downloading` existed (e.g. after a manual cache clear or after a row moved to `failed`/`rolled_back`). The admin index view now self-heals: if no suitable row exists it creates one before rendering. DB failures during self-healing are logged and the page still renders.
+- **Update banner now renders with a styled design.** The sticky top banner advertising available updates was previously unstyled because its custom CSS classes (`patch-update-banner`, `patch-banner-inner`, etc.) had no rules. The missing styles have been added: a dark-blue gradient matching the modal header, with responsive stacking on narrow screens.
+
+---
+
+## 19. Upgrade notes (v1.6.2 → v1.6.3)
+
+### Breaking changes
+
+None.
+
+### Action required
+
+After rsync, the host picks up the updated `locale/en_US/messages.php` and `locale/hu_HU/messages.php` files — the new `TEXT_PATCH_ERROR_REQUEST_FAILED` key is included automatically if the host loads or merges the module locale files directly (see README §Translations). No controller, adapter, config, or wire-format changes are needed.
+
+> **Reminder from v1.6.1:** `window.showNotification(message, type)` must be defined in the host JS (see [Step 9 — Host notification bridge](#host-notification-bridge-required-for-toasts)). Without it, the new error toasts introduced in this version fall back to `console.warn` only and are invisible to the sysadmin.
+
+### What changed
+
+- **New `PatchUpdate.parseResponse(response)` JS helper.** All five fetch operations (`dismissAll`, `verifyPassword`, `installCurrent`, `checkUpdates`, `dismissPatch`) now route through a unified helper that safely parses JSON, rotates the CSRF token, and returns a normalised `{ok, data, errorMessage}` object. Previously each operation contained its own inline JSON parse and CSRF update; now these happen exactly once per request.
+- **Silent failures fixed.** `dismissAll` and `dismissPatch` previously ignored server errors with no user feedback; they now show a localised error toast. `checkUpdates` now re-enables its button on failure (previously it could be left permanently disabled via a second code path). `verifyPassword` replaces the hardcoded English "Verification failed" string with the i18n fallback.
+- **New `TEXT_PATCH_ERROR_REQUEST_FAILED` translation key** added to both `locale/en_US/messages.php` and `locale/hu_HU/messages.php`. It is exposed as `genericError` in the `data-i18n` JSON on `#patch-mount` in `views/admin/index.php`. The JS client uses it as a localised fallback toast whenever a generic network or server error occurs.

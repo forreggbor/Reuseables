@@ -5,6 +5,21 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2026-05-11
+
+| Category | Description                                                                                                     |
+|----------|-----------------------------------------------------------------------------------------------------------------|
+| Added    | New translation key `TEXT_PATCH_ERROR_REQUEST_FAILED` exposed as `genericError` in the JS i18n config          |
+| Changed  | All fetch operations now use a unified `parseResponse` helper for consistent error handling and CSRF rotation   |
+
+### Added
+- **`TEXT_PATCH_ERROR_REQUEST_FAILED` translation key** — added to both `en_US` and `hu_HU` locale files and exposed as `genericError` in the `data-i18n` JSON on `#patch-mount`. The JS client now shows a localised fallback toast whenever a generic network or server error occurs in `dismissAll`, `dismissPatch`, `checkUpdates`, `verifyPassword`, or `installCurrent`.
+
+### Changed
+- **`parseResponse` helper introduced** — all five fetch operations (`dismissAll`, `verifyPassword`, `installCurrent`, `checkUpdates`, `dismissPatch`) now route through a unified `parseResponse(response)` function that parses JSON safely, rotates the CSRF token, and returns a normalised `{ok, data, errorMessage}` object. Previously `dismissAll` and `dismissPatch` silently ignored server errors; they now display a toast. `checkUpdates` now re-enables its button on failure. `verifyPassword` uses the i18n fallback instead of a hardcoded English string.
+
+---
+
 ## [1.6.2] - 2026-05-07
 
 | Category | Description                                                                                  |

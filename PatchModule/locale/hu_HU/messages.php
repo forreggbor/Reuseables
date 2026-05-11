@@ -58,6 +58,7 @@ return [
     'TEXT_PATCH_ERROR_NOT_RECENTLY_VERIFIED'     => 'Frissítés telepítése előtt ellenőrizd a licencedet a licenckezelőben.',
     'TEXT_PATCH_ERROR_PACKAGE_MISMATCH'          => 'Ez a frissítés nem kompatibilis a telepített szoftververziódhoz.',
     'TEXT_PATCH_ERROR_RATE_LIMITED'              => 'Túl sok frissítési kérés. Kérlek próbáld újra később.',
+    'TEXT_PATCH_ERROR_REQUEST_FAILED'            => 'A kérés sikertelen. Kérlek próbáld újra.',
     'TEXT_PATCH_ERROR_SERVER_ERROR'              => 'A frissítési szerver hibát észlelt. Kérlek próbáld újra később.',
     'TEXT_PATCH_ERROR_SIGNING_UNAVAILABLE'       => 'A frissítési szerver aláírási szolgáltatása átmenetileg nem érhető el. Kérlek próbáld újra később.',
     'TEXT_PATCH_ERROR_VERIFICATION_FAILED'       => 'A frissítés ellenőrzése sikertelen. A módosítások visszaállításra kerültek.',

@@ -105,6 +105,7 @@ if (!function_exists('patchStatusBadge')) {
          'checkNoUpdates' => $tr('TEXT_MESSAGE_PATCH_CHECK_NO_UPDATES'),
          'checkFound'     => $tr('TEXT_MESSAGE_PATCH_CHECK_FOUND'),
          'checkFailed'    => $tr('TEXT_MESSAGE_PATCH_CHECK_FAILED'),
+         'genericError'   => $tr('TEXT_PATCH_ERROR_REQUEST_FAILED'),
      ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'>
 
 <?php if ($disabled): ?>

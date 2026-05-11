@@ -315,6 +315,28 @@ const PatchUpdate = {
     },
 
     /**
+     * Parse a fetch Response into a normalised result object.
+     * Captures a rotated CSRF token when present, then resolves with
+     * {ok, data, errorMessage} — ok is false when the HTTP status or the JSON
+     * body indicate an error.
+     *
+     * @param {Response} response
+     * @returns {Promise<{ok: boolean, data: Object, errorMessage: string|null}>}
+     */
+    parseResponse: function (response) {
+        return response.json().catch(function () { return {}; }).then(function (data) {
+            PatchUpdate.applyCsrfFromResponse(data);
+            var ok = response.ok && data && data.success !== false;
+            var errorMessage = null;
+            if (!ok) {
+                errorMessage = (data && (data.error || data.message))
+                    || (PatchUpdate.i18n.genericError || 'Request failed.');
+            }
+            return { ok: ok, data: data, errorMessage: errorMessage };
+        });
+    },
+
+    /**
      * Dismiss all available patches (used from banner)
      */
     dismissAll: function () {
@@ -326,15 +348,17 @@ const PatchUpdate = {
             },
             body: JSON.stringify({})
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                PatchUpdate.applyCsrfFromResponse(data);
-                if (data.success) {
-                    var banner = document.getElementById('patchUpdateBanner');
-                    if (banner) {
-                        banner.style.display = 'none';
-                    }
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
+                if (!result.ok) {
+                    showNotification(result.errorMessage, 'error');
+                    return;
                 }
+                var banner = document.getElementById('patchUpdateBanner');
+                if (banner) { banner.style.display = 'none'; }
+            })
+            .catch(function () {
+                showNotification(PatchUpdate.i18n.genericError || 'Request failed.', 'error');
             });
     },
 
@@ -378,23 +402,21 @@ const PatchUpdate = {
             },
             body: JSON.stringify({ password: password })
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-shield-lock me-1"></i>' + (btn.getAttribute('data-original-text') || 'Confirm');
-
-                PatchUpdate.applyCsrfFromResponse(data);
-                if (data.success) {
-                    PatchUpdate.installToken = data.install_token;
-                    PatchUpdate.startInstall();
-                } else {
+                btn.innerHTML = '<i class="bi bi-shield-lock me-1"></i>' + escapeHtml(btn.getAttribute('data-original-text') || 'Confirm');
+                if (!result.ok) {
                     document.getElementById('patchPassword').classList.add('is-invalid');
-                    document.getElementById('patchPasswordError').textContent = data.error || 'Invalid password';
+                    document.getElementById('patchPasswordError').textContent = result.errorMessage || 'Invalid password';
+                    return;
                 }
+                PatchUpdate.installToken = result.data.install_token;
+                PatchUpdate.startInstall();
             })
             .catch(function () {
                 btn.disabled = false;
-                showNotification('Verification failed', 'error');
+                showNotification(PatchUpdate.i18n.genericError || 'Request failed.', 'error');
             });
     },
 
@@ -438,20 +460,24 @@ const PatchUpdate = {
                 progress_token:   PatchUpdate.progressToken
             })
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                PatchUpdate.applyCsrfFromResponse(data);
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
                 PatchUpdate.installing = false;
                 PatchUpdate.stopPolling();
+                if (!result.ok) {
+                    PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'failed');
+                    PatchUpdate.showResult(false, result.errorMessage);
+                    return;
+                }
                 PatchUpdate.pollOnce(PatchUpdate.progressToken, function () {
-                    PatchUpdate.handleInstallResponse(data);
+                    PatchUpdate.handleInstallResponse(result.data);
                 });
             })
             .catch(function () {
                 PatchUpdate.installing = false;
                 PatchUpdate.stopPolling();
                 PatchUpdate.updateQueueItemStatus(PatchUpdate.currentPatchIndex, 'failed');
-                PatchUpdate.showResult(false, 'Connection lost during installation');
+                PatchUpdate.showResult(false, PatchUpdate.i18n.genericError || 'Connection lost during installation');
             });
     },
 
@@ -778,10 +804,14 @@ const PatchUpdate = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken }
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                PatchUpdate.applyCsrfFromResponse(data);
-                if (data.available) {
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
+                if (!result.ok) {
+                    showNotification(result.errorMessage, 'error');
+                    if (btn) { btn.disabled = false; }
+                    return;
+                }
+                if (result.data.available) {
                     window.location.reload();
                 } else {
                     showNotification(PatchUpdate.i18n.checkNoUpdates || 'Your installation is up to date.', 'info');
@@ -805,10 +835,16 @@ const PatchUpdate = {
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': PatchUpdate.csrfToken },
             body: JSON.stringify({ id: id })
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                PatchUpdate.applyCsrfFromResponse(data);
-                if (data.success) { window.location.reload(); }
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
+                if (!result.ok) {
+                    showNotification(result.errorMessage, 'error');
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(function () {
+                showNotification(PatchUpdate.i18n.genericError || 'Request failed.', 'error');
             });
     },
 

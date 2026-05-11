@@ -58,6 +58,7 @@ return [
     'TEXT_PATCH_ERROR_NOT_RECENTLY_VERIFIED'     => 'Please verify your license before installing updates.',
     'TEXT_PATCH_ERROR_PACKAGE_MISMATCH'          => 'This update is not compatible with your installed software package.',
     'TEXT_PATCH_ERROR_RATE_LIMITED'              => 'Too many update requests. Please try again later.',
+    'TEXT_PATCH_ERROR_REQUEST_FAILED'            => 'Request failed. Please try again.',
     'TEXT_PATCH_ERROR_SERVER_ERROR'              => 'The update server encountered an error. Please try again later.',
     'TEXT_PATCH_ERROR_SIGNING_UNAVAILABLE'       => "The update server's signing service is temporarily unavailable. Please try again later.",
     'TEXT_PATCH_ERROR_VERIFICATION_FAILED'       => 'Update verification failed. The changes have been rolled back.',
