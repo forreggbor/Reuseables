@@ -12,6 +12,7 @@ Framework-agnostic patch management module for PHP applications. Handles checkin
 - **Atomic progress tracking** via JSON files (works during DB unavailability)
 - **Maintenance mode** via flag file (no DB dependency)
 - **OPcache invalidation** per-file and full reset
+- **Manual patch upload** — install patches offline via detached RSA-SHA256 signature verification
 - **Optional backup integration** (graceful skip if not available)
 - **Optional logging** (app log + 6 activity audit events, including rollback outcomes)
 - **Optional CSRF rotation** (`CsrfRotatableInterface`) — module returns fresh token on every mutating response
@@ -23,6 +24,7 @@ Framework-agnostic patch management module for PHP applications. Handles checkin
 - PDO with MySQL/MariaDB
 - cURL extension
 - Phar extension (for shared hosting tar extraction fallback)
+- `/usr/bin/openssl` binary (required for manual upload signature verification only)
 
 ## Installation
 
@@ -92,11 +94,14 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `api_timeout`             | `int`                          | No       | `30`           | API request timeout in seconds                  |
 | `download_timeout`        | `int`                          | No       | `300`          | Download timeout in seconds                     |
 | `default_language`        | `string`                       | No       | `'en'`         | Maintenance page language                       |
-| `expected_public_key_pem` | `string`                       | No       | `null`         | Pinned server public key PEM for key pinning    |
-| `signature_verifier`      | `SignatureVerifierInterface`   | No       | OpenSSL impl  | Custom signature verifier implementation        |
-| `license_verify_callback` | `callable`                     | No       | `null`         | Callback to refresh the server-side license check window before download |
-| `cache_paths_to_clear`    | `string[]`                     | No       | `[]`           | Absolute paths to compiled-cache directories (e.g. Twig) cleared after each file-mutation step and after rollback |
-| `keep_last_snapshots`     | `int`                          | No       | `3`            | Number of completed installs whose snapshot and DB backup are retained for rollback; older ones are pruned |
+| `expected_public_key_pem`    | `string`                              | No       | `null`         | Pinned server public key PEM; **required** for manual upload (upload returns 403 if absent) |
+| `signature_verifier`         | `SignatureVerifierInterface`          | No       | OpenSSL impl  | Custom JSON-payload signature verifier (remote installs)                  |
+| `archive_signature_verifier` | `ArchiveSignatureVerifierInterface`   | No       | OpenSSL impl  | Detached-file signature verifier for manual upload                        |
+| `max_upload_size`            | `int`                                 | No       | `104857600`    | Maximum `.tgz` size in bytes for manual upload (default 100 MB)           |
+| `max_signature_size`         | `int`                                 | No       | `10240`        | Maximum `.sig` size in bytes for manual upload (default 10 KB)            |
+| `license_verify_callback`    | `callable`                            | No       | `null`         | Callback to refresh the server-side license check window before download  |
+| `cache_paths_to_clear`       | `string[]`                            | No       | `[]`           | Absolute paths to compiled-cache directories (e.g. Twig) cleared after each file-mutation step and after rollback |
+| `keep_last_snapshots`        | `int`                                 | No       | `3`            | Number of completed installs whose snapshot and DB backup are retained for rollback; older ones are pruned |
 
 *One of `get_pdo`, `pdo`, or `database_adapter` is required.  
 †Required together when using the built-in admin UI (`getAdminActions()`).
@@ -112,7 +117,7 @@ Quick integration summary:
 
 1. Implement `AuthAdapterInterface` and `CsrfAdapterInterface` (see below).
 2. Pass them as `auth_adapter`, `csrf_adapter`, and `base_url` in the factory config.
-3. Add 9 routes delegating to `$module->getAdminActions()->{method}()`.
+3. Add 10 routes delegating to `$module->getAdminActions()->{method}()`.
 4. Include `views/admin/_banner.php` in your admin layout (use `$module->getBaseUrl()` for the `$baseUrl` local variable).
 5. Link `css/patch-update.css` and `js/patch-update.js` in your admin layout.
 
@@ -122,7 +127,7 @@ translator wiring, security checklist, migration recipes for TrafficJournal /
 JupitERP / UniCMS).
 
 See [`doc/WIRE-FORMAT.md`](doc/WIRE-FORMAT.md) for the frozen HTTP contract
-for all 9 endpoints.
+for all 10 endpoints.
 
 ## Adapter Interfaces
 
@@ -242,7 +247,8 @@ Without a callback the module behaves as before: a 403 precondition failure caus
 
 | Method                                                       | Returns | Description                   |
 |--------------------------------------------------------------|---------|-------------------------------|
-| `install(int $id, bool $backup = true, ?int $userId = null, ?string $language = null)` | `array` | Install patch end-to-end      |
+| `install(int $id, bool $backup = true, ?int $userId = null, ?string $language = null)` | `array` | Install patch from patch server end-to-end |
+| `installFromUploadedArchive(int $id, string $archivePath, ?int $userId = null, ?string $language = null)` | `array` | Install a manually uploaded patch (skips download step) |
 | `rollback(int $patchHistoryId, ?int $userId = null)`         | `array` | Rollback a failed installation|
 
 ### Progress Tracking
@@ -280,18 +286,65 @@ Without a callback the module behaves as before: a 403 precondition failure caus
 
 ### Accessors
 
-| Method                 | Returns                    | Description                          |
-|------------------------|----------------------------|--------------------------------------|
-| `getDatabase()`        | `DatabaseAdapterInterface` | Returns the database adapter         |
-| `getVersionResolver()` | `VersionResolverInterface` | Returns the version resolver         |
-| `getProgressTracker()` | `ProgressTracker`          | Returns the progress tracker         |
-| `getMaintenanceMode()` | `MaintenanceMode`          | Returns the maintenance mode manager |
+| Method                          | Returns                              | Description                                     |
+|---------------------------------|--------------------------------------|-------------------------------------------------|
+| `getDatabase()`                 | `DatabaseAdapterInterface`           | Returns the database adapter                    |
+| `getVersionResolver()`          | `VersionResolverInterface`           | Returns the version resolver                    |
+| `getProgressTracker()`          | `ProgressTracker`                    | Returns the progress tracker                    |
+| `getMaintenanceMode()`          | `MaintenanceMode`                    | Returns the maintenance mode manager            |
+| `getMaxUploadSize()`            | `int`                                | Returns the configured max upload size in bytes |
+| `getExpectedPublicKeyPem()`     | `?string`                            | Returns the pinned public key PEM, or null      |
+| `getArchiveSignatureVerifier()` | `ArchiveSignatureVerifierInterface`  | Returns the detached-sig verifier               |
 
 ### Views
 
 | Method                                       | Returns  | Description                  |
 |----------------------------------------------|----------|------------------------------|
 | `renderView(string $name, array $data = [])` | `string` | Render a module view template|
+
+## Manual Upload
+
+When a server is offline, has an expired license, or the patch server is unreachable, patches can
+be installed by uploading a `.tgz` archive and a matching detached `.sig` file directly via the
+admin UI. The upload funnels into the same install pipeline (extract → backup → migrate → copy →
+verify → cleanup) with the download step skipped.
+
+### Prerequisites
+
+- `expected_public_key_pem` must be set in the factory config (the upload endpoint returns 403 if absent).
+- `/usr/bin/openssl` must be present on the server.
+- PHP `upload_max_filesize` and `post_max_size` must be at least as large as `max_upload_size` (default 100 MB).
+
+### Generating a signing key pair
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out priv.pem
+openssl rsa -in priv.pem -pubout -out pub.pem
+```
+
+Set `expected_public_key_pem` to the contents of `pub.pem`. Sign each patch archive with the
+private key before distributing it:
+
+```bash
+openssl dgst -sha256 -sign priv.pem -out patch-1.7.0.tgz.sig patch-1.7.0.tgz
+```
+
+The `.sig` file is a raw binary RSA-SHA256 signature (not base64). Distribute the `.tgz` and
+`.sig` files together to the sysadmin.
+
+### Cross-project trust model
+
+The detached `.sig` proves that the archive was signed by the holder of the private key. It does
+**not** prove that the patch was built for this specific installation. The sysadmin uploading the
+file is responsible for verifying that the archive is the correct patch for this product. The
+admin UI displays a persistent warning above the upload form. Future hardening (manifest
+`package_id` binding) is planned for a later release.
+
+### Version policy
+
+- **Downgrades** (uploaded version older than current) — rejected with 409 `upload_version_downgrade`.
+- **Re-installs** (same version as current, or already installed) — rejected with 409 `upload_version_already_installed`.
+- **Version gaps** (patches are available between current and the uploaded version) — allowed with a UI warning that the sysadmin must confirm before proceeding to install.
 
 ## Patch Package Structure
 
@@ -376,7 +429,17 @@ an `error_code` key on failure. The full reference is in `doc/reviewed/ERROR-COD
 | `invalid_archive`         | Archive contained symlinks (path-traversal guard)            |
 | `invalid_manifest_path`   | Manifest contained a `..`, absolute, or otherwise unsafe path |
 | `invalid_manifest_schema` | Manifest JSON failed schema validation (missing required fields or wrong types) |
-| `verification_failed`     | Post-install verification failed — version mismatch or a copied file is missing |
+| `verification_failed`              | Post-install verification failed — version mismatch or a copied file is missing    |
+| `upload_failed`                    | Upload storage failure or lock timeout                                             |
+| `upload_invalid_archive`           | Uploaded file is not a valid patch archive                                         |
+| `upload_invalid_manifest`          | Uploaded archive has no valid manifest                                             |
+| `upload_invalid_mime`              | Uploaded file is not a `.tgz` archive                                              |
+| `upload_invalid_signature`         | Detached signature verification failed                                             |
+| `upload_missing_pinned_key`        | No public key configured; manual upload disabled                                   |
+| `upload_missing_signature`         | Detached `.sig` file was not provided                                              |
+| `upload_too_large`                 | Uploaded file exceeds the configured size limit                                    |
+| `upload_version_already_installed` | Uploaded version is already installed                                              |
+| `upload_version_downgrade`         | Uploaded version is older than the current version                                 |
 
 When `error_code` is `rate_limited`, the `retry_after` key contains the number of seconds to wait
 before retrying (from the server's `Retry-After` header), or `null` if the header was absent. The

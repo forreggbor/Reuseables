@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS patch_history (
     release_notes TEXT NULL COMMENT 'Markdown release notes from patch server',
     file_size BIGINT UNSIGNED NULL COMMENT 'Patch archive file size in bytes',
     sha256_hash VARCHAR(64) NULL COMMENT 'Expected SHA-256 hash of the patch archive',
-    patch_server_id INT UNSIGNED NULL COMMENT 'Patch ID on the remote patch server',
+    patch_server_id INT UNSIGNED NULL COMMENT 'Patch ID on the remote patch server; NULL = manually uploaded',
     backup_id INT NULL COMMENT 'External backup reference (application-managed)',
     error_message TEXT NULL COMMENT 'Error details on failure',
     installed_by INT NULL COMMENT 'External user reference (application-managed)',

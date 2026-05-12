@@ -1,4 +1,4 @@
-# PatchModule v1.6.4 — Integration Guide
+# PatchModule v1.7.0 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -29,12 +29,14 @@ one sidebar entry + one banner include.
 18. [Upgrade notes (v1.6.1 → v1.6.2)](#18-upgrade-notes-v161--v162)
 19. [Upgrade notes (v1.6.2 → v1.6.3)](#19-upgrade-notes-v162--v163)
 20. [Upgrade notes (v1.6.3 → v1.6.4)](#20-upgrade-notes-v163--v164)
+21. [Upgrade notes (v1.6.4 → v1.7.0)](#21-upgrade-notes-v164--v170)
 
 ---
 
 ## 1. Prerequisites
 
 - PHP 8.1+ with extensions: `pdo`, `pdo_mysql`, `curl`, `phar`, `openssl`
+- `/usr/bin/openssl` binary (for manual upload signature verification — see `which openssl`)
 - Bootstrap 5 + Bootstrap Icons already loaded in the admin layout
 - A writable temp directory (e.g. `storage/temp/`)
 - The project's existing auth system must expose: current user's sysadmin
@@ -283,7 +285,7 @@ $module = new PatchModule([
 
 ## 6. Step 5: Routes
 
-Add 9 routes delegating to `AdminActions`. Each is a 5-line pass-through.
+Add 10 routes delegating to `AdminActions`. Each is a 5-line pass-through.
 The host reads `$r['status']` and `$r['data']`, sets the HTTP status code,
 and JSON-encodes the data.
 
@@ -381,6 +383,17 @@ $app->group('/admin/patch-management', function ($group) use ($module) {
         $res->getBody()->write(json_encode($r['data']));
         return $res->withStatus($r['status'])->withHeader('Content-Type', 'application/json');
     });
+
+    // multipart/form-data — CSRF token is a form field, not a header
+    $group->post('/upload', function (Request $req, Response $res) use ($actions) {
+        $body = (array) ($req->getParsedBody() ?? []);
+        $r = $actions->upload(
+            (string) ($body['csrf_token'] ?? ''),
+            $_FILES
+        );
+        $res->getBody()->write(json_encode($r['data']));
+        return $res->withStatus($r['status'])->withHeader('Content-Type', 'application/json');
+    });
 });
 ```
 
@@ -399,6 +412,7 @@ Route::prefix('admin/patch-management')->name('patch.')->group(function () {
     Route::post('install',    [PatchController::class, 'install']) ->name('install');
     Route::get('progress',    [PatchController::class, 'progress'])->name('progress');
     Route::post('rollback',   [PatchController::class, 'rollback'])->name('rollback');
+    Route::post('upload',     [PatchController::class, 'upload'])  ->name('upload');
 });
 ```
 
@@ -414,6 +428,16 @@ class PatchController extends Controller
             (bool)   $request->input('create_backup', true),
             (string) $request->input('progress_token', ''),
             $request->header('X-CSRF-Token', '')
+        );
+        return response()->json($r['data'], $r['status']);
+    }
+
+    // multipart/form-data — CSRF token is a form field, not a header
+    public function upload(Request $request): JsonResponse
+    {
+        $r = $this->actions()->upload(
+            (string) $request->input('csrf_token', ''),
+            $_FILES
         );
         return response()->json($r['data'], $r['status']);
     }
@@ -444,6 +468,8 @@ match ($method . ' ' . $path) {
     'POST /admin/patch-management/install'  => patchJsonResponse($actions->install((int)($body['patch_history_id']??0),(string)($body['install_token']??''),(bool)($body['create_backup']??true),(string)($body['progress_token']??''), $_SERVER['HTTP_X_CSRF_TOKEN']??'')),
     'GET /admin/patch-management/progress'  => patchJsonResponse($actions->progress($_GET['token']??'')),
     'POST /admin/patch-management/rollback' => patchJsonResponse($actions->rollback((int)($body['id']??0), $_SERVER['HTTP_X_CSRF_TOKEN']??'')),
+    // multipart/form-data — CSRF token is a form field, not a header
+    'POST /admin/patch-management/upload'   => patchJsonResponse($actions->upload((string)($body['csrf_token']??''), $_FILES)),
     default => http_response_code(404),
 };
 ```
@@ -656,10 +682,25 @@ The module calls `set_time_limit(0)` and `ignore_user_abort(true)` inside
 `AdminActions::install()`, but PHP-FPM's `request_terminate_timeout` is
 enforced externally and overrides `set_time_limit`.
 
-### Rate-limiting verify-password
+### php.ini upload limits (manual upload)
+
+The manual upload endpoint accepts files up to `max_upload_size` (default 100 MB). PHP's own
+limits must be at least as large, or the upload will be rejected before it reaches the module:
+
+```ini
+; /etc/php/8.x/fpm/php.ini  (or php.ini for CLI)
+upload_max_filesize = 100M
+post_max_size       = 101M   ; must be larger than upload_max_filesize
+```
+
+Restart PHP-FPM after changing these values. If your deployment enforces smaller limits for other
+routes, apply the overrides only to the `/upload` route via `.htaccess` or nginx's `fastcgi_param`.
+
+### Rate-limiting verify-password and upload
 
 The `verify-password` endpoint must be throttled to prevent brute-force
-attacks. Sample middleware for Slim:
+attacks. The `upload` endpoint should also be rate-limited to prevent
+resource exhaustion from repeated large uploads. Sample middleware for Slim:
 
 ```php
 use Slim\Routing\RouteCollectorProxy;
@@ -667,9 +708,13 @@ use Slim\Routing\RouteCollectorProxy;
 // Apply to the verify-password route only
 $app->post('/admin/patch-management/verify-password', $handler)
     ->add(new RateLimitMiddleware(maxAttempts: 5, windowSeconds: 60));
+
+// Apply to the upload route
+$app->post('/admin/patch-management/upload', $handler)
+    ->add(new RateLimitMiddleware(maxAttempts: 5, windowSeconds: 60));
 ```
 
-For Laravel: use `throttle:5,1` on the route.
+For Laravel: use `throttle:5,1` on both routes.
 
 ### CSRF token contract
 
@@ -1009,3 +1054,73 @@ None — `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` and you ar
 
 - **`_banner.php` null-safety guard** — the early-return check now uses `($disabled ?? false)` instead of `$disabled`. This prevents a PHP notice when the variable is not defined in the including scope. Hosts that already set `$disabled` before including the banner are unaffected.
 - **README API reference corrected and expanded** — `install()` and `rollback()` signatures updated; new Admin UI and Accessors method tables added; `invalid_manifest_schema` and `verification_failed` error codes documented.
+
+---
+
+## 21. Upgrade notes (v1.6.4 → v1.7.0)
+
+### Breaking changes
+
+None. All existing adapters, routes, and config keys continue to work unchanged.
+
+### New runtime dependency
+
+The manual upload feature verifies detached `.sig` files by calling `/usr/bin/openssl` as a
+subprocess. This is a **new runtime dependency** — the binary must be present on the server:
+
+```bash
+which openssl   # should print /usr/bin/openssl
+```
+
+If the binary is missing and a sysadmin attempts a manual upload, the endpoint returns HTTP 500
+with error code `upload_failed` and logs a descriptive message. All other (remote) functionality
+is unaffected.
+
+### New route
+
+Add one route for the manual upload endpoint. See [Step 5: Routes](#6-step-5-routes) for the
+framework-specific snippets (Slim 4, Laravel, vanilla PHP). The route accepts
+`multipart/form-data`; the CSRF token is a form field (`csrf_token`), not a request header.
+
+### New php.ini limits (if manual upload is used)
+
+Raise PHP's upload limits to match `max_upload_size` (default 100 MB):
+
+```ini
+upload_max_filesize = 100M
+post_max_size       = 101M
+```
+
+See [Step 10 — php.ini upload limits](#phpini-upload-limits-manual-upload) for details.
+
+### New config keys (all optional)
+
+| Key                         | Default                       | Purpose                                       |
+|-----------------------------|-------------------------------|-----------------------------------------------|
+| `max_upload_size`           | `104857600` (100 MB)          | Maximum `.tgz` size for manual upload         |
+| `max_signature_size`        | `10240` (10 KB)               | Maximum `.sig` size for manual upload         |
+| `archive_signature_verifier`| `OpenSslArchiveSignatureVerifier` | Detached-sig verifier (injectable)        |
+
+The `expected_public_key_pem` key (already documented in the README) is now **also required** when
+manual upload is used — the upload endpoint returns 403 `upload_missing_pinned_key` if it is absent.
+For remote installs the key remains optional (key-pinning only).
+
+### Action required
+
+1. **Add the `/upload` route** — see [Step 5](#6-step-5-routes).
+2. **Confirm `/usr/bin/openssl` is present** on the deployment host.
+3. **Raise php.ini limits** if you plan to use manual upload.
+4. **Optionally set `expected_public_key_pem`** — mandatory if sysadmins will use manual upload.
+5. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+
+No adapter, schema, or existing config changes are required. The new upload card is always
+rendered on the admin page for sysadmins, but upload attempts will return
+`upload_missing_pinned_key` until `expected_public_key_pem` is configured.
+
+### Cross-project signature trust model
+
+The detached `.sig` proves that the `.tgz` was signed by the holder of the private key. It does
+**not** prove the patch was built for this specific installation. The sysadmin uploading the
+file is responsible for verifying that the archive is the correct patch for this product. The
+admin UI displays a persistent warning to this effect above the upload form. Future hardening
+(manifest `package_id` binding) is planned for a later release.

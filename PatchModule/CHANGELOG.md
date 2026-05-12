@@ -5,6 +5,30 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-05-12
+
+| Category | Description                                                                                                       |
+|----------|-------------------------------------------------------------------------------------------------------------------|
+| Added    | Manual patch upload — sysadmin can upload a .tgz + .sig pair and install it without an internet connection       |
+| Added    | `ArchiveSignatureVerifierInterface` + `OpenSslArchiveSignatureVerifier` for detached RSA-SHA256 signature checks |
+| Added    | 10 new `UPLOAD_*` error codes and matching locale keys in en_US and hu_HU                                        |
+
+### Added
+- **Manual patch upload** — a new upload card on `/admin/patch-management` lets a sysadmin upload the `.tgz` patch archive and its detached `.sig` signature file and install it locally without connecting to the patch server. Works when the remote channel is unavailable, the license is expired, or the server is unreachable. Signature is verified against the pinned `expected_public_key_pem` before the archive is accepted.
+- **`ArchiveSignatureVerifierInterface`** — new contract for detached binary signature verification, separate from the existing JSON-payload `SignatureVerifierInterface`.
+- **`OpenSslArchiveSignatureVerifier`** — default implementation that calls `/usr/bin/openssl dgst -sha256 -verify` via `proc_open` (array syntax — no shell injection). Streams the archive without loading it into PHP memory.
+- **`PatchInstaller::installFromLocalArchive()`** — new pipeline entry point that reuses the existing step helpers (extract → backup → migrate → copy → remove → update_version → verify → cleanup), skipping only the download step.
+- **`PatchModule::installFromUploadedArchive()`** — facade method for the manual install path.
+- **New config keys**: `archive_signature_verifier`, `max_upload_size` (default 100 MB), `max_signature_size` (default 10 KB).
+- **`findUploadedAvailablePatches()`** on `DatabaseAdapterInterface` / `PdoAdapter` / `CallableAdapter` — returns manually uploaded patches with `status='available'` so they appear in the merged available-patches table.
+- **`sweepStaleTmpFiles()` extended** — now also removes orphaned `patch_uploaded_*.tgz` files whose `patch_history` row is missing or has a terminal status.
+- **Upload card always visible** — the upload card renders even when the remote channel is disabled, preserving the disaster-recovery path.
+- **"Manual upload" badge** — available-patches table shows a Secondary badge next to the version for rows sourced from a manual upload.
+- **22 new locale keys** in both `en_US` and `hu_HU`, covering upload button, card heading, file input labels, trust warning, progress messages, and all 10 upload error codes.
+- **`POST {base}/upload`** endpoint added to the wire format (10th admin endpoint).
+
+---
+
 ## [1.6.4] - 2026-05-12
 
 | Category | Description                                                                                          |
