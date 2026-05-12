@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * PatchChecker - Check for available patch updates and manage patch notification state
+ */
+
 namespace PatchModule;
 
 use PatchModule\Contracts\DatabaseAdapterInterface;
@@ -414,6 +420,20 @@ class PatchChecker
                 $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed));
             }
         }
+    }
+
+    /**
+     * Clear the entire remote patch availability cache
+     *
+     * Fully clears the cached patch data by setting patch_available_data to null in the
+     * database settings, forcing a fresh server check on the next page load. Called after
+     * a successful manual install to ensure the banner displays correctly.
+     *
+     * @return void
+     */
+    public function invalidateCache(): void
+    {
+        $this->database->setSetting('patch_available_data', null);
     }
 
     /**

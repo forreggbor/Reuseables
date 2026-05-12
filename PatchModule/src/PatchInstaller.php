@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * PatchInstaller - End-to-end patch installation orchestrator
+ */
+
 namespace PatchModule;
 
 use PatchModule\Contracts\BackupAdapterInterface;
@@ -266,6 +272,122 @@ class PatchInstaller
                     $this->maintenanceMode->disable();
                 } catch (\Throwable $me) {
                     $this->log("Patch install: failed to disable maintenance mode: " . $me->getMessage(), 'ERROR');
+                }
+            }
+        }
+    }
+
+    /**
+     * Install a patch from a locally staged archive
+     *
+     * Installs a patch from a manually uploaded (local) archive file, skipping the
+     * download step and license verification callback. Used for manual patch uploads
+     * when the patch server is unavailable or patches are staged locally.
+     *
+     * Defence check ensures this method is only called for manually uploaded patches
+     * (those with null patch_server_id).
+     *
+     * @param int      $patchHistoryId Patch history record ID
+     * @param string   $archivePath    Absolute path to the locally staged archive
+     * @param int|null $userId         User performing the installation
+     * @param string|null $language    Optional language for maintenance mode messages
+     * @return array{success: bool, error: ?string, error_code: ?string, retry_after: ?int}
+     */
+    public function installFromLocalArchive(
+        int $patchHistoryId,
+        string $archivePath,
+        ?int $userId = null,
+        ?string $language = null
+    ): array {
+        set_time_limit(0);
+        ignore_user_abort(true);
+
+        $this->progressTracker->cleanupStaleProgressFiles();
+
+        $patchRecord = $this->database->getHistoryRecord($patchHistoryId);
+        if (!$patchRecord) {
+            return ['success' => false, 'error' => 'Patch record not found', 'error_code' => null, 'retry_after' => null];
+        }
+
+        // Defence: this method is only for manually uploaded patches
+        if ($patchRecord['patch_server_id'] !== null) {
+            return ['success' => false, 'error' => 'Not a manually uploaded patch', 'error_code' => null, 'retry_after' => null];
+        }
+
+        $canBackup = $this->backupAdapter !== null;
+
+        $steps = ['preflight_checks', 'extract_patch'];
+        if ($canBackup) {
+            $steps[] = 'create_backup';
+        }
+        $steps = array_merge($steps, [
+            'execute_migration', 'copy_files', 'remove_files', 'update_version', 'verify_installation', 'cleanup',
+        ]);
+
+        $this->progressTracker->initProgress($steps);
+        $this->database->updateHistoryRecord($patchHistoryId, ['status' => 'installing']);
+
+        if ($this->maintenanceMode !== null) {
+            $this->maintenanceMode->enable($patchRecord['version'], $language);
+        }
+
+        $ctx = [
+            'patchHistoryId'    => $patchHistoryId,
+            'version'           => $patchRecord['version'],
+            'previousVersion'   => $this->versionResolver->getCurrentVersion(),
+            'canBackup'         => $canBackup,
+            'userId'            => $userId,
+            'extractDir'        => null,
+            'manifest'          => null,
+            'hasMigration'      => false,
+            'backupId'          => null,
+            'downloadedFile'    => $archivePath,   // deleted by cleanupStep
+            'installErrorCode'  => null,
+            'installRetryAfter' => null,
+        ];
+
+        try {
+            // Step 1: Preflight checks
+            $this->progressTracker->stepProgress('preflight_checks');
+            $this->log("Patch install (manual): starting preflight checks for v{$ctx['version']}", 'INFO');
+
+            $this->fileManager->sweepStaleTmpFiles();
+            $this->runPreflightChecks($ctx['version'], $ctx['previousVersion']);
+            $this->database->updateHistoryRecord($patchHistoryId, [
+                'previous_version' => $ctx['previousVersion'],
+            ]);
+
+            // Steps 2–9: extract, backup, migrate, copy, remove, update version, verify, cleanup
+            $this->extractStep($ctx, $archivePath);
+
+            if ($canBackup) {
+                $this->backupStep($ctx);
+            }
+
+            $this->migrateStep($ctx);
+            $this->copyStep($ctx);
+            $this->removeStep($ctx);
+            $this->updateVersionStep($ctx);
+            $this->verifyStep($ctx);
+            $this->cleanupStep($ctx);
+
+            // Invalidate the remote patch cache so the banner refreshes on next load
+            $this->checker->invalidateCache();
+
+            return ['success' => true, 'error' => null, 'error_code' => null, 'retry_after' => null];
+
+        } catch (\Exception $e) {
+            return $this->handleInstallFailure(
+                $e, $patchHistoryId, $ctx['version'], $ctx['backupId'],
+                $ctx['extractDir'], $ctx['downloadedFile'], $userId,
+                $ctx['installErrorCode'], $ctx['installRetryAfter']
+            );
+        } finally {
+            if ($this->maintenanceMode !== null) {
+                try {
+                    $this->maintenanceMode->disable();
+                } catch (\Throwable $me) {
+                    $this->log("Patch install (manual): failed to disable maintenance mode: " . $me->getMessage(), 'ERROR');
                 }
             }
         }
