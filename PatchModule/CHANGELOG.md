@@ -5,6 +5,33 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-12
+
+| Category | Description                                                                                                     |
+|----------|-----------------------------------------------------------------------------------------------------------------|
+| Removed  | Detached `.sig` requirement from manual upload — only the `.tgz` is uploaded and accepted                      |
+| Changed  | Manual upload section in the admin UI is now a Bootstrap accordion, collapsed by default                        |
+| Changed  | Trust warning rewritten to name PatrikMol Solutions Kft. as the only acceptable archive source                  |
+| Security | Manual upload trust gate is now sysadmin authentication + CSRF (no signature file required or accepted)         |
+
+### Removed
+- **Manual upload `.sig` requirement** — the upload form no longer accepts a detached signature file. The archive is accepted based on sysadmin authentication and CSRF validation alone.
+- **`ArchiveSignatureVerifierInterface`** — the contract is deleted; only the auto-flow `SignatureVerifierInterface` remains.
+- **`OpenSslArchiveSignatureVerifier`** — the implementation is deleted; no `openssl dgst` subprocess calls are made during manual upload.
+- **Config keys** `archive_signature_verifier` and `max_signature_size` — no longer read or documented.
+- **Accessors** `getArchiveSignatureVerifier()` and `getMaxSignatureSize()` removed from `PatchModule`.
+- **`AdminActions` constructor parameters** `$archiveSignatureVerifier`, `$expectedPublicKeyPem`, `$maxSignatureSize` removed.
+- **Error codes** `upload_invalid_signature`, `upload_missing_pinned_key`, `upload_missing_signature` removed from `ErrorCode` and all locale files.
+- **Translation keys** `TEXT_PATCH_ERROR_UPLOAD_INVALID_SIGNATURE`, `TEXT_PATCH_ERROR_UPLOAD_MISSING_PINNED_KEY`, `TEXT_PATCH_ERROR_UPLOAD_MISSING_SIGNATURE`, `TEXT_LABEL_SIGNATURE_FILE`, `TEXT_LABEL_SIGNATURE_FILE_HINT`, `TEXT_MANUAL_UPLOAD_VERIFYING` removed from en_US and hu_HU.
+- **`/usr/bin/openssl` runtime dependency** — no longer required for manual upload.
+
+### Changed
+- **Manual upload section** — the upload card is now a Bootstrap accordion, collapsed by default. Sysadmins must expand it to access the upload form.
+- **Trust warning** (`TEXT_MANUAL_UPLOAD_TRUST_WARNING`) — rewritten to explicitly name PatrikMol Solutions Kft. as the only acceptable archive source and to state that the sysadmin is responsible for verifying the source before installing.
+- **`expected_public_key_pem`** — now documented and used for auto-flow (patch-server key pinning) only; the manual upload flow no longer reads this config key.
+
+---
+
 ## [1.8.0] - 2026-05-12
 
 | Category | Description                                                                                                    |

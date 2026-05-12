@@ -37,7 +37,6 @@ one sidebar entry + one banner include.
 ## 1. Prerequisites
 
 - PHP 8.1+ with extensions: `pdo`, `pdo_mysql`, `curl`, `phar`, `openssl`
-- `/usr/bin/openssl` binary (for manual upload signature verification — see `which openssl`)
 - Bootstrap 5 + Bootstrap Icons already loaded in the admin layout
 - A writable temp directory (e.g. `storage/temp/`)
 - The project's existing auth system must expose: current user's sysadmin
@@ -1092,19 +1091,6 @@ None — `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` and you ar
 
 None. All existing adapters, routes, and config keys continue to work unchanged.
 
-### New runtime dependency
-
-The manual upload feature verifies detached `.sig` files by calling `/usr/bin/openssl` as a
-subprocess. This is a **new runtime dependency** — the binary must be present on the server:
-
-```bash
-which openssl   # should print /usr/bin/openssl
-```
-
-If the binary is missing and a sysadmin attempts a manual upload, the endpoint returns HTTP 500
-with error code `upload_failed` and logs a descriptive message. All other (remote) functionality
-is unaffected.
-
 ### New route
 
 Add one route for the manual upload endpoint. See [Step 5: Routes](#6-step-5-routes) for the
@@ -1122,37 +1108,19 @@ post_max_size       = 101M
 
 See [Step 10 — php.ini upload limits](#phpini-upload-limits-manual-upload) for details.
 
-### New config keys (all optional)
+### New config key (optional)
 
-| Key                         | Default                       | Purpose                                       |
-|-----------------------------|-------------------------------|-----------------------------------------------|
-| `max_upload_size`           | `104857600` (100 MB)          | Maximum `.tgz` size for manual upload         |
-| `max_signature_size`        | `10240` (10 KB)               | Maximum `.sig` size for manual upload         |
-| `archive_signature_verifier`| `OpenSslArchiveSignatureVerifier` | Detached-sig verifier (injectable)        |
-
-The `expected_public_key_pem` key (already documented in the README) is now **also required** when
-manual upload is used — the upload endpoint returns 403 `upload_missing_pinned_key` if it is absent.
-For remote installs the key remains optional (key-pinning only).
+| Key             | Default              | Purpose                               |
+|-----------------|----------------------|---------------------------------------|
+| `max_upload_size` | `104857600` (100 MB) | Maximum `.tgz` size for manual upload |
 
 ### Action required
 
 1. **Add the `/upload` route** — see [Step 5](#6-step-5-routes).
-2. **Confirm `/usr/bin/openssl` is present** on the deployment host.
-3. **Raise php.ini limits** if you plan to use manual upload.
-4. **Optionally set `expected_public_key_pem`** — mandatory if sysadmins will use manual upload.
-5. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+2. **Raise php.ini limits** if you plan to use manual upload.
+3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
 
-No adapter, schema, or existing config changes are required. The new upload card is always
-rendered on the admin page for sysadmins, but upload attempts will return
-`upload_missing_pinned_key` until `expected_public_key_pem` is configured.
-
-### Cross-project signature trust model
-
-The detached `.sig` proves that the `.tgz` was signed by the holder of the private key. It does
-**not** prove the patch was built for this specific installation. The sysadmin uploading the
-file is responsible for verifying that the archive is the correct patch for this product. The
-admin UI displays a persistent warning to this effect above the upload form. Future hardening
-(manifest `package_id` binding) is planned for a later release.
+No adapter, schema, or existing config changes are required.
 
 ---
 
@@ -1200,3 +1168,33 @@ No operator action is required.
 3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
 4. Build and install the upgrade patch — the v1.6.4 installer silently skips the missing `migrations/`
    directory; the v1.8.0 code lands in place; bootstrap fires on the next patch install.
+
+---
+
+## 23. Upgrade notes (v1.x → v2.0.0)
+
+### Breaking changes
+
+| Area | Change |
+|------|--------|
+| Manual upload form | `.sig` file input removed — only the `.tgz` is uploaded |
+| `AdminActions` constructor | Parameters `$archiveSignatureVerifier`, `$expectedPublicKeyPem`, `$maxSignatureSize` removed |
+| Config keys | `archive_signature_verifier` and `max_signature_size` removed |
+| Public accessors | `getArchiveSignatureVerifier()` and `getMaxSignatureSize()` removed from `PatchModule` |
+| Classes removed | `ArchiveSignatureVerifierInterface` and `OpenSslArchiveSignatureVerifier` deleted |
+| Error codes removed | `upload_invalid_signature`, `upload_missing_pinned_key`, `upload_missing_signature` |
+| `expected_public_key_pem` | Now auto-flow only (patch-server key pinning); no longer used by manual upload |
+| Manual upload UI | Moved into a Bootstrap accordion, collapsed by default |
+
+### What changed
+
+The manual upload flow no longer verifies a detached `.sig` file. The trust gate for manual upload
+is sysadmin authentication + CSRF. The archive source responsibility is communicated via a
+rewritten warning that names PatrikMol Solutions Kft. as the only acceptable origin.
+
+### Action required
+
+1. **Remove any `archive_signature_verifier` and `max_signature_size` keys** from your config arrays — they are silently ignored in v1.x but will cause no harm if left; clean them up at your convenience.
+2. **Remove any code that calls `getArchiveSignatureVerifier()` or `getMaxSignatureSize()`** on the `PatchModule` instance — these methods no longer exist.
+3. **`expected_public_key_pem` is now auto-flow-only** — if you configured it only because manual upload required it, you can remove it. If you use it for patch-server key pinning, keep it.
+4. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.

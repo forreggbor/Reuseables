@@ -394,10 +394,9 @@ backup. Acquires the same exclusive file lock as `install`.
 
 ### 10. `POST {base}/upload`
 
-Accepts a manually supplied patch archive and its detached signature, verifies
-the signature against the pinned public key, extracts the manifest to validate
-the version, and stores the staged archive for installation via the existing
-`POST {base}/install` endpoint.
+Accepts a manually supplied patch archive (`.tgz` only), extracts the manifest
+to validate the version, and stores the staged archive for installation via the
+existing `POST {base}/install` endpoint. Trust gate: sysadmin auth + CSRF.
 
 **Auth:** sysadmin  
 **CSRF:** yes (field in multipart form body)  
@@ -405,7 +404,6 @@ the version, and stores the staged archive for installation via the existing
 
 **Request fields**
 - `patch_file` — the `.tgz` patch archive (≤ `max_upload_size`, default 100 MB)
-- `signature_file` — the detached `.sig` binary signature (≤ `max_signature_size`, default 10 KB)
 - `csrf_token` — CSRF token value
 
 **Response 200**
@@ -432,12 +430,11 @@ to install.
 ```json
 { "success": false, "error_code": "upload_too_large", "error": "..." }
 { "success": false, "error_code": "upload_invalid_mime", "error": "..." }
-{ "success": false, "error_code": "upload_missing_signature", "error": "..." }
 ```
 
-**Response 403** — auth / CSRF / missing pinned key
+**Response 403** — auth or CSRF failure
 ```json
-{ "success": false, "error_code": "upload_missing_pinned_key", "error": "..." }
+{ "success": false, "error": "..." }
 ```
 
 **Response 409** — version policy violation
@@ -446,9 +443,8 @@ to install.
 { "success": false, "error_code": "upload_version_already_installed", "error": "..." }
 ```
 
-**Response 422** — signature or archive/manifest invalid
+**Response 422** — archive or manifest invalid
 ```json
-{ "success": false, "error_code": "upload_invalid_signature", "error": "..." }
 { "success": false, "error_code": "upload_invalid_archive", "error": "..." }
 { "success": false, "error_code": "upload_invalid_manifest", "error": "..." }
 ```
@@ -486,9 +482,6 @@ via the `data-error-labels` attribute on the mount element.
 | `upload_invalid_archive` | Uploaded file is not a valid patch archive |
 | `upload_invalid_manifest` | Uploaded archive has no valid manifest |
 | `upload_invalid_mime` | Uploaded file is not a .tgz archive |
-| `upload_invalid_signature` | Detached signature verification failed |
-| `upload_missing_pinned_key` | No public key configured; manual upload disabled |
-| `upload_missing_signature` | Detached .sig file was not provided |
 | `upload_too_large` | Uploaded file exceeds the configured size limit |
 | `upload_version_already_installed` | Uploaded version is already installed |
 | `upload_version_downgrade` | Uploaded version is older than the current version |

@@ -876,9 +876,9 @@ const PatchUpdate = {
 /**
  * Manual Patch Upload handler
  *
- * Manages the upload card on the patch-management admin page: sends the .tgz
- * and .sig files via XHR (for progress reporting), handles version-gap
- * confirmation, and hands off to the existing PatchUpdate install modal.
+ * Manages the upload accordion on the patch-management admin page: sends the
+ * .tgz file via XHR (for progress reporting), handles version-gap confirmation,
+ * and hands off to the existing PatchUpdate install modal.
  */
 const PatchUpload = {
     /** @type {boolean} */
@@ -905,9 +905,7 @@ const PatchUpload = {
         if (this.uploading) return;
 
         var fileInput = document.getElementById('patchUploadFile');
-        var sigInput  = document.getElementById('patchUploadSig');
         if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
-        if (!sigInput  || !sigInput.files  || !sigInput.files[0])  return;
 
         var mount     = document.getElementById('patch-mount');
         var formEl    = document.getElementById('patchUploadForm');
@@ -915,9 +913,8 @@ const PatchUpload = {
         var csrfToken = mount ? (mount.dataset.csrfToken || '') : '';
 
         var formData = new FormData();
-        formData.append('patch_file',      fileInput.files[0]);
-        formData.append('signature_file',  sigInput.files[0]);
-        formData.append('csrf_token',      csrfToken);
+        formData.append('patch_file',  fileInput.files[0]);
+        formData.append('csrf_token',  csrfToken);
 
         this.uploading = true;
         this.setFormEnabled(false);
@@ -950,7 +947,6 @@ const PatchUpload = {
             if (!data.success) { self.onError(data); return; }
 
             self.setProgress(100);
-            self.setStatus(self.i18n.verifying || 'Verifying signature…');
 
             setTimeout(function () { self.onUploadSuccess(data); }, 600);
         };
@@ -1027,13 +1023,11 @@ const PatchUpload = {
         this.setFormEnabled(true);
         this.setStatus('');
         var f = document.getElementById('patchUploadFile');
-        var s = document.getElementById('patchUploadSig');
         if (f) f.value = '';
-        if (s) s.value = '';
     },
 
     setFormEnabled: function (enabled) {
-        var ids = ['patchUploadSubmitBtn', 'patchUploadFile', 'patchUploadSig'];
+        var ids = ['patchUploadSubmitBtn', 'patchUploadFile'];
         for (var i = 0; i < ids.length; i++) {
             var el = document.getElementById(ids[i]);
             if (el) { el.disabled = !enabled; }

@@ -15,11 +15,9 @@ use PatchModule\Adapters\Archive\PharTarAdapter;
 use PatchModule\Adapters\Database\CallableAdapter;
 use PatchModule\Adapters\Database\PdoAdapter;
 use PatchModule\Adapters\Http\CurlHttpClient;
-use PatchModule\Adapters\Signature\OpenSslArchiveSignatureVerifier;
 use PatchModule\Adapters\Signature\OpenSslSignatureVerifier;
 use PatchModule\AdminActions;
 use PatchModule\Contracts\ArchiveAdapterInterface;
-use PatchModule\Contracts\ArchiveSignatureVerifierInterface;
 use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
@@ -59,7 +57,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 1.8.0
+ * @version 2.0.0
  * @license MIT
  */
 class PatchModule
@@ -81,9 +79,6 @@ class PatchModule
 
     /** @var SignatureVerifierInterface|null */
     private ?SignatureVerifierInterface $signatureVerifier;
-
-    /** @var ArchiveSignatureVerifierInterface */
-    private ArchiveSignatureVerifierInterface $archiveSignatureVerifier;
 
     /** @var LoggerInterface|null */
     private ?LoggerInterface $logger;
@@ -158,15 +153,11 @@ class PatchModule
      *   - api_timeout: int              — API request timeout in seconds (default: 30)
      *   - download_timeout: int         — Download timeout in seconds (default: 300)
      *   - default_language: string      — Maintenance page language (default: 'en')
-     *   - expected_public_key_pem: string — Pinned server public key PEM; when set, patches
-     *                                       whose public_key does not match are rejected, and manual
-     *                                       uploads require a matching detached .sig (default: null)
-     *   - archive_signature_verifier: ArchiveSignatureVerifierInterface — Verifier for detached
-     *                                       archive signatures used during manual patch uploads
-     *                                       (default: OpenSslArchiveSignatureVerifier)
+     *   - expected_public_key_pem: string — Pinned patch-server public key PEM; when set, auto-flow
+     *                                       patches whose public_key does not match are rejected
+     *                                       (default: null); auto-flow only — not used for manual uploads
      *   - max_upload_size: int              — Maximum accepted .tgz size in bytes for manual uploads
      *                                       (default: 104857600 = 100 MB)
-     *   - max_signature_size: int           — Maximum accepted .sig size in bytes (default: 10240 = 10 KB)
      *   - license_verify_callback: callable — Invoked before download to refresh the server-side
      *                                          license check window; also used for a single retry
      *                                          when the server rejects a download as stale (default: null)
@@ -525,18 +516,10 @@ class PatchModule
     }
 
     /**
-     * Get the maximum allowed file size for the detached signature file in bytes
+     * Get the pinned patch-server public key PEM string used for auto-flow signature pinning
      *
-     * @return int Byte limit (default: 10240 = 10 KB)
-     */
-    public function getMaxSignatureSize(): int
-    {
-        return (int) ($this->config['max_signature_size'] ?? 10240);
-    }
-
-    /**
-     * Get the pinned server public key PEM string used for both remote patch
-     * signature validation and manual upload signature verification
+     * Used by PatchChecker to reject server responses whose public_key does not match.
+     * Not used for manual uploads.
      *
      * @return string|null PEM string, or null if not configured
      */
@@ -544,17 +527,6 @@ class PatchModule
     {
         $pem = $this->config['expected_public_key_pem'] ?? null;
         return is_string($pem) && $pem !== '' ? $pem : null;
-    }
-
-    /**
-     * Get the archive signature verifier used for detached .sig verification
-     * during manual patch uploads
-     *
-     * @return ArchiveSignatureVerifierInterface
-     */
-    public function getArchiveSignatureVerifier(): ArchiveSignatureVerifierInterface
-    {
-        return $this->archiveSignatureVerifier;
     }
 
     /**
@@ -589,10 +561,7 @@ class PatchModule
                 $this->config['temp_path'],
                 $this->config['root_path'],
                 $this->translator,
-                $this->getArchiveSignatureVerifier(),
-                $this->getExpectedPublicKeyPem(),
                 $this->getMaxUploadSize(),
-                $this->getMaxSignatureSize(),
             );
         }
 
@@ -767,13 +736,6 @@ class PatchModule
             $this->signatureVerifier = $config['signature_verifier'];
         } else {
             $this->signatureVerifier = new OpenSslSignatureVerifier();
-        }
-
-        // Archive signature verifier for manual patch uploads
-        if (isset($config['archive_signature_verifier']) && $config['archive_signature_verifier'] instanceof ArchiveSignatureVerifierInterface) {
-            $this->archiveSignatureVerifier = $config['archive_signature_verifier'];
-        } else {
-            $this->archiveSignatureVerifier = new OpenSslArchiveSignatureVerifier();
         }
 
         // Admin UI adapters

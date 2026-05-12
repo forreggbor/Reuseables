@@ -101,9 +101,6 @@ if (!function_exists('patchStatusBadge')) {
          'upload_invalid_archive'             => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_ARCHIVE'),
          'upload_invalid_manifest'            => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_MANIFEST'),
          'upload_invalid_mime'                => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_MIME'),
-         'upload_invalid_signature'           => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_SIGNATURE'),
-         'upload_missing_pinned_key'          => $tr('TEXT_PATCH_ERROR_UPLOAD_MISSING_PINNED_KEY'),
-         'upload_missing_signature'           => $tr('TEXT_PATCH_ERROR_UPLOAD_MISSING_SIGNATURE'),
          'upload_too_large'                   => $tr('TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE'),
          'upload_version_already_installed'   => $tr('TEXT_PATCH_ERROR_UPLOAD_VERSION_ALREADY_INSTALLED'),
          'upload_version_downgrade'           => $tr('TEXT_PATCH_ERROR_UPLOAD_VERSION_DOWNGRADE'),
@@ -121,7 +118,6 @@ if (!function_exists('patchStatusBadge')) {
      ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
      data-upload-i18n='<?= htmlspecialchars(json_encode([
          'uploading'        => $tr('TEXT_MANUAL_UPLOAD_UPLOADING'),
-         'verifying'        => $tr('TEXT_MANUAL_UPLOAD_VERIFYING'),
          'badge'            => $tr('TEXT_MANUAL_UPLOAD_BADGE'),
          'versionGapConfirm' => $tr('TEXT_PATCH_WARNING_VERSION_GAP', '%s'),
      ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'>
@@ -149,48 +145,52 @@ if (!function_exists('patchStatusBadge')) {
         <?php endif; ?>
     </div>
 
-    <!-- Manual upload card — always visible, works without remote connectivity -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="bi bi-upload me-2"></i><?= htmlspecialchars($tr('TEXT_HEADING_MANUAL_UPLOAD')) ?>
-            </h5>
-        </div>
-        <div class="card-body">
-            <p class="text-muted mb-3"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_DESCRIPTION')) ?></p>
-            <div class="alert alert-warning" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_TRUST_WARNING')) ?>
-            </div>
-            <form id="patchUploadForm"
-                  data-action="<?= htmlspecialchars($baseUrl . '/upload') ?>">
-                <div class="mb-3">
-                    <label for="patchUploadFile" class="form-label fw-semibold">
-                        <?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE')) ?>
-                    </label>
-                    <input type="file" class="form-control" id="patchUploadFile" accept=".tgz" required>
-                    <div class="form-text"><?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE_HINT')) ?></div>
-                </div>
-                <div class="mb-3">
-                    <label for="patchUploadSig" class="form-label fw-semibold">
-                        <?= htmlspecialchars($tr('TEXT_LABEL_SIGNATURE_FILE')) ?>
-                    </label>
-                    <input type="file" class="form-control" id="patchUploadSig" accept=".sig" required>
-                    <div class="form-text"><?= htmlspecialchars($tr('TEXT_LABEL_SIGNATURE_FILE_HINT')) ?></div>
-                </div>
-                <div class="d-none mb-3" id="patchUploadProgressWrap">
-                    <div class="progress">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated"
-                             role="progressbar"
-                             style="width: 0%"
-                             id="patchUploadProgressBar"
-                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                </div>
-                <div class="d-none small text-muted mb-3" id="patchUploadStatus"></div>
-                <button type="submit" class="btn btn-primary" id="patchUploadSubmitBtn">
-                    <i class="bi bi-upload me-1"></i><?= htmlspecialchars($tr('TEXT_BUTTON_UPLOAD_PATCH')) ?>
+    <!-- Manual upload accordion — collapsed by default, works without remote connectivity -->
+    <div class="accordion mb-4" id="patchManualUploadAccordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#patchManualUploadCollapse"
+                        aria-expanded="false"
+                        aria-controls="patchManualUploadCollapse">
+                    <i class="bi bi-upload me-2"></i><?= htmlspecialchars($tr('TEXT_HEADING_MANUAL_UPLOAD')) ?>
                 </button>
-            </form>
+            </h2>
+            <div id="patchManualUploadCollapse"
+                 class="accordion-collapse collapse"
+                 data-bs-parent="#patchManualUploadAccordion">
+                <div class="accordion-body">
+                    <p class="text-muted mb-3"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_DESCRIPTION')) ?></p>
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_TRUST_WARNING')) ?>
+                    </div>
+                    <form id="patchUploadForm"
+                          data-action="<?= htmlspecialchars($baseUrl . '/upload') ?>">
+                        <div class="mb-3">
+                            <label for="patchUploadFile" class="form-label fw-semibold">
+                                <?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE')) ?>
+                            </label>
+                            <input type="file" class="form-control" id="patchUploadFile" accept=".tgz" required>
+                            <div class="form-text"><?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE_HINT')) ?></div>
+                        </div>
+                        <div class="d-none mb-3" id="patchUploadProgressWrap">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     role="progressbar"
+                                     style="width: 0%"
+                                     id="patchUploadProgressBar"
+                                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                        <div class="d-none small text-muted mb-3" id="patchUploadStatus"></div>
+                        <button type="submit" class="btn btn-primary" id="patchUploadSubmitBtn">
+                            <i class="bi bi-upload me-1"></i><?= htmlspecialchars($tr('TEXT_BUTTON_UPLOAD_PATCH')) ?>
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 

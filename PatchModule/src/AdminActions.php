@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace PatchModule;
 
-use PatchModule\Contracts\ArchiveSignatureVerifierInterface;
 use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
 use PatchModule\Contracts\CsrfRotatableInterface;
@@ -31,16 +30,13 @@ class AdminActions
     private static ?array $fallbackLocale = null;
 
     /**
-     * @param PatchModule                            $module                   The PatchModule facade instance
-     * @param AuthAdapterInterface                   $auth                     Host-side authentication adapter
-     * @param CsrfAdapterInterface                   $csrf                     Host-side CSRF adapter
-     * @param string                                 $tempPath                 Writable temp directory for lock and progress files
-     * @param string                                 $rootPath                 Project root directory for filesystem checks
-     * @param TranslatorInterface|null               $translator               Optional host-side translator; falls back to built-in en_US if null
-     * @param ArchiveSignatureVerifierInterface|null $archiveSignatureVerifier Verifier for manual upload .sig files
-     * @param string|null                            $expectedPublicKeyPem     Pinned RSA public key PEM; required to accept manual uploads
-     * @param int                                    $maxUploadSize            Maximum .tgz size in bytes (default: 100 MB)
-     * @param int                                    $maxSignatureSize         Maximum .sig size in bytes (default: 10 KB)
+     * @param PatchModule              $module      The PatchModule facade instance
+     * @param AuthAdapterInterface     $auth        Host-side authentication adapter
+     * @param CsrfAdapterInterface     $csrf        Host-side CSRF adapter
+     * @param string                   $tempPath    Writable temp directory for lock and progress files
+     * @param string                   $rootPath    Project root directory for filesystem checks
+     * @param TranslatorInterface|null $translator  Optional host-side translator; falls back to built-in en_US if null
+     * @param int                      $maxUploadSize Maximum .tgz size in bytes (default: 100 MB)
      */
     public function __construct(
         private readonly PatchModule $module,
@@ -49,10 +45,7 @@ class AdminActions
         private readonly string $tempPath,
         private readonly string $rootPath,
         private readonly ?TranslatorInterface $translator = null,
-        private readonly ?ArchiveSignatureVerifierInterface $archiveSignatureVerifier = null,
-        private readonly ?string $expectedPublicKeyPem = null,
         private readonly int $maxUploadSize = 104857600,
-        private readonly int $maxSignatureSize = 10240,
     ) {
     }
 
@@ -461,14 +454,14 @@ class AdminActions
     /**
      * Handle a manual patch upload request
      *
-     * Accepts a multipart/form-data request containing a .tgz patch archive and a
-     * detached .sig file, verifies the RSA-SHA256 signature, extracts the manifest,
-     * enforces version policy, and stores the staged archive in {temp_path} with a
-     * patch_history record. The installed archive is processed by the existing install
-     * pipeline when the client subsequently calls install() with the returned ID.
+     * Accepts a multipart/form-data request containing a .tgz patch archive,
+     * extracts the manifest, enforces version policy, and stores the staged archive
+     * in {temp_path} with a patch_history record. The uploaded archive is processed
+     * by the existing install pipeline when the client subsequently calls install()
+     * with the returned ID. Trust gate: sysadmin authentication + CSRF.
      *
      * @param string $csrfToken CSRF token from the request
-     * @param array  $files     $_FILES array containing 'patch_file' and 'signature_file'
+     * @param array  $files     $_FILES array containing 'patch_file'
      * @return array Response array with patch_history_id and optional version-gap warning, or error details
      */
     public function upload(string $csrfToken, array $files): array
@@ -481,23 +474,14 @@ class AdminActions
             return $this->csrfError();
         }
 
-        $publicKeyPem = $this->expectedPublicKeyPem;
-        if ($publicKeyPem === null || $publicKeyPem === '') {
-            return $this->uploadError(403, ErrorCode::UPLOAD_MISSING_PINNED_KEY, 'TEXT_PATCH_ERROR_UPLOAD_MISSING_PINNED_KEY');
-        }
-
         $validationError = $this->validateUploadFiles($files);
         if ($validationError !== null) {
             return $validationError;
         }
 
         $patchFile = $files['patch_file'];
-        $sigFile   = $files['signature_file'];
 
         if ((int) ($patchFile['size'] ?? 0) > $this->maxUploadSize) {
-            return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
-        }
-        if ((int) ($sigFile['size'] ?? 0) > $this->maxSignatureSize) {
             return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
         }
 
@@ -508,42 +492,16 @@ class AdminActions
         }
 
         $stagedTgz = null;
-        $stagedSig = null;
 
         try {
             $token     = bin2hex(random_bytes(16));
             $stagedTgz = $this->tempPath . '/patch_upload_' . $token . '.tgz';
-            $stagedSig = $this->tempPath . '/patch_upload_' . $token . '.sig';
 
             if (!move_uploaded_file($patchFile['tmp_name'], $stagedTgz)) {
                 $stagedTgz = null;
                 return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
             }
             chmod($stagedTgz, 0600);
-
-            if (!move_uploaded_file($sigFile['tmp_name'], $stagedSig)) {
-                $stagedSig = null;
-                return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
-            }
-            chmod($stagedSig, 0600);
-
-            if ($this->archiveSignatureVerifier === null) {
-                return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
-            }
-
-            try {
-                $sigValid = $this->archiveSignatureVerifier->verifyFile($stagedTgz, $stagedSig, $publicKeyPem);
-            } catch (\RuntimeException $e) {
-                error_log('[PatchModule] upload: signature verification exception: ' . $e->getMessage());
-                $sigValid = false;
-            }
-
-            @unlink($stagedSig);
-            $stagedSig = null;
-
-            if (!$sigValid) {
-                return $this->uploadError(422, ErrorCode::UPLOAD_INVALID_SIGNATURE, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_SIGNATURE');
-            }
 
             $sha256 = hash_file('sha256', $stagedTgz);
 
@@ -663,9 +621,6 @@ class AdminActions
         } finally {
             if ($stagedTgz !== null && is_file($stagedTgz)) {
                 @unlink($stagedTgz);
-            }
-            if ($stagedSig !== null && is_file($stagedSig)) {
-                @unlink($stagedSig);
             }
         }
     }
@@ -879,9 +834,6 @@ class AdminActions
             ErrorCode::UPLOAD_INVALID_ARCHIVE             => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_ARCHIVE',
             ErrorCode::UPLOAD_INVALID_MANIFEST            => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MANIFEST',
             ErrorCode::UPLOAD_INVALID_MIME                => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MIME',
-            ErrorCode::UPLOAD_INVALID_SIGNATURE           => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_SIGNATURE',
-            ErrorCode::UPLOAD_MISSING_PINNED_KEY          => 'TEXT_PATCH_ERROR_UPLOAD_MISSING_PINNED_KEY',
-            ErrorCode::UPLOAD_MISSING_SIGNATURE           => 'TEXT_PATCH_ERROR_UPLOAD_MISSING_SIGNATURE',
             ErrorCode::UPLOAD_TOO_LARGE                   => 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE',
             ErrorCode::UPLOAD_VERSION_ALREADY_INSTALLED   => 'TEXT_PATCH_ERROR_UPLOAD_VERSION_ALREADY_INSTALLED',
             ErrorCode::UPLOAD_VERSION_DOWNGRADE           => 'TEXT_PATCH_ERROR_UPLOAD_VERSION_DOWNGRADE',
@@ -1134,12 +1086,11 @@ class AdminActions
     /**
      * Validate the upload file entries from $_FILES
      *
-     * Checks that both required upload slots are present and error-free,
-     * mapping PHP's UPLOAD_ERR_INI_SIZE/UPLOAD_ERR_FORM_SIZE to UPLOAD_TOO_LARGE
-     * and a missing signature file to UPLOAD_MISSING_SIGNATURE.
+     * Checks that the patch_file slot is present and error-free, mapping
+     * PHP's UPLOAD_ERR_INI_SIZE/UPLOAD_ERR_FORM_SIZE to UPLOAD_TOO_LARGE.
      *
      * @param array $files $_FILES array
-     * @return array|null Error response array, or null if both files look valid
+     * @return array|null Error response array, or null if the file looks valid
      */
     private function validateUploadFiles(array $files): ?array
     {
@@ -1149,14 +1100,6 @@ class AdminActions
         }
         if ($patchErr !== UPLOAD_ERR_OK || empty($files['patch_file']['tmp_name'])) {
             return $this->uploadError(400, ErrorCode::UPLOAD_INVALID_ARCHIVE, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_ARCHIVE');
-        }
-
-        $sigErr = $files['signature_file']['error'] ?? UPLOAD_ERR_NO_FILE;
-        if ($sigErr === UPLOAD_ERR_INI_SIZE || $sigErr === UPLOAD_ERR_FORM_SIZE) {
-            return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
-        }
-        if ($sigErr !== UPLOAD_ERR_OK || empty($files['signature_file']['tmp_name'])) {
-            return $this->uploadError(400, ErrorCode::UPLOAD_MISSING_SIGNATURE, 'TEXT_PATCH_ERROR_UPLOAD_MISSING_SIGNATURE');
         }
 
         return null;
