@@ -30,6 +30,7 @@ one sidebar entry + one banner include.
 19. [Upgrade notes (v1.6.2 → v1.6.3)](#19-upgrade-notes-v162--v163)
 20. [Upgrade notes (v1.6.3 → v1.6.4)](#20-upgrade-notes-v163--v164)
 21. [Upgrade notes (v1.6.4 → v1.7.0)](#21-upgrade-notes-v164--v170)
+22. [Upgrade notes (v1.7.0 → v1.8.0)](#22-upgrade-notes-v170--v180)
 
 ---
 
@@ -1152,3 +1153,50 @@ The detached `.sig` proves that the `.tgz` was signed by the holder of the priva
 file is responsible for verifying that the archive is the correct patch for this product. The
 admin UI displays a persistent warning to this effect above the upload form. Future hardening
 (manifest `package_id` binding) is planned for a later release.
+
+---
+
+## 22. Upgrade notes (v1.7.0 → v1.8.0)
+
+### Breaking changes
+
+| Area | Change |
+|------|--------|
+| Wire format | Legacy `migration.sql` at archive root is no longer supported. PatchInstaller v1.8.0 only reads the `migrations/` directory. |
+| Manifest | `has_migration` boolean removed. `migrations[]` array is now required (empty array = no SQL migrations). |
+| PatchCreator | `-m <file>` flag removed. Use PatchCreator v1.03.00+ which auto-detects migrations from `database/migrations/`. |
+
+Old patch archives built with PatchCreator v1.02.00 or earlier that contain a `migration.sql` at
+the archive root will install without running the SQL — the migration step simply finds no
+`migrations/` directory and logs INFO `"Patch install: no SQL migrations, skipping"`. Archives
+that had no SQL migration at all are unaffected.
+
+### New runtime requirement — `CREATE` privilege
+
+PatchMigrator creates the `patch_migrations` table on first use. The application DB user must
+have `CREATE` on the project database:
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE ON your_db.* TO 'app_user'@'localhost';
+```
+
+Fresh integrations that run `schema/patch_migrations.sql` before deploying do not need runtime
+`CREATE` for the first install, but do need it for subsequent ones if the table is ever dropped.
+
+### No manual schema step for existing installations
+
+When the first v1.8.0-installed patch runs, PatchMigrator automatically:
+
+1. Executes `CREATE TABLE IF NOT EXISTS patch_migrations (...)`.
+2. Backfills one row per `*.sql` file in `database/migrations/` (non-recursive) so that already-applied
+   migrations are not re-executed.
+
+No operator action is required.
+
+### Action required
+
+1. **Upgrade PatchCreator to v1.03.00** before building new patch archives.
+2. **Grant `CREATE` to the app DB user** if not already present (see above).
+3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+4. Build and install the upgrade patch — the v1.6.4 installer silently skips the missing `migrations/`
+   directory; the v1.8.0 code lands in place; bootstrap fires on the next patch install.

@@ -34,11 +34,15 @@ Copy the module to your project's library directory:
 rsync -av --delete /path/to/reusables/PatchModule/ /path/to/project/lib/PatchModule/
 ```
 
-Import the database schema:
+Import the database schema (order matters — `patch_migrations` has a FK to `patch_history`):
 
 ```bash
 mysql -u user -p database < lib/PatchModule/schema/patch_history.sql
+mysql -u user -p database < lib/PatchModule/schema/patch_backups.sql      # if using MysqldumpBackupAdapter
+mysql -u user -p database < lib/PatchModule/schema/patch_migrations.sql   # required for SQL migration tracking
 ```
+
+> **Existing installations:** `patch_migrations` is created automatically on first patch install — no manual schema step required when upgrading from v1.6.x or v1.7.x.
 
 ## Quick Start
 

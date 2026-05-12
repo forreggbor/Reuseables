@@ -244,10 +244,11 @@ Messages are emitted in pipeline order during a successful installation.
 | INFO    | `Patch install: extracting patch`                                           | :236        |
 | INFO    | `Patch install: creating pre-patch backup`                                  | :256        |
 | INFO    | `Patch install: backup created (ID: {backupId})`                            | :273        |
-| INFO    | `Patch install: no migration.sql found, skipping backup`                    | :276        |
-| INFO    | `Patch install: executing SQL migration`                                    | :284        |
-| INFO    | `Patch install: SQL migration completed ({N} statements)`                   | :294        |
-| DEBUG   | `Patch install: no migration.sql found, skipping`                           | :296        |
+| INFO    | `Patch install: no SQL migrations, skipping backup`                                                                       | :465        |
+| INFO    | `Patch install: no SQL migrations, skipping`                                                                              | :485        |
+| WARNING | `Patch install: manifest.migrations[] disagrees with archive contents; proceeding from on-disk listing`                   | :493        |
+| INFO    | `Patch install: executing {N} SQL migration(s)`                                                                           | :496        |
+| INFO    | `Patch install: SQL migrations completed ({N} applied, {M} already-applied)`                                              | :509        |
 | INFO    | `Patch install: copying files`                                              | :301        |
 | INFO    | `Patch install: {N} files copied`                                           | :315        |
 | INFO    | `Patch install: {N} obsolete files removed`                                 | :326        |
@@ -283,6 +284,20 @@ Messages are emitted in pipeline order during a successful installation.
 |---------|-----------------------------------------------------------------------------|-------------|
 | WARNING | `Patch prune: could not load history - {message}`                           | :613        |
 | WARNING | `Patch prune: could not clear backup_id for #{id}: {message}`               | :639        |
+
+### PatchMigrator
+
+Messages emitted by `PatchMigrator` during SQL migration execution and first-run bootstrap.
+
+| Level   | Message pattern                                                                                              | Source line |
+|---------|--------------------------------------------------------------------------------------------------------------|-------------|
+| INFO    | `Bootstrap: patch_migrations table created (no database/migrations/ directory to backfill from)`             | :168        |
+| INFO    | `Bootstrap: patch_migrations table created and backfilled with {N} existing migration(s)`                    | :186        |
+| ERROR   | `Bootstrap failed: {message}`                                                                                | :193        |
+| INFO    | `SQL migration already applied, skipping: {filename}`                                                        | :107        |
+
+The ERROR line always precedes a rethrown `\RuntimeException` — if bootstrap fails, the install
+pipeline stops immediately before any files are written.
 
 ### PatchChecker — Update Check
 
