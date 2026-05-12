@@ -42,4 +42,16 @@ class ErrorCode
 
     // Verification
     public const VERIFICATION_FAILED     = 'verification_failed';
+
+    // Manual upload validation
+    public const UPLOAD_TOO_LARGE              = 'upload_too_large';
+    public const UPLOAD_INVALID_MIME           = 'upload_invalid_mime';
+    public const UPLOAD_INVALID_ARCHIVE        = 'upload_invalid_archive';
+    public const UPLOAD_MISSING_SIGNATURE      = 'upload_missing_signature';
+    public const UPLOAD_INVALID_SIGNATURE      = 'upload_invalid_signature';
+    public const UPLOAD_INVALID_MANIFEST       = 'upload_invalid_manifest';
+    public const UPLOAD_VERSION_ALREADY_INSTALLED = 'upload_version_already_installed';
+    public const UPLOAD_VERSION_DOWNGRADE      = 'upload_version_downgrade';
+    public const UPLOAD_MISSING_PINNED_KEY     = 'upload_missing_pinned_key';
+    public const UPLOAD_FAILED                 = 'upload_failed';
 }
