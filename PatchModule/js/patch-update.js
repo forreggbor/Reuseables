@@ -873,8 +873,202 @@ const PatchUpdate = {
     }
 };
 
+/**
+ * Manual Patch Upload handler
+ *
+ * Manages the upload card on the patch-management admin page: sends the .tgz
+ * and .sig files via XHR (for progress reporting), handles version-gap
+ * confirmation, and hands off to the existing PatchUpdate install modal.
+ */
+const PatchUpload = {
+    /** @type {boolean} */
+    uploading: false,
+
+    /** @type {Object<string, string>} Upload-specific i18n strings */
+    i18n: {},
+
+    /**
+     * Read upload i18n strings from the mount element
+     */
+    init: function () {
+        var mount = document.getElementById('patch-mount');
+        if (!mount) return;
+        this.i18n = JSON.parse(mount.dataset.uploadI18n || '{}');
+    },
+
+    /**
+     * Handle upload form submit
+     * @param {Event} e
+     */
+    handleSubmit: function (e) {
+        e.preventDefault();
+        if (this.uploading) return;
+
+        var fileInput = document.getElementById('patchUploadFile');
+        var sigInput  = document.getElementById('patchUploadSig');
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+        if (!sigInput  || !sigInput.files  || !sigInput.files[0])  return;
+
+        var mount     = document.getElementById('patch-mount');
+        var formEl    = document.getElementById('patchUploadForm');
+        var uploadUrl = formEl ? formEl.dataset.action : '';
+        var csrfToken = mount ? (mount.dataset.csrfToken || '') : '';
+
+        var formData = new FormData();
+        formData.append('patch_file',      fileInput.files[0]);
+        formData.append('signature_file',  sigInput.files[0]);
+        formData.append('csrf_token',      csrfToken);
+
+        this.uploading = true;
+        this.setFormEnabled(false);
+        this.showProgress();
+        this.setStatus(this.i18n.uploading || 'Uploading…');
+
+        var self = this;
+        var xhr  = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl, true);
+        xhr.setRequestHeader('Accept', 'application/json');
+
+        xhr.upload.onprogress = function (ev) {
+            if (ev.lengthComputable) {
+                var pct = Math.round((ev.loaded / ev.total) * 100);
+                self.setProgress(pct < 95 ? pct : 95);
+            }
+        };
+
+        xhr.onload = function () {
+            self.uploading = false;
+
+            var data;
+            try { data = JSON.parse(xhr.responseText); } catch (ex) { self.onError(null); return; }
+
+            if (data.csrf_token) {
+                PatchUpdate.csrfToken = data.csrf_token;
+                if (mount) { mount.dataset.csrfToken = data.csrf_token; }
+            }
+
+            if (!data.success) { self.onError(data); return; }
+
+            self.setProgress(100);
+            self.setStatus(self.i18n.verifying || 'Verifying signature…');
+
+            setTimeout(function () { self.onUploadSuccess(data); }, 600);
+        };
+
+        xhr.onerror = function () { self.uploading = false; self.onError(null); };
+
+        xhr.send(formData);
+    },
+
+    /**
+     * Handle successful upload — confirm version gap if present, then open install modal
+     * @param {Object} data - Parsed server JSON (success=true)
+     */
+    onUploadSuccess: function (data) {
+        if (data.warning === 'version_gap' && data.warning_message) {
+            if (!window.confirm(data.warning_message)) {
+                this.reset();
+                return;
+            }
+        }
+
+        var mount          = document.getElementById('patch-mount');
+        var currentVersion = mount ? (mount.dataset.currentVersion || null) : null;
+
+        PatchUpdate.patches           = [{
+            id:            data.patch_history_id,
+            version:       data.version       || '',
+            release_notes: data.release_notes || null,
+            file_size:     data.file_size      || 0,
+            released_at:   null
+        }];
+        PatchUpdate.totalPatches      = 1;
+        PatchUpdate.currentPatchIndex = 0;
+        PatchUpdate.installedCount    = 0;
+
+        PatchUpdate.renderQueue();
+        PatchUpdate.populatePatchDetails(PatchUpdate.patches[0], currentVersion);
+        PatchUpdate.updateInstallButton();
+        PatchUpdate.switchState('details');
+
+        if (!PatchUpdate.modal) {
+            var modalEl = document.getElementById('patchUpdateModal');
+            if (modalEl) { PatchUpdate.modal = new bootstrap.Modal(modalEl); }
+        }
+        if (PatchUpdate.modal) { PatchUpdate.modal.show(); }
+
+        this.reset();
+    },
+
+    /**
+     * Show an error notification and re-enable the form
+     * @param {Object|null} data - Parsed response or null on network error
+     */
+    onError: function (data) {
+        var errorCode   = data ? (data.error_code || null) : null;
+        var errorLabels = {};
+        var mount       = document.getElementById('patch-mount');
+        if (mount) {
+            try { errorLabels = JSON.parse(mount.dataset.errorLabels || '{}'); } catch (ex) {}
+        }
+        var message = (errorCode && errorLabels[errorCode])
+            ? errorLabels[errorCode]
+            : (data && data.error ? data.error : 'Upload failed.');
+
+        this.hideProgress();
+        this.setFormEnabled(true);
+        showNotification(message, 'error');
+    },
+
+    /** Reset form to initial idle state */
+    reset: function () {
+        this.uploading = false;
+        this.hideProgress();
+        this.setFormEnabled(true);
+        this.setStatus('');
+        var f = document.getElementById('patchUploadFile');
+        var s = document.getElementById('patchUploadSig');
+        if (f) f.value = '';
+        if (s) s.value = '';
+    },
+
+    setFormEnabled: function (enabled) {
+        var ids = ['patchUploadSubmitBtn', 'patchUploadFile', 'patchUploadSig'];
+        for (var i = 0; i < ids.length; i++) {
+            var el = document.getElementById(ids[i]);
+            if (el) { el.disabled = !enabled; }
+        }
+    },
+
+    showProgress: function () {
+        var wrap = document.getElementById('patchUploadProgressWrap');
+        if (wrap) { wrap.classList.remove('d-none'); }
+    },
+
+    hideProgress: function () {
+        var wrap = document.getElementById('patchUploadProgressWrap');
+        if (wrap) { wrap.classList.add('d-none'); }
+        this.setProgress(0);
+    },
+
+    setProgress: function (pct) {
+        var bar = document.getElementById('patchUploadProgressBar');
+        if (!bar) return;
+        bar.style.width = pct + '%';
+        bar.setAttribute('aria-valuenow', String(pct));
+    },
+
+    setStatus: function (text) {
+        var el = document.getElementById('patchUploadStatus');
+        if (!el) return;
+        el.textContent = text;
+        el.classList.toggle('d-none', text === '');
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function () {
     PatchUpdate.init();
+    PatchUpload.init();
 
     // Password input Enter key
     var passInput = document.getElementById('patchPassword');
@@ -920,6 +1114,12 @@ document.addEventListener('DOMContentLoaded', function () {
     var checkBtn = document.getElementById('patchCheckUpdatesBtn');
     if (checkBtn) {
         checkBtn.addEventListener('click', function () { PatchUpdate.checkUpdates(); });
+    }
+
+    // Index page: Manual upload form
+    var uploadForm = document.getElementById('patchUploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function (e) { PatchUpload.handleSubmit(e); });
     }
 
     // Index page: per-patch buttons (Install, Details, Rollback) — delegated

@@ -61,6 +61,7 @@ if (!function_exists('patchStatusBadge')) {
 <div id="patch-mount"
      data-base-url="<?= htmlspecialchars($baseUrl) ?>"
      data-csrf-token="<?= htmlspecialchars($csrfToken) ?>"
+     data-current-version="<?= htmlspecialchars($currentVersion) ?>"
      data-step-labels='<?= htmlspecialchars(json_encode([
          'preflight_checks'    => $tr('TEXT_PATCH_STEP_PREFLIGHT'),
          'create_backup'       => $tr('TEXT_PATCH_STEP_BACKUP'),
