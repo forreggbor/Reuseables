@@ -5,6 +5,17 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-05-12
+
+| Category | Description                                                                          |
+|----------|--------------------------------------------------------------------------------------|
+| Fixed    | Upload form allowed submission without selecting files, with no feedback to the user |
+
+### Fixed
+- **Upload form silent no-op on missing files** — the manual upload form had `novalidate` set, which disabled the browser's built-in `required` attribute enforcement. Clicking Upload with no files selected caused the submit handler to return silently with no toast, no validation message, and no visual feedback. Removed `novalidate`; the browser now intercepts the missing-file case before the submit event fires and shows a native validation callout.
+
+---
+
 ## [1.7.0] - 2026-05-12
 
 | Category | Description                                                                                                       |
