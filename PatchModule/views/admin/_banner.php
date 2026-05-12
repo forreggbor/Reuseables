@@ -13,7 +13,7 @@
  *   $patches    (array)    — available patch records (pre-fetched by host)
  */
 
-if ($disabled || empty($patches)) {
+if (($disabled ?? false) || empty($patches)) {
     return;
 }
 

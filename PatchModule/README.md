@@ -103,7 +103,7 @@ $result = $module->install($patchHistoryId, true, $userId);
 
 ## Admin UI
 
-PatchModule v1.5.0 ships a complete admin patch-management UI (banner,
+PatchModule ships a complete admin patch-management UI (banner,
 modal, index page, progress tracking, multi-patch queue) that can be
 integrated into any PHP MVC project by implementing two thin adapter
 classes and adding one route block.
@@ -242,8 +242,8 @@ Without a callback the module behaves as before: a 403 precondition failure caus
 
 | Method                                                       | Returns | Description                   |
 |--------------------------------------------------------------|---------|-------------------------------|
-| `install(int $id, bool $backup = true, ?int $userId = null)` | `array` | Install patch end-to-end      |
-| `rollback(int $patchHistoryId)`                              | `array` | Rollback a failed installation|
+| `install(int $id, bool $backup = true, ?int $userId = null, ?string $language = null)` | `array` | Install patch end-to-end      |
+| `rollback(int $patchHistoryId, ?int $userId = null)`         | `array` | Rollback a failed installation|
 
 ### Progress Tracking
 
@@ -269,6 +269,23 @@ Without a callback the module behaves as before: a 403 precondition failure caus
 | `getHistory()`                                                     | `array`  | Full patch history          |
 | `getHistoryRecord(int $id)`                                       | `?array` | Single record by ID         |
 | `findHistoryByVersion(string $version, array $statuses)`           | `?array` | Find by version and status  |
+
+### Admin UI
+
+| Method              | Returns                                  | Description                                                        |
+|---------------------|------------------------------------------|--------------------------------------------------------------------|
+| `getAdminActions()` | `?AdminActions`                          | Admin action handler; null when auth_adapter or csrf_adapter is missing |
+| `isAvailable()`     | `array{enabled: bool, reason: string}`   | Whether the admin UI is fully usable                               |
+| `getBaseUrl()`      | `string`                                 | Validated admin UI base path; empty string when not configured     |
+
+### Accessors
+
+| Method                 | Returns                    | Description                          |
+|------------------------|----------------------------|--------------------------------------|
+| `getDatabase()`        | `DatabaseAdapterInterface` | Returns the database adapter         |
+| `getVersionResolver()` | `VersionResolverInterface` | Returns the version resolver         |
+| `getProgressTracker()` | `ProgressTracker`          | Returns the progress tracker         |
+| `getMaintenanceMode()` | `MaintenanceMode`          | Returns the maintenance mode manager |
 
 ### Views
 
@@ -358,6 +375,8 @@ an `error_code` key on failure. The full reference is in `doc/reviewed/ERROR-COD
 | `network_error`           | Could not reach the patch server                             |
 | `invalid_archive`         | Archive contained symlinks (path-traversal guard)            |
 | `invalid_manifest_path`   | Manifest contained a `..`, absolute, or otherwise unsafe path |
+| `invalid_manifest_schema` | Manifest JSON failed schema validation (missing required fields or wrong types) |
+| `verification_failed`     | Post-install verification failed — version mismatch or a copied file is missing |
 
 When `error_code` is `rate_limited`, the `retry_after` key contains the number of seconds to wait
 before retrying (from the server's `Retry-After` header), or `null` if the header was absent. The

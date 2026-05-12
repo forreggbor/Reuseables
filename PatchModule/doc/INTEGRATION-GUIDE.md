@@ -1,4 +1,4 @@
-# PatchModule v1.6.3 — Integration Guide
+# PatchModule v1.6.4 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -28,6 +28,7 @@ one sidebar entry + one banner include.
 17. [Upgrade notes (v1.6.0 → v1.6.1)](#17-upgrade-notes-v160--v161)
 18. [Upgrade notes (v1.6.1 → v1.6.2)](#18-upgrade-notes-v161--v162)
 19. [Upgrade notes (v1.6.2 → v1.6.3)](#19-upgrade-notes-v162--v163)
+20. [Upgrade notes (v1.6.3 → v1.6.4)](#20-upgrade-notes-v163--v164)
 
 ---
 
@@ -991,3 +992,20 @@ After rsync, the host picks up the updated `locale/en_US/messages.php` and `loca
 - **New `PatchUpdate.parseResponse(response)` JS helper.** All five fetch operations (`dismissAll`, `verifyPassword`, `installCurrent`, `checkUpdates`, `dismissPatch`) now route through a unified helper that safely parses JSON, rotates the CSRF token, and returns a normalised `{ok, data, errorMessage}` object. Previously each operation contained its own inline JSON parse and CSRF update; now these happen exactly once per request.
 - **Silent failures fixed.** `dismissAll` and `dismissPatch` previously ignored server errors with no user feedback; they now show a localised error toast. `checkUpdates` now re-enables its button on failure (previously it could be left permanently disabled via a second code path). `verifyPassword` replaces the hardcoded English "Verification failed" string with the i18n fallback.
 - **New `TEXT_PATCH_ERROR_REQUEST_FAILED` translation key** added to both `locale/en_US/messages.php` and `locale/hu_HU/messages.php`. It is exposed as `genericError` in the `data-i18n` JSON on `#patch-mount` in `views/admin/index.php`. The JS client uses it as a localised fallback toast whenever a generic network or server error occurs.
+
+---
+
+## 20. Upgrade notes (v1.6.3 → v1.6.4)
+
+### Breaking changes
+
+None.
+
+### Action required
+
+None — `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` and you are done. No controller, adapter, config, or wire-format changes are needed.
+
+### What changed
+
+- **`_banner.php` null-safety guard** — the early-return check now uses `($disabled ?? false)` instead of `$disabled`. This prevents a PHP notice when the variable is not defined in the including scope. Hosts that already set `$disabled` before including the banner are unaffected.
+- **README API reference corrected and expanded** — `install()` and `rollback()` signatures updated; new Admin UI and Accessors method tables added; `invalid_manifest_schema` and `verification_failed` error codes documented.

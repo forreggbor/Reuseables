@@ -5,6 +5,23 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2026-05-12
+
+| Category | Description                                                                                          |
+|----------|------------------------------------------------------------------------------------------------------|
+| Fixed    | Banner suppression guard could throw a notice when `$disabled` was not set in the calling scope      |
+| Docs     | README API reference corrected and expanded with missing methods and error codes                     |
+
+### Fixed
+- **`_banner.php` null-safety guard** — the early-return condition `if ($disabled || empty($patches))` could emit a PHP notice when `$disabled` was not defined in the including scope. Changed to `if (($disabled ?? false) || empty($patches))`. No behavioural change when the variable is properly set.
+
+### Docs
+- **README API reference corrected** — `install()` now documents the `?string $language = null` parameter; `rollback()` now documents the `?int $userId = null` parameter.
+- **README API reference expanded** — new **Admin UI** section documents `getAdminActions()`, `isAvailable()`, and `getBaseUrl()`; new **Accessors** section documents `getDatabase()`, `getVersionResolver()`, `getProgressTracker()`, and `getMaintenanceMode()`.
+- **README error codes table** — added `invalid_manifest_schema` and `verification_failed`.
+
+---
+
 ## [1.6.3] - 2026-05-11
 
 | Category | Description                                                                                                     |
