@@ -162,8 +162,7 @@ if (!function_exists('patchStatusBadge')) {
                 <i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_TRUST_WARNING')) ?>
             </div>
             <form id="patchUploadForm"
-                  data-action="<?= htmlspecialchars($baseUrl . '/upload') ?>"
-                  novalidate>
+                  data-action="<?= htmlspecialchars($baseUrl . '/upload') ?>">
                 <div class="mb-3">
                     <label for="patchUploadFile" class="form-label fw-semibold">
                         <?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE')) ?>
