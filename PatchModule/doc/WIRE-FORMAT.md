@@ -1,4 +1,4 @@
-# PatchModule v1.7.0 — HTTP Wire Format
+# PatchModule v1.8.0 — HTTP Wire Format
 
 Frozen request/response contract for all 10 admin endpoints. Any change to this
 document must be accompanied by matching changes in both `src/AdminActions.php`
@@ -492,3 +492,53 @@ via the `data-error-labels` attribute on the mount element.
 | `upload_too_large` | Uploaded file exceeds the configured size limit |
 | `upload_version_already_installed` | Uploaded version is already installed |
 | `upload_version_downgrade` | Uploaded version is older than the current version |
+
+---
+
+## Archive migration layout (v1.8.0)
+
+**Breaking change in v1.8.0:** The legacy `migration.sql` file at archive root and the `has_migration` boolean in `manifest.json` are removed. The new format uses a `migrations/` directory and an always-present `migrations` array.
+
+### Archive layout
+
+```
+patch-X.Y.Z.tgz
+├── manifest.json
+├── release_notes.md
+├── migrations/                 # omitted when the patch has no SQL migrations
+│   ├── 2026_05_11_151403_create_foo.sql
+│   └── 2026_05_11_151503_add_bar.sql
+└── files/
+    └── ...
+```
+
+### manifest.json (v1.8.0)
+
+```json
+{
+  "version": "X.Y.Z",
+  "migrations": [
+    "2026_05_11_151403_create_foo.sql",
+    "2026_05_11_151503_add_bar.sql"
+  ],
+  "files": [ ... ],
+  "removed_files": [ ... ]
+}
+```
+
+- `migrations[]` is **always present** (empty array = no SQL migrations).
+- `has_migration` (boolean) is **removed** — `count(migrations) > 0` is the signal.
+- `removed_files` is omitted when empty (unchanged behaviour).
+- Deletions of files under `database/migrations/` are **not** added to `removed_files` — removing a migration from the source tree is a no-op in the wire format.
+
+### Authority rule
+
+The `migrations/` directory on disk is the source of truth. If `manifest.migrations[]` and the on-disk listing disagree, PatchInstaller logs WARN and proceeds from the on-disk listing.
+
+### Execution order
+
+Files are sorted lexicographically (`SORT_STRING`). The `YYYY_MM_DD_HHMMSS_` prefix gives chronological order.
+
+### The `execute_migration` step ID is frozen
+
+The progress-tracker step ID `execute_migration` is unchanged. Its internal behaviour changed (multi-file directory execution instead of single-file), but the progress wire format is identical.

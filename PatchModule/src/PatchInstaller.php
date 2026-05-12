@@ -183,6 +183,7 @@ class PatchInstaller
             'userId'            => $userId,
             'extractDir'        => null,
             'manifest'          => null,
+            'hasMigrationsDir'  => false,
             'hasMigration'      => false,
             'backupId'          => null,
             'downloadedFile'    => null,
@@ -339,6 +340,7 @@ class PatchInstaller
             'userId'            => $userId,
             'extractDir'        => null,
             'manifest'          => null,
+            'hasMigrationsDir'  => false,
             'hasMigration'      => false,
             'backupId'          => null,
             'downloadedFile'    => $archivePath,   // deleted by cleanupStep
@@ -416,9 +418,10 @@ class PatchInstaller
             throw new \RuntimeException('Extract failed: ' . $extractResult['error']);
         }
 
-        $ctx['extractDir']   = $extractResult['extract_dir'];
-        $ctx['manifest']     = $extractResult['manifest'];
-        $ctx['hasMigration'] = file_exists($ctx['extractDir'] . '/migration.sql');
+        $ctx['extractDir']        = $extractResult['extract_dir'];
+        $ctx['manifest']          = $extractResult['manifest'];
+        $ctx['hasMigrationsDir']  = is_dir($ctx['extractDir'] . '/migrations');
+        $ctx['hasMigration']      = $ctx['hasMigrationsDir'];
 
         $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
             'manifest_json' => json_encode($ctx['manifest']),
@@ -459,40 +462,76 @@ class PatchInstaller
 
             $this->log("Patch install: backup created (ID: {$ctx['backupId']})", 'INFO');
         } else {
-            $this->log("Patch install: no migration.sql found, skipping backup", 'INFO');
+            $this->log("Patch install: no SQL migrations, skipping backup", 'INFO');
         }
     }
 
     /**
-     * Execute the SQL migration if one is present in the extracted patch
+     * Execute SQL migrations from the extracted patch's migrations/ directory
      *
-     * Skips silently (at DEBUG level) when no migration.sql exists.
+     * Runs each *.sql file in lexicographic order, tracking applied filenames in
+     * the patch_migrations table (bootstrapped automatically on first use).
+     * Already-applied filenames are skipped (idempotent re-install).
      *
      * @param array &$ctx Installation context
      * @return void
-     * @throws \RuntimeException If the migration execution fails
+     * @throws \RuntimeException If any migration file fails to execute
      */
     private function migrateStep(array &$ctx): void
     {
         $this->progressTracker->stepProgress('execute_migration');
 
-        if ($ctx['hasMigration']) {
-            $this->log("Patch install: executing SQL migration", 'INFO');
-
-            $migrationFile   = $ctx['extractDir'] . '/migration.sql';
-            $migrationResult = $this->migrator->executeMigration($migrationFile);
-
-            if (!$migrationResult['success']) {
-                throw new \RuntimeException(
-                    'SQL migration failed at statement ' . $migrationResult['executed_count'] .
-                    '/' . $migrationResult['total_count'] . ': ' . $migrationResult['error']
-                );
-            }
-
-            $this->log("Patch install: SQL migration completed ({$migrationResult['executed_count']} statements)", 'INFO');
-        } else {
-            $this->log("Patch install: no migration.sql found, skipping", 'DEBUG');
+        if (!$ctx['hasMigrationsDir']) {
+            $this->log("Patch install: no SQL migrations, skipping", 'INFO');
+            return;
         }
+
+        // Authority-rule cross-check: warn when manifest.migrations[] disagrees with on-disk listing
+        $onDisk   = $this->listMigrationFiles($ctx['extractDir'] . '/migrations');
+        $manifest = $ctx['manifest']['migrations'] ?? [];
+        if (array_diff($onDisk, $manifest) !== [] || array_diff($manifest, $onDisk) !== []) {
+            $this->log("Patch install: manifest.migrations[] disagrees with archive contents; proceeding from on-disk listing", 'WARNING');
+        }
+
+        $this->log("Patch install: executing " . count($onDisk) . " SQL migration(s)", 'INFO');
+
+        $result = $this->migrator->executeMigrationsDirectory(
+            $ctx['extractDir'] . '/migrations',
+            $ctx['patchHistoryId']
+        );
+
+        if (!$result['success']) {
+            throw new \RuntimeException(
+                "SQL migration failed at file " . $result['failed_file'] . ": " . $result['error']
+            );
+        }
+
+        $this->log(
+            "Patch install: SQL migrations completed (" . count($result['applied']) . " applied, " . count($result['skipped']) . " already-applied)",
+            'INFO'
+        );
+    }
+
+    /**
+     * List *.sql filenames in a directory, sorted lexicographically
+     *
+     * @param string $dir Absolute path to directory
+     * @return string[] Sorted array of basenames
+     */
+    private function listMigrationFiles(string $dir): array
+    {
+        $files = [];
+        $entries = scandir($dir);
+        if ($entries === false) {
+            return [];
+        }
+        foreach ($entries as $entry) {
+            if (str_ends_with($entry, '.sql') && is_file($dir . '/' . $entry)) {
+                $files[] = $entry;
+            }
+        }
+        sort($files, SORT_STRING);
+        return $files;
     }
 
     /**

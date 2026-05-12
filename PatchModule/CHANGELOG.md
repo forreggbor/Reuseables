@@ -5,6 +5,34 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-05-12
+
+| Category | Description                                                                                                    |
+|----------|----------------------------------------------------------------------------------------------------------------|
+| Added    | Multi-file SQL migrations — patches ship a `migrations/` directory; PatchModule executes files in order       |
+| Added    | `patch_migrations` table with automatic first-run bootstrap and backfill from `database/migrations/*.sql`     |
+| Changed  | Manifest `migrations[]` array replaces the legacy `has_migration` boolean                                     |
+| Changed  | `execute_migration` step log promoted from DEBUG to INFO — no-migration case is now visible in production     |
+| Removed  | Legacy single `migration.sql` at archive root; manifest `has_migration` boolean                               |
+
+### Added
+- **Multi-file SQL migrations** — PatchCreator auto-detects `database/migrations/*.sql` files from the git diff and ships them in a `migrations/` directory inside the patch archive. PatchInstaller v1.8.0 executes them in lexicographic (chronological `YYYY_MM_DD_HHMMSS_` prefix) order using `PatchMigrator::executeMigrationsDirectory()`.
+- **`patch_migrations` tracking table** — each applied SQL file is recorded by filename (UNIQUE constraint). Re-installing the same patch is a no-op for SQL. The table is created automatically on first use (`CREATE TABLE IF NOT EXISTS`) and backfilled from the project's existing `database/migrations/*.sql` files (non-recursive, `.sql` only) — no manual operator step required for existing installations upgrading from v1.6.x.
+- **`PatchMigrator::executeMigrationsDirectory()`** — new public method; replaces the single-file `executeMigration()` path for patch installs.
+- **`PatchMigrator::ensureMigrationsTable()`** — private self-bootstrap: creates `patch_migrations`, backfills from `database/migrations/`, latches on the instance so it runs at most once.
+- **`schema/patch_migrations.sql`** — canonical schema file for fresh integrations. Load after `patch_history.sql` (FK dependency).
+
+### Changed
+- **Manifest format** — `manifest.migrations[]` (always-present array) replaces `has_migration` (boolean). Empty array = no migrations.
+- **`execute_migration` step** — log level promoted from DEBUG to INFO when there are no migrations to run. The step is always ticked in the progress tracker.
+- **PatchFileManager** — `migrations` is now a required manifest field; each entry validated against `^[A-Za-z0-9_][A-Za-z0-9._-]*\.sql$`; post-extraction realpath/symlink guard on `migrations/` directory contents.
+
+### Removed
+- **Legacy `migration.sql` at archive root** — PatchInstaller v1.8.0 only processes the `migrations/` directory. Old archives using the legacy format are not supported.
+- **`has_migration` boolean in manifest** — removed from both PatchCreator output and PatchFileManager validation.
+
+---
+
 ## [1.7.1] - 2026-05-12
 
 | Category | Description                                                                          |

@@ -59,7 +59,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 1.7.1
+ * @version 1.8.0
  * @license MIT
  */
 class PatchModule
@@ -837,6 +837,7 @@ class PatchModule
 
         $this->migrator = new PatchMigrator(
             $this->database,
+            $rootPath,
             $this->logger
         );
 

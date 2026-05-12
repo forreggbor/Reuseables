@@ -149,6 +149,68 @@ class PatchFileManager
             ];
         }
 
+        // migrations must be a required array; each entry must be a safe SQL basename
+        if (!isset($manifest['migrations']) || !is_array($manifest['migrations'])) {
+            $this->cleanupDir($extractDir);
+            return [
+                'success'     => false,
+                'extract_dir' => null,
+                'manifest'    => null,
+                'error'       => "Invalid manifest.json: required field 'migrations' must be an array",
+                'error_code'  => ErrorCode::INVALID_MANIFEST_SCHEMA,
+            ];
+        }
+        foreach ($manifest['migrations'] as $entry) {
+            if (!is_string($entry) || !preg_match('/^[A-Za-z0-9_][A-Za-z0-9._\-]*\.sql$/', $entry)) {
+                $this->cleanupDir($extractDir);
+                return [
+                    'success'     => false,
+                    'extract_dir' => null,
+                    'manifest'    => null,
+                    'error'       => "Invalid manifest.json: invalid migrations entry '" . (is_string($entry) ? $entry : '(non-string)') . "'",
+                    'error_code'  => ErrorCode::INVALID_MANIFEST_SCHEMA,
+                ];
+            }
+        }
+
+        // Path-traversal guard on the migrations/ directory
+        $migrationsExtractDir = $extractDir . '/migrations';
+        if (is_dir($migrationsExtractDir)) {
+            $realMigrationsDir = realpath($migrationsExtractDir);
+            $entries = scandir($migrationsExtractDir);
+            if ($entries !== false) {
+                foreach ($entries as $entry) {
+                    if ($entry === '.' || $entry === '..') {
+                        continue;
+                    }
+                    $fullPath = $migrationsExtractDir . '/' . $entry;
+                    if (!is_file($fullPath) || is_link($fullPath)) {
+                        $this->cleanupDir($extractDir);
+                        $this->log("Patch archive rejected: non-regular file in migrations/: {$entry}", 'ERROR');
+                        return [
+                            'success'     => false,
+                            'extract_dir' => null,
+                            'manifest'    => null,
+                            'error'       => "Archive contains non-regular file in migrations/: {$entry}",
+                            'error_code'  => 'invalid_archive',
+                        ];
+                    }
+                    $realFile = realpath($fullPath);
+                    if ($realFile === false || strpos($realFile, $realMigrationsDir . '/') !== 0) {
+                        $this->cleanupDir($extractDir);
+                        $this->log("Patch archive rejected: path traversal detected in migrations/: {$entry}", 'ERROR');
+                        return [
+                            'success'     => false,
+                            'extract_dir' => null,
+                            'manifest'    => null,
+                            'error'       => "Archive contains path traversal in migrations/: {$entry}",
+                            'error_code'  => 'invalid_archive',
+                        ];
+                    }
+                }
+            }
+        }
+
         // Validate files and removed_files are arrays of strings when present
         foreach (['files', 'removed_files'] as $field) {
             if (!isset($manifest[$field])) {

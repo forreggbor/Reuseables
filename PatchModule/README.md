@@ -351,8 +351,10 @@ admin UI displays a persistent warning above the upload form. Future hardening (
 A patch package is a `.tgz` archive with the following structure:
 
 ```
-manifest.json      # Required: version, files list
-migration.sql      # Optional: SQL migration statements
+manifest.json      # Required: version, files list, migrations list
+migrations/        # Optional: SQL migration files (omitted when none)
+  ├── 2026_05_11_151403_create_foo.sql
+  └── 2026_05_11_151503_add_bar.sql
 files/             # Optional: files to copy to project root
   ├── app/
   ├── lib/
@@ -364,26 +366,33 @@ files/             # Optional: files to copy to project root
 ```json
 {
     "version": "2.31.2",
+    "migrations": [
+        "2026_05_11_151403_create_foo.sql",
+        "2026_05_11_151503_add_bar.sql"
+    ],
     "files": [
         "app/services/MyService.php",
         "lib/SomeModule/SomeFile.php"
     ],
     "removed_files": [
         "app/legacy/OldService.php"
-    ],
-    "release_notes": "Bug fixes and improvements"
+    ]
 }
 ```
 
-`removed_files` is optional and backward compatible — absent or empty means no deletions. When present, each listed file is deleted from the project root after the new files are copied. Files that do not exist are silently skipped (safe to re-apply). Each path is validated with path-traversal checks before any deletion occurs.
+`migrations` is **always present** (empty array when the patch has no SQL migrations). SQL files in the archive's `migrations/` directory are executed in lexicographic (chronological) order by PatchInstaller. Each filename is tracked in `patch_migrations` by filename — re-installing the same patch is a no-op for SQL (already-applied filenames are skipped).
+
+`removed_files` is optional — absent or empty means no deletions. Each listed file is deleted from the project root after new files are copied, with path-traversal protection and pre-deletion backup for rollback.
+
+> **Filesystem note:** PatchInstaller does **not** copy migration files into the project's `database/migrations/` directory. The archive's `migrations/` directory is executed in place and the filenames are tracked in `patch_migrations`. The project's `database/migrations/` is only read during bootstrap (to backfill `patch_migrations` on first use) and is otherwise untouched.
 
 ## Installation Pipeline
 
 1. **Preflight checks** — Disk space, writable root, version not already installed
 2. **Download patch** — From patch server with SHA-256 verification
-3. **Extract patch** — .tgz archive, validate manifest.json; symlink scan rejects unsafe archives
-4. **Create backup** — Full DB dump via BackupAdapter, only if `migration.sql` is present (skipped if no adapter or no migration)
-5. **Execute migration** — SQL statements with FK checks disabled
+3. **Extract patch** — .tgz archive, validate manifest.json (including `migrations[]`); symlink and path-traversal scan rejects unsafe archives
+4. **Create backup** — Full DB dump via BackupAdapter, only if `migrations/` directory is present (skipped if no adapter or no migrations)
+5. **Execute migration** — Runs each `*.sql` file in `migrations/` in lexicographic order; tracks applied filenames in `patch_migrations`; bootstraps the table on first use
 6. **Copy files** — With per-file OPcache invalidation; all paths validated against traversal
 7. **Remove obsolete files** — Delete files listed in `manifest.removed_files`; backed-up to snapshot before deletion for rollback
 8. **Update version** — Via VersionResolver

@@ -18,9 +18,9 @@ server-side condition that produces it and the recommended user-facing message k
 | `signing_unavailable`     | 503         | `error.message` = `signing_unavailable` — patch signing key missing on server | `TEXT_PATCH_ERROR_SIGNING_UNAVAILABLE` |
 | `server_error`            | 5xx (other) | Unexpected server-side failure                               | `TEXT_PATCH_ERROR_SERVER_ERROR`               |
 | `network_error`           | 0 / timeout | Could not reach the patch server                             | `TEXT_PATCH_ERROR_NETWORK_ERROR`              |
-| `invalid_archive`         | —           | Extracted archive contained a symlink (path-traversal guard) | `TEXT_PATCH_ERROR_INVALID_ARCHIVE`           |
+| `invalid_archive`         | —           | Extracted archive contained a symlink, or a file inside `migrations/` escaped the migrations directory (path-traversal guard) | `TEXT_PATCH_ERROR_INVALID_ARCHIVE` |
 | `invalid_manifest_path`   | —           | Manifest contained a path with `..`, absolute path, or backslash | `TEXT_PATCH_ERROR_INVALID_MANIFEST_PATH` |
-| `invalid_manifest_schema` | —           | Manifest `version` failed semver validation, or `files`/`removed_files` contained a non-string entry | `TEXT_PATCH_ERROR_INVALID_MANIFEST_SCHEMA` |
+| `invalid_manifest_schema` | —           | Manifest `version` failed semver validation, `files`/`removed_files` contained a non-string entry, or `migrations` was missing/not-an-array or contained an invalid filename | `TEXT_PATCH_ERROR_INVALID_MANIFEST_SCHEMA` |
 | `install_in_progress`     | —           | A concurrent install is already running (progress file exists) | `TEXT_PATCH_ERROR_INSTALL_IN_PROGRESS`    |
 | `verification_failed`     | —           | Post-install check found a missing file, size mismatch, or version mismatch; rolled back automatically | `TEXT_PATCH_ERROR_VERIFICATION_FAILED` |
 
@@ -30,9 +30,12 @@ Validation runs immediately after the archive is extracted, before any filesyste
 
 - A `version` field that does not match `x.y.z` or `x.y.z-pre` (strict semver, no `v` prefix).
 - A `files` or `removed_files` value that is not an array, or that contains any non-string element.
+- A missing or non-array `migrations` field (v1.8.0+).
+- Any entry in `migrations` that does not match `^[A-Za-z0-9_][A-Za-z0-9._-]*\.sql$` — the leading character disallows hidden files (`.`) and flag-injection lookalikes (`-`).
 
 This is a separate, earlier check from `invalid_manifest_path`: schema validation catches malformed
-types and version strings; path validation catches dangerous filesystem paths.
+types, version strings, and unsafe migration filenames; path validation catches dangerous filesystem
+paths in `files`/`removed_files`.
 
 The install aborts without touching the project tree. All error code constants are centralised in
 `PatchModule\ErrorCode`.

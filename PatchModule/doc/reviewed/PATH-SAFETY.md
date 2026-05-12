@@ -52,6 +52,21 @@ When `safeJoin()` throws, the caller returns:
 `PatchInstaller` propagates this through `handleInstallFailure()`, which records
 `[invalid_manifest_path] <message>` in the `patch_history.error_message` column and triggers rollback.
 
+## `migrations/` Directory Guard (v1.8.0+)
+
+After extraction, every entry under `<extractDir>/migrations/` is validated before execution:
+
+- Must be a regular file (`is_file()` true, `is_link()` false).
+- `realpath()` of the file must still be a child of `realpath($extractDir . '/migrations/')`.
+
+If any entry fails, the install aborts with `error_code = 'invalid_archive'`. This prevents path
+traversal via archive members such as `migrations/../../../etc/passwd` and ensures that symlinks
+inside the migrations directory cannot redirect execution to arbitrary host files.
+
+`safeJoin()` is **not** used here because migration files are executed in place from the extracted
+directory, not copied to the project root. The `realpath()` confinement check serves the same
+purpose for the execution path.
+
 ## Symlink Rejection
 
 ### In Archive Extraction
@@ -61,8 +76,9 @@ After `extractPatch()` completes, the extracted tree is scanned for symlinks. If
 - The extraction directory is cleaned up.
 - The install fails with `error_code = 'invalid_archive'`.
 
-This prevents an archive member like `files/etc -> /etc` from causing `copy()` to read sensitive host
-files and write their contents into the project tree.
+This check covers both the `files/` and `migrations/` subtrees. The migrations guard (above) adds a
+second, independent realpath confinement check specifically for migration files before they are
+executed.
 
 ### In `scanDirectory()`
 

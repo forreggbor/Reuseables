@@ -1,4 +1,4 @@
-# PatchModule v1.7.0 — Integration Guide
+# PatchModule v1.8.0 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -72,12 +72,40 @@ If you use a custom autoloader, register the `PatchModule\` namespace to
 
 ## 3. Step 2: Database schema
 
-Import the schema files if not already present:
+Import the schema files in order (FK dependencies):
 
 ```bash
-mariadb -u root -p your_db < lib/PatchModule/schema/patch_history.sql
-mariadb -u root -p your_db < lib/PatchModule/schema/patch_backups.sql
+mariadb -u root -p your_db < lib/PatchModule/schema/patch_history.sql      # 1: FK target for patch_migrations
+mariadb -u root -p your_db < lib/PatchModule/schema/patch_backups.sql      # 2: existing
+mariadb -u root -p your_db < lib/PatchModule/schema/patch_migrations.sql   # 3: new in v1.8.0; FK depends on patch_history
 ```
+
+> **Required DB grants:** The application DB user needs `CREATE` privilege on the project database. For existing installations upgrading from v1.6.x, PatchModule creates `patch_migrations` automatically on first use — this requires `CREATE`. Fresh integrations that run the schema file above do not need runtime `CREATE`.
+
+---
+
+### Upgrading from v1.6.x
+
+No manual SQL step is needed. When a patch with SQL migrations is installed for the first time after upgrading to PatchModule v1.8.0, `PatchMigrator` automatically:
+
+1. Creates `patch_migrations` via `CREATE TABLE IF NOT EXISTS`.
+2. Backfills one row per existing `*.sql` file in `database/migrations/` (non-recursive; excludes `.php` files). These rows get `patch_history_id = NULL` to distinguish them from future patch-applied migrations.
+
+This bootstrap runs once. Subsequent installs check the `$bootstrapDone` latch and skip it.
+
+---
+
+### Recovery — `patch_migrations` damaged or out of sync
+
+If `patch_migrations` is dropped or corrupted:
+
+1. `TRUNCATE TABLE patch_migrations;` (or drop and re-create from `schema/patch_migrations.sql`).
+2. Trigger any patch install or visit an admin page that instantiates PatchModule — bootstrap re-fires because the table is empty.
+3. If `database/migrations/*.sql` no longer reflects what was actually applied (e.g. old migration files deleted from the repo), manually insert the missing rows before the next patch install:
+   ```sql
+   INSERT IGNORE INTO patch_migrations (filename) VALUES ('2026_01_01_000000_example.sql');
+   ```
+   Otherwise PatchModule will attempt to re-apply them and may fail.
 
 ---
 

@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * PatchMigrator - SQL migration parser, executor, and migration-table manager
+ */
+
 declare(strict_types=1);
 
 namespace PatchModule;
@@ -15,24 +21,178 @@ use PatchModule\Contracts\LoggerInterface;
  * Does NOT use database transactions — on failure, the caller handles rollback
  * via BackupAdapter.
  *
+ * Also manages the patch_migrations tracking table: creates it on first use
+ * (CREATE TABLE IF NOT EXISTS), backfills from database/migrations/*.sql, and
+ * records each applied migration filename with UNIQUE enforcement.
+ *
  * @package PatchModule
  */
 class PatchMigrator
 {
+    /** DDL for the patch_migrations tracking table — keep in sync with schema/patch_migrations.sql */
+    private const PATCH_MIGRATIONS_DDL = "
+        CREATE TABLE IF NOT EXISTS `patch_migrations` (
+            `id`               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `patch_history_id` INT UNSIGNED NULL,
+            `filename`         VARCHAR(255) NOT NULL,
+            `executed_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uk_patch_migrations_filename` (`filename`),
+            KEY `idx_patch_migrations_history` (`patch_history_id`),
+            CONSTRAINT `fk_patch_migrations_history`
+                FOREIGN KEY (`patch_history_id`) REFERENCES `patch_history` (`id`) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ";
+
     /** @var DatabaseAdapterInterface */
     private DatabaseAdapterInterface $database;
 
     /** @var LoggerInterface|null */
     private ?LoggerInterface $logger;
 
+    /** @var string Absolute path to the project root (for bootstrap backfill) */
+    private string $rootPath;
+
+    /** @var bool Instance-local latch: true once ensureMigrationsTable() has completed */
+    private bool $bootstrapDone = false;
+
     /**
      * @param DatabaseAdapterInterface $database Database adapter (for raw PDO access)
-     * @param LoggerInterface|null $logger Optional logger
+     * @param string                   $rootPath Absolute path to the project root
+     * @param LoggerInterface|null     $logger   Optional logger
      */
-    public function __construct(DatabaseAdapterInterface $database, ?LoggerInterface $logger = null)
-    {
+    public function __construct(
+        DatabaseAdapterInterface $database,
+        string $rootPath,
+        ?LoggerInterface $logger = null
+    ) {
         $this->database = $database;
-        $this->logger = $logger;
+        $this->rootPath = $rootPath;
+        $this->logger   = $logger;
+    }
+
+    /**
+     * Execute every *.sql file in $dirPath in lexicographic (chronological) order
+     *
+     * Tracks applied filenames in patch_migrations (UNIQUE on filename). Files already
+     * present in patch_migrations are skipped. Creates and backfills patch_migrations on
+     * first use via ensureMigrationsTable().
+     *
+     * @param string   $dirPath        Absolute path to directory containing *.sql files
+     * @param int|null $patchHistoryId patch_history.id to associate with applied migrations
+     * @return array{success: bool, applied: string[], skipped: string[], failed_file: ?string, error: ?string}
+     */
+    public function executeMigrationsDirectory(string $dirPath, ?int $patchHistoryId): array
+    {
+        $this->ensureMigrationsTable();
+
+        $files = glob($dirPath . '/*.sql');
+        if ($files === false) {
+            $files = [];
+        }
+        sort($files, SORT_STRING);
+
+        $applied = [];
+        $skipped = [];
+
+        $pdo = $this->database->getPdo();
+
+        foreach ($files as $filePath) {
+            $filename = basename($filePath);
+
+            // Skip already-applied migrations (UNIQUE filename)
+            $stmt = $pdo->prepare('SELECT 1 FROM `patch_migrations` WHERE `filename` = ?');
+            $stmt->execute([$filename]);
+            if ($stmt->fetch() !== false) {
+                $this->log("SQL migration already applied, skipping: {$filename}", 'INFO');
+                $skipped[] = $filename;
+                continue;
+            }
+
+            $result = $this->executeMigration($filePath);
+            if (!$result['success']) {
+                return [
+                    'success'     => false,
+                    'applied'     => $applied,
+                    'skipped'     => $skipped,
+                    'failed_file' => $filename,
+                    'error'       => $result['error'],
+                ];
+            }
+
+            $stmt = $pdo->prepare(
+                'INSERT INTO `patch_migrations` (`patch_history_id`, `filename`, `executed_at`) VALUES (?, ?, NOW())'
+            );
+            $stmt->execute([$patchHistoryId, $filename]);
+
+            $applied[] = $filename;
+        }
+
+        return [
+            'success'     => true,
+            'applied'     => $applied,
+            'skipped'     => $skipped,
+            'failed_file' => null,
+            'error'       => null,
+        ];
+    }
+
+    /**
+     * Bootstrap the patch_migrations tracking table on first use
+     *
+     * Creates the table (idempotent), then backfills from database/migrations/*.sql
+     * if the table is empty. Runs at most once per instance via $bootstrapDone latch.
+     *
+     * @throws \RuntimeException if CREATE TABLE fails (e.g. DB user lacks CREATE permission)
+     * @return void
+     */
+    private function ensureMigrationsTable(): void
+    {
+        if ($this->bootstrapDone) {
+            return;
+        }
+
+        try {
+            $pdo = $this->database->getPdo();
+
+            $pdo->exec(self::PATCH_MIGRATIONS_DDL);
+
+            $count = (int) $pdo->query('SELECT COUNT(*) FROM `patch_migrations`')->fetchColumn();
+            if ($count > 0) {
+                $this->bootstrapDone = true;
+                return;
+            }
+
+            $dir = $this->rootPath . '/database/migrations';
+            if (!is_dir($dir)) {
+                $this->log('Bootstrap: patch_migrations table created (no database/migrations/ directory to backfill from)', 'INFO');
+                $this->bootstrapDone = true;
+                return;
+            }
+
+            $files = glob($dir . '/*.sql');
+            if ($files === false) {
+                $files = [];
+            }
+            sort($files, SORT_STRING);
+
+            $stmt = $pdo->prepare(
+                'INSERT IGNORE INTO `patch_migrations` (`filename`, `executed_at`) VALUES (?, NOW())'
+            );
+            foreach ($files as $filePath) {
+                $stmt->execute([basename($filePath)]);
+            }
+
+            $this->log(
+                'Bootstrap: patch_migrations table created and backfilled with ' . count($files) . ' existing migration(s)',
+                'INFO'
+            );
+
+            $this->bootstrapDone = true;
+        } catch (\Throwable $e) {
+            $this->log('Bootstrap failed: ' . $e->getMessage(), 'ERROR');
+            throw new \RuntimeException('patch_migrations bootstrap failed: ' . $e->getMessage(), 0, $e);
+        }
     }
 
     /**
