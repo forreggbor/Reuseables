@@ -5,6 +5,32 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.03.00] - 2026-05-12
+
+| Category | Description |
+|----------|-------------|
+| Added    | Auto-detection of SQL migrations from `database/migrations/` in git diff; shipped in `migrations/` directory inside the archive |
+| Added    | `migrations[]` array in `manifest.json` (always present, empty when no migrations); validator checks each entry |
+| Changed  | Manifest no longer emits `has_migration` boolean |
+| Removed  | `-m <file>` CLI flag — migrations are now auto-detected, no manual flag needed |
+
+### Added
+
+- **Auto-detected SQL migrations** — `database/migrations/*.sql` files added or modified in the git diff are automatically collected into a `migrations/` directory inside the archive. No `-m` flag is needed. PHP files under `database/migrations/` emit a WARN and are skipped. Files in subdirectories (e.g. `database/migrations/archive/`) emit a WARN and are skipped. Deletions of migration files are silently dropped from the wire format.
+- **Filename sanity checks** — each migration filename is validated against `^[A-Za-z0-9_][A-Za-z0-9._-]*\.sql$`; filenames without a valid `YYYY_MM_DD_HHMMSS_` prefix emit a WARN (may sort incorrectly).
+- **`migrations[]` array in manifest** — always present; empty when no migrations. The build-time validator now checks this field: each entry must match the filename regex and have a corresponding file on disk; every file in `migrations/` on disk must be listed in the manifest.
+
+### Changed
+
+- Manifest no longer emits `has_migration` boolean — `count(migrations) > 0` is the signal.
+- `database/migrations/` removed from `DEFAULT_EXCLUDES` — migration files are now routed to `migrations/` instead of being silently ignored.
+
+### Removed
+
+- **`-m <file>` CLI flag** — removed entirely. SQL migrations are auto-detected from the git diff.
+
+---
+
 ## [1.02.00] - 2026-05-07
 
 | Category | Description |

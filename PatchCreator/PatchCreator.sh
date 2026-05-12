@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.02.00"
+VERSION="v1.03.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -37,7 +37,6 @@ DEFAULT_EXCLUDES=(
     'CLAUDE.md'
     '.claude/'
     'database/schema/'
-    'database/migrations/'
     'composer.lock'
     'package-lock.json'
     'README.md'
@@ -149,7 +148,6 @@ ${BOLD}OPTIONS:${NC}
     -d <path>       Project root directory (default: current directory)
     -v <version>    Target patch version (default: auto-detect from project)
     -b <git-ref>    Base git reference to diff against (default: latest tag)
-    -m <file>       SQL migration file to include in patch
     -o <dir>        Output directory (default: <project>/storage/patch)
     -r <file>       Release notes file (overrides CHANGELOG.md extraction)
     -f <file>       File list override (one path per line, relative to project)
@@ -162,15 +160,19 @@ ${BOLD}OPTIONS:${NC}
     -h              Show this help message
     --version       Show script version
 
+${BOLD}SQL MIGRATIONS:${NC}
+    SQL migration files are auto-detected from database/migrations/*.sql in the
+    git diff. No flag is needed. Files matching the YYYY_MM_DD_HHMMSS_*.sql
+    convention are shipped in a migrations/ directory inside the archive and
+    executed by PatchModule v1.8.0+ in chronological (lexicographic) order.
+    PHP migrations and files in subdirectories are skipped with a warning.
+
 ${BOLD}EXAMPLES:${NC}
     # Create patch from latest tag, auto-detect version
     ${SCRIPT_NAME}
 
     # Create patch against specific commit
     ${SCRIPT_NAME} -b abc1234
-
-    # Create patch with migration and explicit version
-    ${SCRIPT_NAME} -v 2.33.0 -m database/migrations/2026_02_16_new_feature.sql
 
     # Dry run to preview what will be packaged
     ${SCRIPT_NAME} --dry-run
@@ -193,7 +195,7 @@ ${BOLD}OUTPUT:${NC}
     output directory. The archive contains:
       manifest.json      Package metadata and file list
       files/             Changed files preserving directory structure
-      migration.sql      SQL migration (if provided via -m)
+      migrations/        SQL migration files (auto-detected; omitted when none)
       release_notes.md   Release notes (auto-extracted or provided via -r)
 
 EOF
@@ -373,6 +375,42 @@ validate_manifest() {
         error "Manifest validation failed: 'version' is not a valid semver string [invalid_manifest_schema]"
     fi
 
+    # migrations must be a required array; each entry must be a safe SQL basename
+    local migrations_type
+    migrations_type=$(jq -r 'if has("migrations") then (.migrations | type) else "absent" end' "$manifest_path" 2>/dev/null)
+    if [[ "$migrations_type" == "absent" ]]; then
+        error "Manifest validation failed: required field 'migrations' is missing [invalid_manifest_schema]"
+    fi
+    if [[ "$migrations_type" != "array" ]]; then
+        error "Manifest validation failed: 'migrations' must be an array [invalid_manifest_schema]"
+    fi
+
+    local mig_entry
+    while IFS= read -r mig_entry; do
+        # Each entry must be a safe basename: no leading dot or hyphen, only .sql extension
+        if ! [[ "$mig_entry" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*\.sql$ ]]; then
+            error "Manifest validation failed: invalid migration filename '${mig_entry}' (must match ^[A-Za-z0-9_][A-Za-z0-9._-]*.sql$) [invalid_archive]"
+        fi
+        # Each entry must have a corresponding file on disk
+        if [[ ! -f "${temp_dir}/migrations/${mig_entry}" ]]; then
+            error "Manifest validation failed: migrations[] entry '${mig_entry}' has no corresponding file in migrations/ [invalid_archive]"
+        fi
+    done < <(jq -r '.migrations[]' "$manifest_path" 2>/dev/null)
+
+    # Cross-check: every file in migrations/ must be listed in manifest.migrations[]
+    if [[ -d "${temp_dir}/migrations" ]]; then
+        local disk_file
+        while IFS= read -r disk_file; do
+            local disk_basename
+            disk_basename=$(basename "$disk_file")
+            local in_manifest
+            in_manifest=$(jq -r --arg f "$disk_basename" '.migrations | map(select(. == $f)) | length' "$manifest_path" 2>/dev/null)
+            if [[ "${in_manifest:-0}" -eq 0 ]]; then
+                error "Manifest validation failed: migrations/${disk_basename} exists on disk but is not listed in manifest.migrations[] [invalid_archive]"
+            fi
+        done < <(find "${temp_dir}/migrations" -maxdepth 1 -name '*.sql' -type f)
+    fi
+
     # files and removed_files (when present) must be arrays of strings with safe paths
     for field in files removed_files; do
         local field_type
@@ -489,7 +527,6 @@ print_elapsed() {
 PROJECT_DIR="$(pwd)"
 TARGET_VERSION=""
 BASE_REF=""
-MIGRATION_FILE=""
 OUTPUT_DIR=""
 RELEASE_NOTES_FILE=""
 FILE_LIST=""
@@ -515,11 +552,6 @@ while [[ $# -gt 0 ]]; do
         -b)
             [[ -z "${2:-}" ]] && error "Option -b requires a git reference argument."
             BASE_REF="$2"
-            shift 2
-            ;;
-        -m)
-            [[ -z "${2:-}" ]] && error "Option -m requires a migration file path argument."
-            MIGRATION_FILE="$2"
             shift 2
             ;;
         -o)
@@ -597,17 +629,6 @@ if ! is_git_repo "$PROJECT_DIR"; then
 fi
 
 success "Project directory: ${PROJECT_DIR}"
-
-# Validate migration file (resolve relative to project dir)
-if [[ -n "$MIGRATION_FILE" ]]; then
-    if [[ "$MIGRATION_FILE" != /* ]]; then
-        MIGRATION_FILE="${PROJECT_DIR}/${MIGRATION_FILE}"
-    fi
-    if [[ ! -f "$MIGRATION_FILE" ]]; then
-        error "Migration file not found: ${MIGRATION_FILE}"
-    fi
-    success "Migration file: ${MIGRATION_FILE}"
-fi
 
 # Validate file list
 if [[ -n "$FILE_LIST" ]]; then
@@ -692,6 +713,68 @@ ALL_EXCLUDES=("${DEFAULT_EXCLUDES[@]}" "${USER_EXCLUDES[@]}")
 
 declare -a PATCH_FILES=()
 declare -a REMOVED_FILES=()
+declare -a MIGRATION_FILES=()
+declare -a MIGRATION_BASENAMES=()
+
+##
+# Classify a single file path into either MIGRATION_FILES, PATCH_FILES, or skip.
+# Also handles D-line (deleted) paths via the optional second argument.
+#
+# $1 = relative file path
+# $2 = "delete" if this is a deleted-file path (D-line from git diff)
+##
+classify_file() {
+    local path="$1"
+    local is_delete="${2:-}"
+
+    # Is the path anywhere under database/migrations/?
+    if [[ "$path" =~ ^database/migrations/ ]]; then
+        # Deleted migration files are silently dropped — not added to removed_files
+        [[ "$is_delete" == "delete" ]] && return
+
+        # Is it a direct child (no subdirectory)?
+        local basename_only
+        basename_only=$(basename "$path")
+        local dir_part
+        dir_part=$(dirname "$path")
+        if [[ "$dir_part" != "database/migrations" ]]; then
+            warn "Skipping subdirectory migration: ${path} (only direct children of database/migrations/ are supported)"
+            return
+        fi
+
+        # PHP migration — skip with WARN
+        if [[ "$path" =~ ^database/migrations/[^/]+\.php$ ]]; then
+            warn "Skipping PHP migration (not supported in v1.8.0): ${path}"
+            return
+        fi
+
+        # SQL migration — validate filename and collect
+        if [[ "$path" =~ ^database/migrations/[^/]+\.sql$ ]]; then
+            # Tightened filename safety regex: must not start with . or -
+            if ! [[ "$basename_only" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*\.sql$ ]]; then
+                error "Migration filename is invalid: ${basename_only} (must match ^[A-Za-z0-9_][A-Za-z0-9._-]*.sql$)"
+            fi
+            # HHMMSS must be 6 digits for correct chronological sort
+            if ! [[ "$basename_only" =~ ^[0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{6}_ ]]; then
+                warn "Migration filename does not have a valid YYYY_MM_DD_HHMMSS_ prefix: ${basename_only} (may sort incorrectly)"
+            fi
+            MIGRATION_FILES+=("$path")
+            MIGRATION_BASENAMES+=("$basename_only")
+            return
+        fi
+
+        # Other extension under database/migrations/ — treat as a regular file
+        PATCH_FILES+=("$path")
+        return
+    fi
+
+    # Regular file — add to PATCH_FILES (deleted files go to REMOVED_FILES handled separately)
+    if [[ "$is_delete" != "delete" ]]; then
+        PATCH_FILES+=("$path")
+    else
+        REMOVED_FILES+=("$path")
+    fi
+}
 
 if [[ -n "$FILE_LIST" ]]; then
     # Read from file list (skip empty lines and comments)
@@ -708,7 +791,7 @@ if [[ -n "$FILE_LIST" ]]; then
             continue
         fi
 
-        PATCH_FILES+=("$line")
+        classify_file "$line"
     done < "$FILE_LIST"
 else
     # Use git diff to detect changes
@@ -727,7 +810,7 @@ else
         fi
     fi
 
-    # Filter excludes
+    # Partition files: migrations vs regular patch files
     for file in "${RAW_FILES[@]}"; do
         if matches_exclude "$file" "${ALL_EXCLUDES[@]}"; then
             continue
@@ -739,22 +822,23 @@ else
             continue
         fi
 
-        PATCH_FILES+=("$file")
+        classify_file "$file"
     done
 
     # Detect deleted files and collect them for the manifest
+    # Deletions under database/migrations/ are silently dropped (see classify_file)
     mapfile -t RAW_DELETED < <(git -C "$PROJECT_DIR" diff --name-only --diff-filter=D "${BASE_REF}..HEAD" 2>/dev/null)
 
     for df in "${RAW_DELETED[@]}"; do
         if matches_exclude "$df" "${ALL_EXCLUDES[@]}"; then
             continue
         fi
-        REMOVED_FILES+=("$df")
+        classify_file "$df" "delete"
     done
 fi
 
-# Check if we have any files or deletions
-if [[ ${#PATCH_FILES[@]} -eq 0 && ${#REMOVED_FILES[@]} -eq 0 ]]; then
+# Check if we have any files, migrations, or deletions
+if [[ ${#PATCH_FILES[@]} -eq 0 && ${#REMOVED_FILES[@]} -eq 0 && ${#MIGRATION_FILES[@]} -eq 0 ]]; then
     error "No changed or deleted files to package." $EXIT_NO_FILES
 fi
 
@@ -765,11 +849,22 @@ fi
 if [[ ${#REMOVED_FILES[@]} -gt 0 ]]; then
     IFS=$'\n' REMOVED_FILES=($(sort <<<"${REMOVED_FILES[*]}")); unset IFS
 fi
+if [[ ${#MIGRATION_BASENAMES[@]} -gt 0 ]]; then
+    IFS=$'\n' MIGRATION_BASENAMES=($(sort <<<"${MIGRATION_BASENAMES[*]}")); unset IFS
+    IFS=$'\n' MIGRATION_FILES=($(sort <<<"${MIGRATION_FILES[*]}")); unset IFS
+fi
 
 if [[ ${#PATCH_FILES[@]} -gt 0 ]]; then
     info "Files to package: ${#PATCH_FILES[@]}"
     for f in "${PATCH_FILES[@]}"; do
         echo -e "  ${GREEN}+${NC} ${f}"
+    done
+fi
+
+if [[ ${#MIGRATION_FILES[@]} -gt 0 ]]; then
+    info "SQL migrations to include: ${#MIGRATION_FILES[@]}"
+    for mf in "${MIGRATION_FILES[@]}"; do
+        echo -e "  ${GREEN}~${NC} ${mf}"
     done
 fi
 
@@ -838,7 +933,7 @@ echo ""
 echo -e "  ${BOLD}Version:${NC}        ${TARGET_VERSION}"
 echo -e "  ${BOLD}Base ref:${NC}       ${BASE_REF} (${COMMIT_COUNT} commits)"
 echo -e "  ${BOLD}Files:${NC}          ${#PATCH_FILES[@]} added/modified, ${#REMOVED_FILES[@]} to remove"
-echo -e "  ${BOLD}Migration:${NC}      $([ -n "$MIGRATION_FILE" ] && echo "Yes ($(basename "$MIGRATION_FILE"))" || echo "No")"
+echo -e "  ${BOLD}Migrations:${NC}     ${#MIGRATION_FILES[@]} SQL migration(s)"
 echo -e "  ${BOLD}Release notes:${NC}  $([ -n "$RELEASE_NOTES_CONTENT" ] && echo "Yes (${RELEASE_NOTES_SOURCE})" || echo "No")"
 echo -e "  ${BOLD}Output:${NC}         ${ARCHIVE_PATH}"
 
@@ -900,16 +995,32 @@ done
 
 success "Copied ${COPY_COUNT} files"
 
+# Copy SQL migration files into migrations/ directory
+if [[ ${#MIGRATION_FILES[@]} -gt 0 ]]; then
+    mkdir -p "${TEMP_DIR}/migrations"
+    for mf in "${MIGRATION_FILES[@]}"; do
+        # -L: always dereference symlinks — PatchModule rejects any archive that contains a symlink
+        cp -L "${PROJECT_DIR}/${mf}" "${TEMP_DIR}/migrations/$(basename "$mf")"
+    done
+    success "Copied ${#MIGRATION_FILES[@]} SQL migration(s) to migrations/"
+fi
+
 # Generate manifest.json
 info "Generating manifest.json..."
 
-# has_migration is informational metadata for upload pipelines.
-# PatchModule does NOT read it — installation is triggered by the presence
-# of migration.sql on disk, not by this field.
-HAS_MIGRATION=false
-if [[ -n "$MIGRATION_FILE" ]]; then
-    HAS_MIGRATION=true
-fi
+# Build JSON migrations array — always present (empty array when no migrations)
+MIGRATIONS_JSON="["
+MIG_FIRST=true
+for mb in "${MIGRATION_BASENAMES[@]}"; do
+    if $MIG_FIRST; then
+        MIG_FIRST=false
+    else
+        MIGRATIONS_JSON+=","
+    fi
+    JSON_MB=$(jq -Rn --arg s "$mb" '$s')
+    MIGRATIONS_JSON+=$'\n'"        ${JSON_MB}"
+done
+MIGRATIONS_JSON+=$'\n'"    ]"
 
 # Build JSON file list array — jq handles all escaping (control chars, Unicode, etc.)
 FILES_JSON="["
@@ -947,19 +1058,12 @@ fi
 cat > "${TEMP_DIR}/manifest.json" <<EOF
 {
     "version": "${TARGET_VERSION}",
-    "has_migration": ${HAS_MIGRATION},
+    "migrations": ${MIGRATIONS_JSON},
     "files": ${FILES_JSON}${REMOVED_FILES_JSON}
 }
 EOF
 
 success "Created manifest.json"
-
-# Copy migration file
-if [[ -n "$MIGRATION_FILE" ]]; then
-    # -L: match the file-copy loop — always dereference symlinks
-    cp -L "$MIGRATION_FILE" "${TEMP_DIR}/migration.sql"
-    success "Included migration.sql"
-fi
 
 # Write release notes
 if [[ -n "$RELEASE_NOTES_CONTENT" ]]; then
@@ -1002,6 +1106,7 @@ echo -e "  ${BOLD}Hash:${NC}      ${HASH_PATH}"
 echo -e "  ${BOLD}Size:${NC}      $(format_size "$ARCHIVE_SIZE")"
 echo -e "  ${BOLD}SHA-256:${NC}   ${SHA256}"
 echo -e "  ${BOLD}Files:${NC}     ${#PATCH_FILES[@]}"
+echo -e "  ${BOLD}Migrations:${NC} ${#MIGRATION_FILES[@]}"
 echo ""
 
 print_elapsed

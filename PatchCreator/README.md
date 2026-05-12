@@ -5,12 +5,12 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 ## Features
 
 - **Git-based file detection** — Automatically finds added, modified, and deleted files between a base reference and HEAD
+- **Auto-detected SQL migrations** — `database/migrations/*.sql` files in the diff are shipped in a `migrations/` directory automatically; no flag needed
 - **Version auto-detection** — Reads the current version from project source files
 - **CHANGELOG.md extraction** — Parses Keep a Changelog format to include release notes
 - **SHA-256 verification** — Generates a `.sha256` hash file alongside the archive
 - **Configurable excludes** — Default exclude patterns with additional user-defined patterns
 - **Dry run mode** — Preview what would be packaged without creating the archive
-- **Migration support** — Include SQL migration files in the patch package
 - **Manual file list** — Override git detection with an explicit file list
 
 ## Requirements
@@ -45,8 +45,8 @@ PatchCreator.sh
 # Preview without creating
 PatchCreator.sh --dry-run
 
-# Create with explicit version and migration
-PatchCreator.sh -v 2.33.0 -m database/migrations/2026_02_16_feature.sql
+# Create with explicit version (SQL migrations in database/migrations/ auto-detected)
+PatchCreator.sh -v 2.33.0
 ```
 
 ## Usage
@@ -62,7 +62,6 @@ PatchCreator.sh [options]
 | `-d` | `<path>` | Current directory | Project root directory |
 | `-v` | `<version>` | Auto-detect | Target patch version |
 | `-b` | `<git-ref>` | Latest git tag | Base git reference to diff against |
-| `-m` | `<file>` | — | SQL migration file to include |
 | `-o` | `<dir>` | `<project>/storage/patch` | Output directory |
 | `-r` | `<file>` | Auto from CHANGELOG.md | Release notes file |
 | `-f` | `<file>` | — | File list override (one path per line) |
@@ -91,13 +90,13 @@ Detects the version from `app/helpers/functions.php`, diffs against the latest g
 PatchCreator.sh -b abc1234
 ```
 
-### Include a SQL migration
+### SQL migrations (auto-detected)
 
-```bash
-PatchCreator.sh -v 2.33.0 -m database/migrations/2026_02_16_new_feature.sql
-```
+Any `database/migrations/*.sql` file that appears in the git diff (added or modified) is automatically included in the `migrations/` directory of the archive. No flag is needed.
 
 > **Warning:** PatchModule's SQL parser strips both standard block comments (`/* ... */`) and MySQL conditional comments (`/*! ... */`). Do not rely on `/*! */` for version-gated SQL in migration files — rewrite the logic as plain SQL or split it into separate migrations.
+
+> **PHP migrations** (`database/migrations/*.php`) are skipped with a WARN and must be applied out-of-band by the operator.
 
 ### Use an explicit file list
 
@@ -146,11 +145,12 @@ storage/patch/
 ```
 patch-2.33.0.tgz
 ├── manifest.json       # Package metadata
+├── migrations/         # SQL migration files (omitted when none)
+│   └── 2026_05_11_151403_create_foo.sql
 ├── files/              # Changed files (preserving directory structure)
 │   ├── app/
 │   ├── public/
 │   └── ...
-├── migration.sql       # SQL migration (if provided via -m)
 └── release_notes.md    # Release notes (if available)
 ```
 
@@ -159,7 +159,9 @@ patch-2.33.0.tgz
 ```json
 {
     "version": "2.33.0",
-    "has_migration": true,
+    "migrations": [
+        "2026_05_11_151403_create_foo.sql"
+    ],
     "files": [
         "app/helpers/functions.php",
         "app/services/OrderService.php",
@@ -171,7 +173,7 @@ patch-2.33.0.tgz
 }
 ```
 
-**`has_migration`** is informational metadata included for upload-pipeline tooling. PatchModule itself does **not** read this field — it triggers migration execution based solely on the presence of `migration.sql` inside the archive.
+**`migrations`** is always present (empty array when no SQL migrations). PatchModule v1.8.0+ executes the listed files in lexicographic order and tracks each applied filename in `patch_migrations`.
 
 **`removed_files`** is omitted entirely when no files were deleted. PatchModule v1.3.0+ deletes the listed files from the project root during installation and backs them up to the snapshot for rollback. Older PatchModule versions silently ignore the field.
 
@@ -187,7 +189,7 @@ The following paths are excluded from git diff results by default. Use `-f` with
 | `.env`, `.env.*` | Environment config |
 | `*.log` | Log files |
 | `CLAUDE.md`, `.claude/` | AI tooling |
-| `database/schema/`, `database/migrations/` | Schema files (use `-m` for migrations) |
+| `database/schema/` | Schema files |
 | `composer.lock`, `package-lock.json` | Lock files |
 | `README.md`, `CHANGELOG.md` | Documentation |
 | `doc/` | Documentation folder |
@@ -223,7 +225,7 @@ PatchCreator output is validated by the LicenseManager server upload pipeline (v
 | MIME type     | `application/gzip` — reported by `finfo` on `.tgz` archives                            | ✓      |
 | Archive parse | PHP-native `PharData` extraction, no shell execution risk                               | ✓      |
 | Release notes | Optional `release_notes.md` auto-detected at archive root or one level deep            | ✓      |
-| Migration     | Optional `migration.sql` at archive root (include via `-m`)                             | ✓      |
+| Migrations    | Optional `migrations/` directory at archive root (auto-detected from `database/migrations/`) | ✓ |
 
 ## Compatibility
 
@@ -231,4 +233,6 @@ Designed to work with [PatchModule](../PatchModule/) v1.00.00+. The generated ar
 
 The `removed_files` manifest field requires **PatchModule v1.3.0 or later** to take effect. Archives produced by this version of PatchCreator are fully backward compatible — older PatchModule versions install the archive normally and silently ignore the new field.
 
-By default, PatchCreator validates the generated manifest against the same rules that PatchModule v1.6.0 enforces (JSON schema, semver format, path safety, no symlinks). This catches incompatible output at build time rather than at customer install time. Disable with `--no-validate` if needed.
+By default, PatchCreator validates the generated manifest against the same rules that PatchModule v1.8.0 enforces (JSON schema, semver format, `migrations[]` array with safe filenames, path safety, no symlinks). This catches incompatible output at build time rather than at customer install time. Disable with `--no-validate` if needed.
+
+**Breaking change in v1.03.00:** The `-m <file>` flag is removed. The manifest no longer emits `has_migration`. Requires PatchModule v1.8.0 for migration execution.
