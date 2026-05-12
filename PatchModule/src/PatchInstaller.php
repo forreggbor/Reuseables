@@ -151,14 +151,6 @@ class PatchInstaller
             return ['success' => false, 'error' => 'Patch record not found', 'error_code' => null, 'retry_after' => null];
         }
 
-        $version         = $patchRecord['version'];
-        $previousVersion = $this->versionResolver->getCurrentVersion();
-        $backupId        = null;
-        $downloadedFile  = null;
-        $extractDir      = null;
-        $installErrorCode   = null;
-        $installRetryAfter  = null;
-
         $canBackup = $createBackup && $this->backupAdapter !== null;
 
         $steps = ['preflight_checks', 'download_patch', 'extract_patch'];
@@ -174,25 +166,40 @@ class PatchInstaller
         $this->database->updateHistoryRecord($patchHistoryId, ['status' => 'installing']);
 
         if ($this->maintenanceMode !== null) {
-            $this->maintenanceMode->enable($version, $language);
+            $this->maintenanceMode->enable($patchRecord['version'], $language);
         }
+
+        $ctx = [
+            'patchHistoryId'    => $patchHistoryId,
+            'version'           => $patchRecord['version'],
+            'previousVersion'   => $this->versionResolver->getCurrentVersion(),
+            'canBackup'         => $canBackup,
+            'userId'            => $userId,
+            'extractDir'        => null,
+            'manifest'          => null,
+            'hasMigration'      => false,
+            'backupId'          => null,
+            'downloadedFile'    => null,
+            'installErrorCode'  => null,
+            'installRetryAfter' => null,
+        ];
 
         try {
             // Step 1: Preflight checks
             $this->progressTracker->stepProgress('preflight_checks');
-            $this->log("Patch install: starting preflight checks for v{$version}", 'INFO');
+            $this->log("Patch install: starting preflight checks for v{$ctx['version']}", 'INFO');
 
             $this->fileManager->sweepStaleTmpFiles();
 
-            $this->runPreflightChecks($version, $previousVersion);
+            $this->runPreflightChecks($ctx['version'], $ctx['previousVersion']);
 
             $this->database->updateHistoryRecord($patchHistoryId, [
-                'previous_version' => $previousVersion,
+                'previous_version' => $ctx['previousVersion'],
             ]);
 
             // Step 2: Download patch
             $this->progressTracker->stepProgress('download_patch');
-            $this->log("Patch install: downloading patch v{$version}", 'INFO');
+            $this->log("Patch install: downloading patch v{$ctx['version']}", 'INFO');
 
             // Fire-and-forget license refresh before attempting the download
             if ($this->licenseVerifyCallback !== null) {
@@ -224,174 +231,34 @@ class PatchInstaller
             }
 
             if (!$downloadResult['success']) {
-                $installErrorCode  = $downloadResult['error_code'] ?? null;
-                $installRetryAfter = $downloadResult['retry_after'] ?? null;
+                $ctx['installErrorCode']  = $downloadResult['error_code'] ?? null;
+                $ctx['installRetryAfter'] = $downloadResult['retry_after'] ?? null;
                 throw new \RuntimeException('Download failed: ' . $downloadResult['error']);
             }
 
-            $downloadedFile = $downloadResult['file_path'];
+            $ctx['downloadedFile'] = $downloadResult['file_path'];
 
-            // Step 3: Extract patch
-            $this->progressTracker->stepProgress('extract_patch');
-            $this->log("Patch install: extracting patch", 'INFO');
+            // Steps 3–10: delegated to private step helpers
+            $this->extractStep($ctx, $ctx['downloadedFile']);
 
-            $extractResult = $this->fileManager->extractPatch($downloadedFile);
-            if (!$extractResult['success']) {
-                $installErrorCode = $extractResult['error_code'] ?? null;
-                throw new \RuntimeException('Extract failed: ' . $extractResult['error']);
-            }
-
-            $extractDir = $extractResult['extract_dir'];
-            $manifest   = $extractResult['manifest'];
-
-            $this->database->updateHistoryRecord($patchHistoryId, [
-                'manifest_json' => json_encode($manifest),
-            ]);
-
-            // Step 4: Create backup (conditional — only if patch has a SQL migration)
-            $hasMigration = file_exists($extractDir . '/migration.sql');
             if ($canBackup) {
-                if ($hasMigration) {
-                    $this->progressTracker->stepProgress('create_backup');
-                    $this->log("Patch install: creating pre-patch backup", 'INFO');
-
-                    $backupResult = $this->backupAdapter->createBackup(
-                        "Pre-patch backup (v{$previousVersion} → v{$version})",
-                        $userId
-                    );
-
-                    if (!$backupResult['success']) {
-                        throw new \RuntimeException('Backup creation failed: ' . ($backupResult['error'] ?? 'Unknown error'));
-                    }
-
-                    $backupId = $backupResult['backup_id'];
-
-                    $this->database->updateHistoryRecord($patchHistoryId, [
-                        'backup_id' => $backupId,
-                    ]);
-
-                    $this->log("Patch install: backup created (ID: {$backupId})", 'INFO');
-                } else {
-                    $this->progressTracker->stepProgress('create_backup');
-                    $this->log("Patch install: no migration.sql found, skipping backup", 'INFO');
-                }
+                $this->backupStep($ctx);
             }
 
-            // Step 5: Execute SQL migration
-            $this->progressTracker->stepProgress('execute_migration');
-            $migrationFile = $extractDir . '/migration.sql';
-            if ($hasMigration) {
-                $this->log("Patch install: executing SQL migration", 'INFO');
-
-                $migrationResult = $this->migrator->executeMigration($migrationFile);
-                if (!$migrationResult['success']) {
-                    throw new \RuntimeException(
-                        'SQL migration failed at statement ' . $migrationResult['executed_count'] .
-                        '/' . $migrationResult['total_count'] . ': ' . $migrationResult['error']
-                    );
-                }
-
-                $this->log("Patch install: SQL migration completed ({$migrationResult['executed_count']} statements)", 'INFO');
-            } else {
-                $this->log("Patch install: no migration.sql found, skipping", 'DEBUG');
-            }
-
-            // Step 6: Copy files
-            $this->progressTracker->stepProgress('copy_files');
-            $this->log("Patch install: copying files", 'INFO');
-
-            $snapshotResult = $this->fileManager->backupAffectedFiles($patchHistoryId, $manifest, $extractDir);
-            if (!$snapshotResult['success']) {
-                $installErrorCode = $snapshotResult['error_code'] ?? null;
-                throw new \RuntimeException('File snapshot failed: ' . $snapshotResult['error']);
-            }
-
-            $copyResult = $this->fileManager->copyFiles($extractDir, $manifest);
-            if (!$copyResult['success']) {
-                $installErrorCode = $copyResult['error_code'] ?? null;
-                throw new \RuntimeException('File copy failed: ' . $copyResult['error']);
-            }
-
-            $this->log("Patch install: {$copyResult['copied_count']} files copied", 'INFO');
-
-            // Step 7: Remove obsolete files
-            $this->progressTracker->stepProgress('remove_files');
-            $removeResult = $this->fileManager->removeFiles($manifest);
-            if (!$removeResult['success']) {
-                $installErrorCode = $removeResult['error_code'] ?? null;
-                throw new \RuntimeException('File removal failed: ' . $removeResult['error']);
-            }
-
-            if ($removeResult['removed_count'] > 0) {
-                $this->log("Patch install: {$removeResult['removed_count']} obsolete files removed", 'INFO');
-            }
-
-            // Clear compiled-template caches (e.g. Twig) so updated files take effect immediately
-            if (!empty($this->cachePathsToClear)) {
-                $this->fileManager->clearCachePaths($this->cachePathsToClear);
-            }
-
-            // Step 8: Update version
-            $this->progressTracker->stepProgress('update_version');
-            $this->log("Patch install: updating version to {$version}", 'INFO');
-
-            if (!$this->versionResolver->updateVersion($version)) {
-                throw new \RuntimeException('Failed to update application version');
-            }
-
-            // Step 9: Verify installation
-            $this->progressTracker->stepProgress('verify_installation');
-            $this->log("Patch install: verifying installation", 'INFO');
-
-            $verifyResult = $this->verifyInstallation($manifest, $version, $extractDir);
-            if (!$verifyResult['success']) {
-                $installErrorCode = ErrorCode::VERIFICATION_FAILED;
-                throw new \RuntimeException('Verification failed: ' . $verifyResult['error']);
-            }
-
-            // Step 10: Cleanup
-            $this->progressTracker->stepProgress('cleanup');
-            $this->log("Patch install: cleaning up", 'INFO');
-
-            if ($extractDir) {
-                $this->fileManager->cleanupDir($extractDir);
-            }
-            if ($downloadedFile && file_exists($downloadedFile)) {
-                @unlink($downloadedFile);
-            }
-
-            $this->fileManager->resetOpcache();
-            $this->checker->removeVersionFromCache($version);
-
-            $this->database->updateHistoryRecord($patchHistoryId, [
-                'status'       => 'completed',
-                'installed_at' => date('Y-m-d H:i:s'),
-                'installed_by' => $userId,
-            ]);
-
-            // Prune rollback artifacts from older completed installs (keep the last N)
-            $this->pruneOldRollbackArtifacts($patchHistoryId);
-
-            $this->progressTracker->completeProgress();
-
-            $this->logActivity(
-                'install_patch',
-                'patch',
-                $patchHistoryId,
-                ['version' => $previousVersion],
-                ['version' => $version],
-                $userId
-            );
-
-            $this->log("Patch install: v{$version} installed successfully", 'INFO');
+            $this->migrateStep($ctx);
+            $this->copyStep($ctx);
+            $this->removeStep($ctx);
+            $this->updateVersionStep($ctx);
+            $this->verifyStep($ctx);
+            $this->cleanupStep($ctx);
 
             return ['success' => true, 'error' => null, 'error_code' => null, 'retry_after' => null];
 
         } catch (\Exception $e) {
             return $this->handleInstallFailure(
-                $e, $patchHistoryId, $version, $backupId,
-                $extractDir, $downloadedFile, $userId,
-                $installErrorCode, $installRetryAfter
+                $e, $patchHistoryId, $ctx['version'], $ctx['backupId'],
+                $ctx['extractDir'], $ctx['downloadedFile'], $userId,
+                $ctx['installErrorCode'], $ctx['installRetryAfter']
             );
         } finally {
             if ($this->maintenanceMode !== null) {
@@ -402,6 +269,256 @@ class PatchInstaller
                 }
             }
         }
+    }
+
+    /**
+     * Extract the downloaded patch archive
+     *
+     * Calls the file manager to unpack the archive, records the extracted
+     * directory, manifest and migration flag in $ctx, and persists the
+     * manifest JSON to the patch history record.
+     *
+     * @param array  &$ctx        Installation context (mutated)
+     * @param string $archivePath Absolute path to the downloaded archive
+     * @return void
+     * @throws \RuntimeException If extraction fails
+     */
+    private function extractStep(array &$ctx, string $archivePath): void
+    {
+        $this->progressTracker->stepProgress('extract_patch');
+        $this->log("Patch install: extracting patch", 'INFO');
+
+        $extractResult = $this->fileManager->extractPatch($archivePath);
+        if (!$extractResult['success']) {
+            $ctx['installErrorCode'] = $extractResult['error_code'] ?? null;
+            throw new \RuntimeException('Extract failed: ' . $extractResult['error']);
+        }
+
+        $ctx['extractDir']   = $extractResult['extract_dir'];
+        $ctx['manifest']     = $extractResult['manifest'];
+        $ctx['hasMigration'] = file_exists($ctx['extractDir'] . '/migration.sql');
+
+        $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
+            'manifest_json' => json_encode($ctx['manifest']),
+        ]);
+    }
+
+    /**
+     * Create a pre-patch database backup when a SQL migration is present
+     *
+     * If there is no migration, the step is still ticked for progress tracking
+     * and a skip message is logged. Only called when canBackup is true.
+     *
+     * @param array &$ctx Installation context (mutated: backupId set on success)
+     * @return void
+     * @throws \RuntimeException If backup creation fails
+     */
+    private function backupStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('create_backup');
+
+        if ($ctx['hasMigration']) {
+            $this->log("Patch install: creating pre-patch backup", 'INFO');
+
+            $backupResult = $this->backupAdapter->createBackup(
+                "Pre-patch backup (v{$ctx['previousVersion']} → v{$ctx['version']})",
+                $ctx['userId']
+            );
+
+            if (!$backupResult['success']) {
+                throw new \RuntimeException('Backup creation failed: ' . ($backupResult['error'] ?? 'Unknown error'));
+            }
+
+            $ctx['backupId'] = $backupResult['backup_id'];
+
+            $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
+                'backup_id' => $ctx['backupId'],
+            ]);
+
+            $this->log("Patch install: backup created (ID: {$ctx['backupId']})", 'INFO');
+        } else {
+            $this->log("Patch install: no migration.sql found, skipping backup", 'INFO');
+        }
+    }
+
+    /**
+     * Execute the SQL migration if one is present in the extracted patch
+     *
+     * Skips silently (at DEBUG level) when no migration.sql exists.
+     *
+     * @param array &$ctx Installation context
+     * @return void
+     * @throws \RuntimeException If the migration execution fails
+     */
+    private function migrateStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('execute_migration');
+
+        if ($ctx['hasMigration']) {
+            $this->log("Patch install: executing SQL migration", 'INFO');
+
+            $migrationFile   = $ctx['extractDir'] . '/migration.sql';
+            $migrationResult = $this->migrator->executeMigration($migrationFile);
+
+            if (!$migrationResult['success']) {
+                throw new \RuntimeException(
+                    'SQL migration failed at statement ' . $migrationResult['executed_count'] .
+                    '/' . $migrationResult['total_count'] . ': ' . $migrationResult['error']
+                );
+            }
+
+            $this->log("Patch install: SQL migration completed ({$migrationResult['executed_count']} statements)", 'INFO');
+        } else {
+            $this->log("Patch install: no migration.sql found, skipping", 'DEBUG');
+        }
+    }
+
+    /**
+     * Snapshot affected files and copy new files from the extracted patch
+     *
+     * Takes a pre-install snapshot of all files that will be overwritten,
+     * then copies the patched files into the project root.
+     *
+     * @param array &$ctx Installation context (mutated: installErrorCode set on failure)
+     * @return void
+     * @throws \RuntimeException If the snapshot or copy step fails
+     */
+    private function copyStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('copy_files');
+        $this->log("Patch install: copying files", 'INFO');
+
+        $snapshotResult = $this->fileManager->backupAffectedFiles($ctx['patchHistoryId'], $ctx['manifest'], $ctx['extractDir']);
+        if (!$snapshotResult['success']) {
+            $ctx['installErrorCode'] = $snapshotResult['error_code'] ?? null;
+            throw new \RuntimeException('File snapshot failed: ' . $snapshotResult['error']);
+        }
+
+        $copyResult = $this->fileManager->copyFiles($ctx['extractDir'], $ctx['manifest']);
+        if (!$copyResult['success']) {
+            $ctx['installErrorCode'] = $copyResult['error_code'] ?? null;
+            throw new \RuntimeException('File copy failed: ' . $copyResult['error']);
+        }
+
+        $this->log("Patch install: {$copyResult['copied_count']} files copied", 'INFO');
+    }
+
+    /**
+     * Remove obsolete files listed in the patch manifest and clear compiled caches
+     *
+     * After removal, clears any configured compiled-template cache directories
+     * (e.g. Twig) so that updated files take effect immediately.
+     *
+     * @param array &$ctx Installation context (mutated: installErrorCode set on failure)
+     * @return void
+     * @throws \RuntimeException If file removal fails
+     */
+    private function removeStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('remove_files');
+
+        $removeResult = $this->fileManager->removeFiles($ctx['manifest']);
+        if (!$removeResult['success']) {
+            $ctx['installErrorCode'] = $removeResult['error_code'] ?? null;
+            throw new \RuntimeException('File removal failed: ' . $removeResult['error']);
+        }
+
+        if ($removeResult['removed_count'] > 0) {
+            $this->log("Patch install: {$removeResult['removed_count']} obsolete files removed", 'INFO');
+        }
+
+        // Clear compiled-template caches (e.g. Twig) so updated files take effect immediately
+        if (!empty($this->cachePathsToClear)) {
+            $this->fileManager->clearCachePaths($this->cachePathsToClear);
+        }
+    }
+
+    /**
+     * Persist the new application version to storage
+     *
+     * @param array &$ctx Installation context
+     * @return void
+     * @throws \RuntimeException If the version update fails
+     */
+    private function updateVersionStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('update_version');
+        $this->log("Patch install: updating version to {$ctx['version']}", 'INFO');
+
+        if (!$this->versionResolver->updateVersion($ctx['version'])) {
+            throw new \RuntimeException('Failed to update application version');
+        }
+    }
+
+    /**
+     * Verify that the installation succeeded
+     *
+     * Delegates to verifyInstallation() and maps a failure to the
+     * VERIFICATION_FAILED error code so the caller can surface targeted feedback.
+     *
+     * @param array &$ctx Installation context (mutated: installErrorCode set on failure)
+     * @return void
+     * @throws \RuntimeException If verification fails
+     */
+    private function verifyStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('verify_installation');
+        $this->log("Patch install: verifying installation", 'INFO');
+
+        $verifyResult = $this->verifyInstallation($ctx['manifest'], $ctx['version'], $ctx['extractDir']);
+        if (!$verifyResult['success']) {
+            $ctx['installErrorCode'] = ErrorCode::VERIFICATION_FAILED;
+            throw new \RuntimeException('Verification failed: ' . $verifyResult['error']);
+        }
+    }
+
+    /**
+     * Clean up temporary files, reset caches, mark the install as completed and log success
+     *
+     * Removes the extracted patch directory and the downloaded archive, resets
+     * OPcache, invalidates the version cache, records the completed status in the
+     * database, prunes old rollback artifacts, completes the progress tracker and
+     * logs the activity.
+     *
+     * @param array &$ctx Installation context
+     * @return void
+     */
+    private function cleanupStep(array &$ctx): void
+    {
+        $this->progressTracker->stepProgress('cleanup');
+        $this->log("Patch install: cleaning up", 'INFO');
+
+        if ($ctx['extractDir']) {
+            $this->fileManager->cleanupDir($ctx['extractDir']);
+        }
+        if ($ctx['downloadedFile'] && file_exists($ctx['downloadedFile'])) {
+            @unlink($ctx['downloadedFile']);
+        }
+
+        $this->fileManager->resetOpcache();
+        $this->checker->removeVersionFromCache($ctx['version']);
+
+        $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
+            'status'       => 'completed',
+            'installed_at' => date('Y-m-d H:i:s'),
+            'installed_by' => $ctx['userId'],
+        ]);
+
+        // Prune rollback artifacts from older completed installs (keep the last N)
+        $this->pruneOldRollbackArtifacts($ctx['patchHistoryId']);
+
+        $this->progressTracker->completeProgress();
+
+        $this->logActivity(
+            'install_patch',
+            'patch',
+            $ctx['patchHistoryId'],
+            ['version' => $ctx['previousVersion']],
+            ['version' => $ctx['version']],
+            $ctx['userId']
+        );
+
+        $this->log("Patch install: v{$ctx['version']} installed successfully", 'INFO');
     }
 
     /**
