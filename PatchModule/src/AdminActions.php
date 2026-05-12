@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace PatchModule;
 
+use PatchModule\Contracts\ArchiveSignatureVerifierInterface;
 use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
 use PatchModule\Contracts\CsrfRotatableInterface;
@@ -30,12 +31,16 @@ class AdminActions
     private static ?array $fallbackLocale = null;
 
     /**
-     * @param PatchModule              $module     The PatchModule facade instance
-     * @param AuthAdapterInterface     $auth       Host-side authentication adapter
-     * @param CsrfAdapterInterface     $csrf       Host-side CSRF adapter
-     * @param string                   $tempPath   Writable temp directory for lock and progress files
-     * @param string                   $rootPath   Project root directory for filesystem checks
-     * @param TranslatorInterface|null $translator Optional host-side translator; falls back to built-in en_US if null
+     * @param PatchModule                            $module                   The PatchModule facade instance
+     * @param AuthAdapterInterface                   $auth                     Host-side authentication adapter
+     * @param CsrfAdapterInterface                   $csrf                     Host-side CSRF adapter
+     * @param string                                 $tempPath                 Writable temp directory for lock and progress files
+     * @param string                                 $rootPath                 Project root directory for filesystem checks
+     * @param TranslatorInterface|null               $translator               Optional host-side translator; falls back to built-in en_US if null
+     * @param ArchiveSignatureVerifierInterface|null $archiveSignatureVerifier Verifier for manual upload .sig files
+     * @param string|null                            $expectedPublicKeyPem     Pinned RSA public key PEM; required to accept manual uploads
+     * @param int                                    $maxUploadSize            Maximum .tgz size in bytes (default: 100 MB)
+     * @param int                                    $maxSignatureSize         Maximum .sig size in bytes (default: 10 KB)
      */
     public function __construct(
         private readonly PatchModule $module,
@@ -44,6 +49,10 @@ class AdminActions
         private readonly string $tempPath,
         private readonly string $rootPath,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly ?ArchiveSignatureVerifierInterface $archiveSignatureVerifier = null,
+        private readonly ?string $expectedPublicKeyPem = null,
+        private readonly int $maxUploadSize = 104857600,
+        private readonly int $maxSignatureSize = 10240,
     ) {
     }
 
@@ -68,7 +77,9 @@ class AdminActions
 
         $availability    = $this->module->isAvailable();
         $currentVersion  = $this->module->getVersionResolver()->getCurrentVersion();
-        $patches         = $this->enrichPatchesWithLocalIds($this->module->getAvailablePatches());
+        $remotePatches   = $this->module->getAvailablePatches();
+        $uploadedPatches = $this->module->getDatabase()->findUploadedAvailablePatches();
+        $patches         = $this->enrichPatchesWithLocalIds($this->mergePatches($remotePatches, $uploadedPatches));
         $history         = $this->module->getHistory();
 
         $installedByIds = array_filter(
@@ -302,7 +313,32 @@ class AdminActions
             set_time_limit(0);
             ignore_user_abort(true);
 
-            $result = $this->module->install($id, $createBackup, $this->auth->getCurrentUserId());
+            $record = $this->module->getHistoryRecord($id);
+            if ($record === null) {
+                return [
+                    'status' => 404,
+                    'data'   => [
+                        'success' => false,
+                        'error'   => $this->t('TEXT_ERROR_PATCH_RECORD_NOT_FOUND'),
+                    ],
+                ];
+            }
+            if ($record['patch_server_id'] === null) {
+                $stagedPath = $this->tempPath . '/patch_uploaded_' . $id . '.tgz';
+                if (!is_file($stagedPath)) {
+                    return [
+                        'status' => 500,
+                        'data'   => [
+                            'success'    => false,
+                            'error_code' => ErrorCode::UPLOAD_FAILED,
+                            'error'      => $this->t('TEXT_PATCH_ERROR_UPLOAD_FAILED'),
+                        ],
+                    ];
+                }
+                $result = $this->module->installFromUploadedArchive($id, $stagedPath, $this->auth->getCurrentUserId());
+            } else {
+                $result = $this->module->install($id, $createBackup, $this->auth->getCurrentUserId());
+            }
 
             if (!$result['success']) {
                 $errorCode    = $result['error_code'] ?? null;
@@ -420,6 +456,218 @@ class AdminActions
                 'data'   => ['success' => true, 'csrf_token' => $this->csrfToken()],
             ];
         });
+    }
+
+    /**
+     * Handle a manual patch upload request
+     *
+     * Accepts a multipart/form-data request containing a .tgz patch archive and a
+     * detached .sig file, verifies the RSA-SHA256 signature, extracts the manifest,
+     * enforces version policy, and stores the staged archive in {temp_path} with a
+     * patch_history record. The installed archive is processed by the existing install
+     * pipeline when the client subsequently calls install() with the returned ID.
+     *
+     * @param string $csrfToken CSRF token from the request
+     * @param array  $files     $_FILES array containing 'patch_file' and 'signature_file'
+     * @return array Response array with patch_history_id and optional version-gap warning, or error details
+     */
+    public function upload(string $csrfToken, array $files): array
+    {
+        if (!$this->auth->isSysadmin()) {
+            return $this->forbidden();
+        }
+
+        if (!$this->csrf->validate($csrfToken)) {
+            return $this->csrfError();
+        }
+
+        $publicKeyPem = $this->expectedPublicKeyPem;
+        if ($publicKeyPem === null || $publicKeyPem === '') {
+            return $this->uploadError(403, ErrorCode::UPLOAD_MISSING_PINNED_KEY, 'TEXT_PATCH_ERROR_UPLOAD_MISSING_PINNED_KEY');
+        }
+
+        $validationError = $this->validateUploadFiles($files);
+        if ($validationError !== null) {
+            return $validationError;
+        }
+
+        $patchFile = $files['patch_file'];
+        $sigFile   = $files['signature_file'];
+
+        if ((int) ($patchFile['size'] ?? 0) > $this->maxUploadSize) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
+        }
+        if ((int) ($sigFile['size'] ?? 0) > $this->maxSignatureSize) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mime  = $finfo->file($patchFile['tmp_name']);
+        if (!in_array($mime, ['application/gzip', 'application/x-gzip'], true)) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_INVALID_MIME, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MIME');
+        }
+
+        $stagedTgz = null;
+        $stagedSig = null;
+
+        try {
+            $token     = bin2hex(random_bytes(16));
+            $stagedTgz = $this->tempPath . '/patch_upload_' . $token . '.tgz';
+            $stagedSig = $this->tempPath . '/patch_upload_' . $token . '.sig';
+
+            if (!move_uploaded_file($patchFile['tmp_name'], $stagedTgz)) {
+                $stagedTgz = null;
+                return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
+            }
+            chmod($stagedTgz, 0600);
+
+            if (!move_uploaded_file($sigFile['tmp_name'], $stagedSig)) {
+                $stagedSig = null;
+                return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
+            }
+            chmod($stagedSig, 0600);
+
+            if ($this->archiveSignatureVerifier === null) {
+                return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
+            }
+
+            try {
+                $sigValid = $this->archiveSignatureVerifier->verifyFile($stagedTgz, $stagedSig, $publicKeyPem);
+            } catch (\RuntimeException $e) {
+                error_log('[PatchModule] upload: signature verification exception: ' . $e->getMessage());
+                $sigValid = false;
+            }
+
+            @unlink($stagedSig);
+            $stagedSig = null;
+
+            if (!$sigValid) {
+                return $this->uploadError(422, ErrorCode::UPLOAD_INVALID_SIGNATURE, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_SIGNATURE');
+            }
+
+            $sha256 = hash_file('sha256', $stagedTgz);
+
+            [$uploadedVersion, $releaseNotes, $manifestJson] = $this->extractManifestFromArchive($stagedTgz);
+            if ($uploadedVersion === null) {
+                return $this->uploadError(422, ErrorCode::UPLOAD_INVALID_MANIFEST, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MANIFEST');
+            }
+
+            $currentVersion = $this->module->getVersionResolver()->getCurrentVersion();
+            $policyError    = $this->checkVersionPolicy($uploadedVersion, $currentVersion);
+            if ($policyError !== null) {
+                return $policyError;
+            }
+
+            $warning        = null;
+            $warningMessage = null;
+            foreach ($this->module->getAvailablePatches() as $remotePatch) {
+                $rv = (string) ($remotePatch['version'] ?? '');
+                if ($rv !== ''
+                    && version_compare($rv, $currentVersion, '>')
+                    && version_compare($rv, $uploadedVersion, '<')) {
+                    $warning        = 'version_gap';
+                    $warningMessage = $this->t('TEXT_PATCH_WARNING_VERSION_GAP', $rv);
+                    break;
+                }
+            }
+
+            $fileSize       = (int) filesize($stagedTgz);
+            $patchHistoryId = null;
+
+            $lockResult = $this->withUploadLock(function () use (
+                $uploadedVersion,
+                $releaseNotes,
+                $manifestJson,
+                $sha256,
+                $fileSize,
+                &$stagedTgz,
+                &$patchHistoryId
+            ): ?array {
+                $currentVersionInLock = $this->module->getVersionResolver()->getCurrentVersion();
+                $policyError          = $this->checkVersionPolicy($uploadedVersion, $currentVersionInLock);
+                if ($policyError !== null) {
+                    return $policyError;
+                }
+
+                $db  = $this->module->getDatabase();
+                $pdo = $db->getPdo();
+
+                $pdo->beginTransaction();
+
+                $priorTgz = null;
+                try {
+                    $prior = $db->findHistoryByVersion($uploadedVersion, [PatchHistoryStatus::AVAILABLE]);
+                    if ($prior !== null && $prior['patch_server_id'] === null) {
+                        $stmt = $pdo->prepare(
+                            "DELETE FROM patch_history WHERE id = :id AND patch_server_id IS NULL AND status = 'available'"
+                        );
+                        $stmt->execute([':id' => $prior['id']]);
+                        $priorTgz = $this->tempPath . '/patch_uploaded_' . $prior['id'] . '.tgz';
+                    }
+
+                    $newId = $db->createHistoryRecord([
+                        'version'         => $uploadedVersion,
+                        'status'          => PatchHistoryStatus::AVAILABLE,
+                        'release_notes'   => $releaseNotes,
+                        'file_size'       => $fileSize,
+                        'sha256_hash'     => $sha256,
+                        'patch_server_id' => null,
+                    ]);
+
+                    if ($manifestJson !== null) {
+                        $db->updateHistoryRecord($newId, ['manifest_json' => $manifestJson]);
+                    }
+
+                    $finalPath = $this->tempPath . '/patch_uploaded_' . $newId . '.tgz';
+                    if (!rename($stagedTgz, $finalPath)) {
+                        $pdo->rollBack();
+                        return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
+                    }
+                    $stagedTgz = null;
+
+                    $pdo->commit();
+                    $patchHistoryId = $newId;
+
+                    if ($priorTgz !== null && is_file($priorTgz)) {
+                        @unlink($priorTgz);
+                    }
+
+                    return null;
+                } catch (\Throwable $e) {
+                    if ($pdo->inTransaction()) {
+                        $pdo->rollBack();
+                    }
+                    error_log('[PatchModule] upload: transaction failed: ' . $e->getMessage());
+                    return $this->serverError();
+                }
+            });
+
+            if ($lockResult !== null) {
+                return $lockResult;
+            }
+
+            return [
+                'status' => 200,
+                'data'   => [
+                    'success'          => true,
+                    'patch_history_id' => $patchHistoryId,
+                    'version'          => $uploadedVersion,
+                    'release_notes'    => $releaseNotes,
+                    'file_size'        => $fileSize,
+                    'sha256'           => $sha256,
+                    'warning'          => $warning,
+                    'warning_message'  => $warningMessage,
+                    'csrf_token'       => $this->csrfToken(),
+                ],
+            ];
+        } finally {
+            if ($stagedTgz !== null && is_file($stagedTgz)) {
+                @unlink($stagedTgz);
+            }
+            if ($stagedSig !== null && is_file($stagedSig)) {
+                @unlink($stagedSig);
+            }
+        }
     }
 
     /**
@@ -560,6 +808,11 @@ class AdminActions
                 continue;
             }
 
+            // Skip patches that already carry a valid local ID (e.g. manually uploaded)
+            if (isset($patch['id']) && (int) $patch['id'] > 0) {
+                continue;
+            }
+
             $existing = $this->module->findHistoryByVersion($version);
             if ($existing !== null) {
                 $patch['id'] = (int) $existing['id'];
@@ -608,21 +861,31 @@ class AdminActions
     private function translateErrorCode(?string $errorCode): ?string
     {
         $map = [
-            ErrorCode::INSTALL_IN_PROGRESS     => 'TEXT_PATCH_ERROR_INSTALL_IN_PROGRESS',
-            ErrorCode::INVALID_ARCHIVE         => 'TEXT_PATCH_ERROR_INVALID_ARCHIVE',
-            ErrorCode::INVALID_LICENSE         => 'TEXT_PATCH_ERROR_INVALID_LICENSE',
-            ErrorCode::INVALID_MANIFEST_PATH   => 'TEXT_PATCH_ERROR_INVALID_MANIFEST_PATH',
-            ErrorCode::INVALID_MANIFEST_SCHEMA => 'TEXT_PATCH_ERROR_INVALID_MANIFEST_SCHEMA',
-            ErrorCode::LICENSE_EXPIRED         => 'TEXT_PATCH_ERROR_LICENSE_EXPIRED',
-            ErrorCode::LICENSE_IP_MISMATCH     => 'TEXT_PATCH_ERROR_LICENSE_IP_MISMATCH',
-            ErrorCode::LICENSE_REVOKED         => 'TEXT_PATCH_ERROR_LICENSE_REVOKED',
-            ErrorCode::NETWORK_ERROR           => 'TEXT_PATCH_ERROR_NETWORK_ERROR',
-            ErrorCode::NOT_RECENTLY_VERIFIED   => 'TEXT_PATCH_ERROR_NOT_RECENTLY_VERIFIED',
-            ErrorCode::PACKAGE_MISMATCH        => 'TEXT_PATCH_ERROR_PACKAGE_MISMATCH',
-            ErrorCode::RATE_LIMITED            => 'TEXT_PATCH_ERROR_RATE_LIMITED',
-            ErrorCode::SERVER_ERROR            => 'TEXT_PATCH_ERROR_SERVER_ERROR',
-            ErrorCode::SIGNING_UNAVAILABLE     => 'TEXT_PATCH_ERROR_SIGNING_UNAVAILABLE',
-            ErrorCode::VERIFICATION_FAILED     => 'TEXT_PATCH_ERROR_VERIFICATION_FAILED',
+            ErrorCode::INSTALL_IN_PROGRESS                => 'TEXT_PATCH_ERROR_INSTALL_IN_PROGRESS',
+            ErrorCode::INVALID_ARCHIVE                    => 'TEXT_PATCH_ERROR_INVALID_ARCHIVE',
+            ErrorCode::INVALID_LICENSE                    => 'TEXT_PATCH_ERROR_INVALID_LICENSE',
+            ErrorCode::INVALID_MANIFEST_PATH              => 'TEXT_PATCH_ERROR_INVALID_MANIFEST_PATH',
+            ErrorCode::INVALID_MANIFEST_SCHEMA            => 'TEXT_PATCH_ERROR_INVALID_MANIFEST_SCHEMA',
+            ErrorCode::LICENSE_EXPIRED                    => 'TEXT_PATCH_ERROR_LICENSE_EXPIRED',
+            ErrorCode::LICENSE_IP_MISMATCH                => 'TEXT_PATCH_ERROR_LICENSE_IP_MISMATCH',
+            ErrorCode::LICENSE_REVOKED                    => 'TEXT_PATCH_ERROR_LICENSE_REVOKED',
+            ErrorCode::NETWORK_ERROR                      => 'TEXT_PATCH_ERROR_NETWORK_ERROR',
+            ErrorCode::NOT_RECENTLY_VERIFIED              => 'TEXT_PATCH_ERROR_NOT_RECENTLY_VERIFIED',
+            ErrorCode::PACKAGE_MISMATCH                   => 'TEXT_PATCH_ERROR_PACKAGE_MISMATCH',
+            ErrorCode::RATE_LIMITED                       => 'TEXT_PATCH_ERROR_RATE_LIMITED',
+            ErrorCode::SERVER_ERROR                       => 'TEXT_PATCH_ERROR_SERVER_ERROR',
+            ErrorCode::SIGNING_UNAVAILABLE                => 'TEXT_PATCH_ERROR_SIGNING_UNAVAILABLE',
+            ErrorCode::UPLOAD_FAILED                      => 'TEXT_PATCH_ERROR_UPLOAD_FAILED',
+            ErrorCode::UPLOAD_INVALID_ARCHIVE             => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_ARCHIVE',
+            ErrorCode::UPLOAD_INVALID_MANIFEST            => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MANIFEST',
+            ErrorCode::UPLOAD_INVALID_MIME                => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MIME',
+            ErrorCode::UPLOAD_INVALID_SIGNATURE           => 'TEXT_PATCH_ERROR_UPLOAD_INVALID_SIGNATURE',
+            ErrorCode::UPLOAD_MISSING_PINNED_KEY          => 'TEXT_PATCH_ERROR_UPLOAD_MISSING_PINNED_KEY',
+            ErrorCode::UPLOAD_MISSING_SIGNATURE           => 'TEXT_PATCH_ERROR_UPLOAD_MISSING_SIGNATURE',
+            ErrorCode::UPLOAD_TOO_LARGE                   => 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE',
+            ErrorCode::UPLOAD_VERSION_ALREADY_INSTALLED   => 'TEXT_PATCH_ERROR_UPLOAD_VERSION_ALREADY_INSTALLED',
+            ErrorCode::UPLOAD_VERSION_DOWNGRADE           => 'TEXT_PATCH_ERROR_UPLOAD_VERSION_DOWNGRADE',
+            ErrorCode::VERIFICATION_FAILED                => 'TEXT_PATCH_ERROR_VERIFICATION_FAILED',
         ];
 
         if ($errorCode === null || !isset($map[$errorCode])) {
@@ -833,6 +1096,187 @@ class AdminActions
         }
 
         return null;
+    }
+
+    /**
+     * Merge remote-fetched patches with manually uploaded patches
+     *
+     * Produces a by-version map where uploaded patches replace remote patches on
+     * version collision. Uploaded entries are flagged with 'is_uploaded => true'
+     * so the view can render a "Manual upload" badge.
+     *
+     * @param array $remote   Patches from the patch server (getAvailablePatches())
+     * @param array $uploaded Rows from patch_history where patch_server_id IS NULL AND status='available'
+     * @return array Merged list, one entry per version, ordered: remote first then uploaded-only
+     */
+    private function mergePatches(array $remote, array $uploaded): array
+    {
+        $byVersion = [];
+
+        foreach ($remote as $patch) {
+            $version = (string) ($patch['version'] ?? '');
+            if ($version !== '') {
+                $byVersion[$version] = $patch;
+            }
+        }
+
+        foreach ($uploaded as $patch) {
+            $version = (string) ($patch['version'] ?? '');
+            if ($version !== '') {
+                $patch['is_uploaded'] = true;
+                $byVersion[$version]  = $patch;
+            }
+        }
+
+        return array_values($byVersion);
+    }
+
+    /**
+     * Validate the upload file entries from $_FILES
+     *
+     * Checks that both required upload slots are present and error-free,
+     * mapping PHP's UPLOAD_ERR_INI_SIZE/UPLOAD_ERR_FORM_SIZE to UPLOAD_TOO_LARGE
+     * and a missing signature file to UPLOAD_MISSING_SIGNATURE.
+     *
+     * @param array $files $_FILES array
+     * @return array|null Error response array, or null if both files look valid
+     */
+    private function validateUploadFiles(array $files): ?array
+    {
+        $patchErr = $files['patch_file']['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($patchErr === UPLOAD_ERR_INI_SIZE || $patchErr === UPLOAD_ERR_FORM_SIZE) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
+        }
+        if ($patchErr !== UPLOAD_ERR_OK || empty($files['patch_file']['tmp_name'])) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_INVALID_ARCHIVE, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_ARCHIVE');
+        }
+
+        $sigErr = $files['signature_file']['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($sigErr === UPLOAD_ERR_INI_SIZE || $sigErr === UPLOAD_ERR_FORM_SIZE) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_TOO_LARGE, 'TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE');
+        }
+        if ($sigErr !== UPLOAD_ERR_OK || empty($files['signature_file']['tmp_name'])) {
+            return $this->uploadError(400, ErrorCode::UPLOAD_MISSING_SIGNATURE, 'TEXT_PATCH_ERROR_UPLOAD_MISSING_SIGNATURE');
+        }
+
+        return null;
+    }
+
+    /**
+     * Build a standardized upload error response
+     *
+     * @param int    $status    HTTP status code
+     * @param string $errorCode Stable error code from ErrorCode
+     * @param string $textKey   Translation key for the human-readable message
+     * @return array Response array
+     */
+    private function uploadError(int $status, string $errorCode, string $textKey): array
+    {
+        return [
+            'status' => $status,
+            'data'   => [
+                'success'    => false,
+                'error_code' => $errorCode,
+                'error'      => $this->t($textKey),
+            ],
+        ];
+    }
+
+    /**
+     * Enforce version policy for a manual upload
+     *
+     * Rejects downgrades, re-installs of the current version, and re-installs
+     * of already-completed versions. Returns null when the version is acceptable.
+     *
+     * @param string $uploadedVersion Version string extracted from the uploaded manifest
+     * @param string $currentVersion  Currently installed application version
+     * @return array|null Error response array, or null if the version passes policy
+     */
+    private function checkVersionPolicy(string $uploadedVersion, string $currentVersion): ?array
+    {
+        if (version_compare($uploadedVersion, $currentVersion, '<')) {
+            return $this->uploadError(409, ErrorCode::UPLOAD_VERSION_DOWNGRADE, 'TEXT_PATCH_ERROR_UPLOAD_VERSION_DOWNGRADE');
+        }
+        if (version_compare($uploadedVersion, $currentVersion, '==')) {
+            return $this->uploadError(409, ErrorCode::UPLOAD_VERSION_ALREADY_INSTALLED, 'TEXT_PATCH_ERROR_UPLOAD_VERSION_ALREADY_INSTALLED');
+        }
+        if ($this->module->getDatabase()->findHistoryByVersion($uploadedVersion, [PatchHistoryStatus::COMPLETED]) !== null) {
+            return $this->uploadError(409, ErrorCode::UPLOAD_VERSION_ALREADY_INSTALLED, 'TEXT_PATCH_ERROR_UPLOAD_VERSION_ALREADY_INSTALLED');
+        }
+        return null;
+    }
+
+    /**
+     * Acquire the exclusive upload lock, execute $fn, then release the lock
+     *
+     * Uses a blocking flock to serialize concurrent uploads. Returns null on success
+     * (meaning $fn ran and returned null), or an error response array if the lock
+     * file cannot be opened or $fn itself returns an error.
+     *
+     * @param callable $fn Code to run while the lock is held; must return null on success or an error response array
+     * @return array|null Null on success, or an error response array
+     */
+    private function withUploadLock(callable $fn): ?array
+    {
+        $lockFile = $this->tempPath . '/.patch_upload.lock';
+        $lockFh   = fopen($lockFile, 'c');
+
+        if ($lockFh === false) {
+            return $this->serverError();
+        }
+
+        if (!flock($lockFh, LOCK_EX)) {
+            fclose($lockFh);
+            return $this->serverError();
+        }
+
+        try {
+            return $fn();
+        } finally {
+            flock($lockFh, LOCK_UN);
+            fclose($lockFh);
+        }
+    }
+
+    /**
+     * Extract version, release notes, and JSON-encoded manifest from a patch archive
+     *
+     * Delegates to PatchFileManager::extractPatch() which validates the archive,
+     * symlink-checks, and parses manifest.json. The extract directory is cleaned up
+     * before returning.
+     *
+     * @param string $archivePath Absolute path to the staged .tgz archive
+     * @return array{0: string|null, 1: string|null, 2: string|null} [version, release_notes, manifest_json]
+     */
+    private function extractManifestFromArchive(string $archivePath): array
+    {
+        try {
+            $result = $this->module->getFileManager()->extractPatch($archivePath);
+        } catch (\Throwable $e) {
+            error_log('[PatchModule] upload: extractPatch failed: ' . $e->getMessage());
+            return [null, null, null];
+        }
+
+        if (!($result['success'] ?? false) || !is_array($result['manifest'] ?? null)) {
+            return [null, null, null];
+        }
+
+        $manifest   = $result['manifest'];
+        $extractDir = $result['extract_dir'] ?? null;
+
+        if ($extractDir !== null && is_dir($extractDir)) {
+            $this->module->getFileManager()->cleanupDir($extractDir);
+        }
+
+        $version      = isset($manifest['version']) ? (string) $manifest['version'] : null;
+        $releaseNotes = isset($manifest['release_notes']) ? (string) $manifest['release_notes'] : null;
+        $manifestJson = json_encode($manifest) ?: null;
+
+        if ($version === null || $version === '') {
+            return [null, null, null];
+        }
+
+        return [$version, $releaseNotes, $manifestJson];
     }
 
     /**

@@ -558,6 +558,16 @@ class PatchModule
     }
 
     /**
+     * Get the patch file manager responsible for archive extraction and filesystem operations
+     *
+     * @return PatchFileManager
+     */
+    public function getFileManager(): PatchFileManager
+    {
+        return $this->fileManager;
+    }
+
+    /**
      * Get the admin actions handler for the patch management UI
      *
      * Returns null when auth_adapter or csrf_adapter is not configured,
@@ -579,6 +589,10 @@ class PatchModule
                 $this->config['temp_path'],
                 $this->config['root_path'],
                 $this->translator,
+                $this->getArchiveSignatureVerifier(),
+                $this->getExpectedPublicKeyPem(),
+                $this->getMaxUploadSize(),
+                $this->getMaxSignatureSize(),
             );
         }
 
