@@ -925,6 +925,7 @@ const PatchUpload = {
         var xhr  = new XMLHttpRequest();
         xhr.open('POST', uploadUrl, true);
         xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-CSRF-Token', csrfToken);
 
         xhr.upload.onprogress = function (ev) {
             if (ev.lengthComputable) {

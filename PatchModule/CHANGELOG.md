@@ -5,6 +5,17 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-05-12
+
+| Category | Description                                                                                 |
+|----------|---------------------------------------------------------------------------------------------|
+| Fixed    | Manual upload failed with "invalid request" — CSRF token was missing from the XHR header   |
+
+### Fixed
+- **Manual upload CSRF validation** — the upload XHR was sending the CSRF token only as a form field in the request body, while the host's CSRF adapter reads it from the `X-CSRF-Token` HTTP header. The header is now set on the XHR, consistent with all other admin requests.
+
+---
+
 ## [2.0.0] - 2026-05-12
 
 | Category | Description                                                                                                     |
