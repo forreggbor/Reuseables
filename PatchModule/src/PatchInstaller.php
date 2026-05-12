@@ -195,7 +195,7 @@ class PatchInstaller
             $this->progressTracker->stepProgress('preflight_checks');
             $this->log("Patch install: starting preflight checks for v{$ctx['version']}", 'INFO');
 
-            $this->fileManager->sweepStaleTmpFiles();
+            $this->fileManager->sweepStaleTmpFiles(database: $this->database);
 
             $this->runPreflightChecks($ctx['version'], $ctx['previousVersion']);
 
@@ -351,7 +351,7 @@ class PatchInstaller
             $this->progressTracker->stepProgress('preflight_checks');
             $this->log("Patch install (manual): starting preflight checks for v{$ctx['version']}", 'INFO');
 
-            $this->fileManager->sweepStaleTmpFiles();
+            $this->fileManager->sweepStaleTmpFiles(database: $this->database);
             $this->runPreflightChecks($ctx['version'], $ctx['previousVersion']);
             $this->database->updateHistoryRecord($patchHistoryId, [
                 'previous_version' => $ctx['previousVersion'],

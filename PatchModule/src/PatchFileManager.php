@@ -2,9 +2,16 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * PatchFileManager - File extraction, copying, snapshot, and rollback operations
+ */
+
 namespace PatchModule;
 
 use PatchModule\Contracts\ArchiveAdapterInterface;
+use PatchModule\Contracts\DatabaseAdapterInterface;
 use PatchModule\Contracts\LoggerInterface;
 
 /**
@@ -683,43 +690,60 @@ class PatchFileManager
     }
 
     /**
-     * Remove stale .patchtmp files left behind by a previous interrupted install
+     * Remove stale .patchtmp files and orphaned staged upload archives
      *
-     * Walks the project root looking for files with the .patchtmp extension and
-     * an mtime older than $maxAgeSeconds. Safe to call at install start after
-     * the install lock is acquired.
+     * Walks the project root for .patchtmp files older than $maxAgeSeconds and removes them.
+     * When a database is provided, also scans the temp directory for patch_uploaded_*.tgz files
+     * whose patch_history row is missing or has a terminal status (completed, failed, rolled_back).
      *
-     * @param int $maxAgeSeconds Files older than this many seconds are removed (default: 86400)
+     * @param int                          $maxAgeSeconds Files older than this many seconds are removed (default: 86400)
+     * @param DatabaseAdapterInterface|null $database      When provided, orphaned upload archives are also swept
      * @return void
      */
-    public function sweepStaleTmpFiles(int $maxAgeSeconds = 86400): void
+    public function sweepStaleTmpFiles(int $maxAgeSeconds = 86400, ?DatabaseAdapterInterface $database = null): void
     {
-        if (!is_dir($this->rootPath)) {
-            return;
+        if (is_dir($this->rootPath)) {
+            $cutoff = time() - $maxAgeSeconds;
+
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($this->rootPath, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::LEAVES_ONLY
+                );
+
+                foreach ($iterator as $file) {
+                    if (!$file->isFile()) {
+                        continue;
+                    }
+                    if (substr($file->getFilename(), -8) !== '.patchtmp') {
+                        continue;
+                    }
+                    if ($file->getMTime() < $cutoff) {
+                        @unlink($file->getPathname());
+                        $this->log("Patch: removed stale tmp file: " . $file->getPathname(), 'DEBUG');
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->log("Patch: stale tmp sweep failed: " . $e->getMessage(), 'WARNING');
+            }
         }
 
-        $cutoff = time() - $maxAgeSeconds;
-
-        try {
-            $iterator = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($this->rootPath, \FilesystemIterator::SKIP_DOTS),
-                \RecursiveIteratorIterator::LEAVES_ONLY
-            );
-
-            foreach ($iterator as $file) {
-                if (!$file->isFile()) {
+        if ($database !== null && is_dir($this->tempDir)) {
+            foreach (glob($this->tempDir . '/patch_uploaded_*.tgz') ?: [] as $uploadedFile) {
+                $filename = basename($uploadedFile);
+                if (!preg_match('/^patch_uploaded_(\d+)\.tgz$/', $filename, $matches)) {
                     continue;
                 }
-                if (substr($file->getFilename(), -8) !== '.patchtmp') {
-                    continue;
-                }
-                if ($file->getMTime() < $cutoff) {
-                    @unlink($file->getPathname());
-                    $this->log("Patch: removed stale tmp file: " . $file->getPathname(), 'DEBUG');
+                $id     = (int) $matches[1];
+                $record = $database->getHistoryRecord($id);
+                if (
+                    $record === null
+                    || in_array($record['status'] ?? '', ['completed', 'failed', 'rolled_back'], true)
+                ) {
+                    @unlink($uploadedFile);
+                    $this->log("Patch: removed orphaned upload archive: {$filename}", 'DEBUG');
                 }
             }
-        } catch (\Exception $e) {
-            $this->log("Patch: stale tmp sweep failed: " . $e->getMessage(), 'WARNING');
         }
     }
 
