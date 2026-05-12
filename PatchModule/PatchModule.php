@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * PatchModule - Framework-agnostic patch management facade
+ */
+
 namespace PatchModule;
 
 use PatchModule\Adapters\Archive\ExecTarAdapter;
@@ -9,9 +15,11 @@ use PatchModule\Adapters\Archive\PharTarAdapter;
 use PatchModule\Adapters\Database\CallableAdapter;
 use PatchModule\Adapters\Database\PdoAdapter;
 use PatchModule\Adapters\Http\CurlHttpClient;
+use PatchModule\Adapters\Signature\OpenSslArchiveSignatureVerifier;
 use PatchModule\Adapters\Signature\OpenSslSignatureVerifier;
 use PatchModule\AdminActions;
 use PatchModule\Contracts\ArchiveAdapterInterface;
+use PatchModule\Contracts\ArchiveSignatureVerifierInterface;
 use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
@@ -73,6 +81,9 @@ class PatchModule
 
     /** @var SignatureVerifierInterface|null */
     private ?SignatureVerifierInterface $signatureVerifier;
+
+    /** @var ArchiveSignatureVerifierInterface */
+    private ArchiveSignatureVerifierInterface $archiveSignatureVerifier;
 
     /** @var LoggerInterface|null */
     private ?LoggerInterface $logger;
@@ -148,7 +159,14 @@ class PatchModule
      *   - download_timeout: int         — Download timeout in seconds (default: 300)
      *   - default_language: string      — Maintenance page language (default: 'en')
      *   - expected_public_key_pem: string — Pinned server public key PEM; when set, patches
-     *                                       whose public_key does not match are rejected (default: null)
+     *                                       whose public_key does not match are rejected, and manual
+     *                                       uploads require a matching detached .sig (default: null)
+     *   - archive_signature_verifier: ArchiveSignatureVerifierInterface — Verifier for detached
+     *                                       archive signatures used during manual patch uploads
+     *                                       (default: OpenSslArchiveSignatureVerifier)
+     *   - max_upload_size: int              — Maximum accepted .tgz size in bytes for manual uploads
+     *                                       (default: 104857600 = 100 MB)
+     *   - max_signature_size: int           — Maximum accepted .sig size in bytes (default: 10240 = 10 KB)
      *   - license_verify_callback: callable — Invoked before download to refresh the server-side
      *                                          license check window; also used for a single retry
      *                                          when the server rejects a download as stale (default: null)
@@ -266,6 +284,29 @@ class PatchModule
     public function rollback(int $patchHistoryId, ?int $userId = null): array
     {
         return $this->installer->rollback($patchHistoryId, $userId);
+    }
+
+    /**
+     * Install a manually uploaded patch archive from a local path
+     *
+     * Processes the patch through the same extract-backup-migrate-copy-remove-verify
+     * pipeline as a remote install, skipping the download step. The archive must
+     * already be staged at the given path; it is cleaned up by the install pipeline.
+     * Does not invoke the license_verify_callback — intended for offline use.
+     *
+     * @param int         $patchHistoryId patch_history record ID (patch_server_id must be null)
+     * @param string      $archivePath    Absolute path to the staged .tgz archive
+     * @param int|null    $userId         User performing the installation
+     * @param string|null $language       Language code for the maintenance page (null = module default)
+     * @return array{success: bool, error: ?string, error_code: ?string, retry_after: ?int}
+     */
+    public function installFromUploadedArchive(
+        int $patchHistoryId,
+        string $archivePath,
+        ?int $userId = null,
+        ?string $language = null
+    ): array {
+        return $this->installer->installFromLocalArchive($patchHistoryId, $archivePath, $userId, $language);
     }
 
     // =========================================================================
@@ -474,6 +515,49 @@ class PatchModule
     }
 
     /**
+     * Get the maximum allowed file size for manual patch uploads in bytes
+     *
+     * @return int Byte limit (default: 104857600 = 100 MB)
+     */
+    public function getMaxUploadSize(): int
+    {
+        return (int) ($this->config['max_upload_size'] ?? 104857600);
+    }
+
+    /**
+     * Get the maximum allowed file size for the detached signature file in bytes
+     *
+     * @return int Byte limit (default: 10240 = 10 KB)
+     */
+    public function getMaxSignatureSize(): int
+    {
+        return (int) ($this->config['max_signature_size'] ?? 10240);
+    }
+
+    /**
+     * Get the pinned server public key PEM string used for both remote patch
+     * signature validation and manual upload signature verification
+     *
+     * @return string|null PEM string, or null if not configured
+     */
+    public function getExpectedPublicKeyPem(): ?string
+    {
+        $pem = $this->config['expected_public_key_pem'] ?? null;
+        return is_string($pem) && $pem !== '' ? $pem : null;
+    }
+
+    /**
+     * Get the archive signature verifier used for detached .sig verification
+     * during manual patch uploads
+     *
+     * @return ArchiveSignatureVerifierInterface
+     */
+    public function getArchiveSignatureVerifier(): ArchiveSignatureVerifierInterface
+    {
+        return $this->archiveSignatureVerifier;
+    }
+
+    /**
      * Get the admin actions handler for the patch management UI
      *
      * Returns null when auth_adapter or csrf_adapter is not configured,
@@ -669,6 +753,13 @@ class PatchModule
             $this->signatureVerifier = $config['signature_verifier'];
         } else {
             $this->signatureVerifier = new OpenSslSignatureVerifier();
+        }
+
+        // Archive signature verifier for manual patch uploads
+        if (isset($config['archive_signature_verifier']) && $config['archive_signature_verifier'] instanceof ArchiveSignatureVerifierInterface) {
+            $this->archiveSignatureVerifier = $config['archive_signature_verifier'];
+        } else {
+            $this->archiveSignatureVerifier = new OpenSslArchiveSignatureVerifier();
         }
 
         // Admin UI adapters
