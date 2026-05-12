@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * PdoAdapter - Direct PDO adapter for patch management database operations
+ */
+
 namespace PatchModule\Adapters\Database;
 
 use PatchModule\Contracts\DatabaseAdapterInterface;
@@ -85,6 +91,17 @@ class PdoAdapter implements DatabaseAdapterInterface
     {
         $stmt = $this->pdo->query(
             "SELECT * FROM patch_history ORDER BY created_at DESC"
+        );
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function findUploadedAvailablePatches(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT * FROM patch_history WHERE patch_server_id IS NULL AND status = 'available' ORDER BY version ASC"
         );
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

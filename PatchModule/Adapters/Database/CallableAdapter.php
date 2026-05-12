@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * CallableAdapter - Lazy PDO factory adapter for patch management database operations
+ */
+
 namespace PatchModule\Adapters\Database;
 
 use PatchModule\Contracts\DatabaseAdapterInterface;
@@ -81,6 +87,14 @@ class CallableAdapter implements DatabaseAdapterInterface
     public function getHistory(): array
     {
         return $this->getAdapter()->getHistory();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function findUploadedAvailablePatches(): array
+    {
+        return $this->getAdapter()->findUploadedAvailablePatches();
     }
 
     /**

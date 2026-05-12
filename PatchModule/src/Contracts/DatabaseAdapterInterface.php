@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * DatabaseAdapterInterface - Contract for patch management database operations
+ */
+
 namespace PatchModule\Contracts;
 
 /**
@@ -51,6 +57,17 @@ interface DatabaseAdapterInterface
      * @return array[] List of associative arrays
      */
     public function getHistory(): array;
+
+    /**
+     * Get all manually uploaded patches available for installation
+     *
+     * Returns patch_history rows where patch_server_id IS NULL and status is
+     * 'available', ordered by version ascending. Used to merge uploaded patches
+     * into the available-patches list alongside remote-fetched patches.
+     *
+     * @return array<array<string,mixed>> Rows ordered by version ASC
+     */
+    public function findUploadedAvailablePatches(): array;
 
     /**
      * Create a new patch history record
