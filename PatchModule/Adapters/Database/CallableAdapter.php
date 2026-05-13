@@ -136,4 +136,20 @@ class CallableAdapter implements DatabaseAdapterInterface
     {
         return $this->getAdapter()->getPdo();
     }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function findAvailableServerVersions(): array
+    {
+        return $this->getAdapter()->findAvailableServerVersions();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function markObsoleteByVersions(array $versions): int
+    {
+        return $this->getAdapter()->markObsoleteByVersions($versions);
+    }
 }
