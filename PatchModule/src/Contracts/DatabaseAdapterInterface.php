@@ -70,6 +70,29 @@ interface DatabaseAdapterInterface
     public function findUploadedAvailablePatches(): array;
 
     /**
+     * Get version strings of all server-fetched patches currently marked available
+     *
+     * Returns versions where patch_server_id IS NOT NULL and status is 'available'.
+     * Used to compute the diff between what the server last returned and what is still
+     * in the local database, so that patches yanked from the server can be marked obsolete.
+     *
+     * @return string[] Version strings
+     */
+    public function findAvailableServerVersions(): array;
+
+    /**
+     * Mark server-fetched available patches as obsolete
+     *
+     * Sets status='obsolete' for rows whose version is in $versions and whose current
+     * status is 'available' or 'downloading'. Only affects server-fetched rows
+     * (patch_server_id IS NOT NULL); manually uploaded rows are never made obsolete this way.
+     *
+     * @param string[] $versions Version strings to mark obsolete
+     * @return int Number of rows updated
+     */
+    public function markObsoleteByVersions(array $versions): int;
+
+    /**
      * Create a new patch history record
      *
      * @param array $data Column values: version, status, release_notes, file_size,

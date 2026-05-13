@@ -109,6 +109,44 @@ class PdoAdapter implements DatabaseAdapterInterface
     /**
      * {@inheritdoc}
      */
+    public function findAvailableServerVersions(): array
+    {
+        $stmt = $this->pdo->query(
+            "SELECT version FROM patch_history WHERE patch_server_id IS NOT NULL AND status = 'available'"
+        );
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function markObsoleteByVersions(array $versions): int
+    {
+        if (empty($versions)) {
+            return 0;
+        }
+
+        $placeholders = [];
+        $params = [];
+        foreach ($versions as $i => $version) {
+            $key = ':v_' . $i;
+            $placeholders[] = $key;
+            $params[$key] = $version;
+        }
+
+        $sql = "UPDATE patch_history SET status = 'obsolete'
+                WHERE patch_server_id IS NOT NULL
+                  AND status IN ('available', 'downloading')
+                  AND version IN (" . implode(', ', $placeholders) . ")";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function createHistoryRecord(array $data): int
     {
         $stmt = $this->pdo->prepare(

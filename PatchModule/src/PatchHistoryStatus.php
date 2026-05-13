@@ -24,5 +24,6 @@ class PatchHistoryStatus
     public const INSTALLING  = 'installing';
     public const COMPLETED   = 'completed';
     public const FAILED      = 'failed';
+    public const OBSOLETE    = 'obsolete';
     public const ROLLED_BACK = 'rolled_back';
 }

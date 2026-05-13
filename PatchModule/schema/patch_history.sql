@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS patch_history (
     id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     version VARCHAR(20) NOT NULL COMMENT 'Target patch version (semver)',
     previous_version VARCHAR(20) NULL COMMENT 'Application version before patch was applied',
-    status ENUM('available','downloading','installing','completed','failed','rolled_back') NOT NULL DEFAULT 'available' COMMENT 'Patch lifecycle status',
+    status ENUM('available','downloading','installing','completed','failed','rolled_back','obsolete') NOT NULL DEFAULT 'available' COMMENT 'Patch lifecycle status',
     release_notes TEXT NULL COMMENT 'Markdown release notes from patch server',
     file_size BIGINT UNSIGNED NULL COMMENT 'Patch archive file size in bytes',
     sha256_hash VARCHAR(64) NULL COMMENT 'Expected SHA-256 hash of the patch archive',

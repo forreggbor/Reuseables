@@ -5,6 +5,37 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-05-13
+
+| Category | Description                                                                                                                 |
+|----------|-----------------------------------------------------------------------------------------------------------------------------|
+| Added    | New `obsolete` patch status — for yanked server patches and patches superseded by direct file-copy installs                |
+| Added    | Install button gating — only the oldest available patch (by version) shows an Install button; others show Details only      |
+| Added    | Automatic stale-availability sweep on every admin index render to detect file-copy installs                                 |
+| Fixed    | Clicking Install or Details on an available patch opened an empty modal instead of that patch's details                     |
+| Fixed    | Manual upload modal showed blank release notes and empty "Released at" date                                                 |
+| Fixed    | Re-uploading a known patch version created duplicate history rows instead of updating the existing record                   |
+| Fixed    | History table showed blank installed-at, installed-by, and previous-version since a subsequent update check clobbered them |
+
+### Added
+- **`obsolete` patch status** — patches are marked obsolete when they are yanked from the patch server (detected on Check Updates) or when the current application version exceeds a previously available patch version (detected on every admin page render). Obsolete rows appear in the history table with a strikethrough badge and greyed row; they are excluded from the available patches table and cannot be installed or rolled back.
+- **Install button gating** — in the available patches table, the Install button is rendered only for the oldest available patch. All other patches show a Details button and a "Queued" badge to indicate they must be installed in order.
+- **Stale-availability sweep** — `AdminActions::index()` marks any `available` patch row whose version is ≤ the current application version as `obsolete` before rendering. This handles deployments where the application is updated by copying files directly to the server rather than through the patch installer.
+- **`DatabaseAdapterInterface::findAvailableServerVersions(): array`** — returns version strings of server-fetched patches currently marked `available`. Used to compute the diff after a patch-server check.
+- **`DatabaseAdapterInterface::markObsoleteByVersions(array $versions): int`** — marks server-fetched available and downloading rows as `obsolete`. Only affects rows where `patch_server_id IS NOT NULL`.
+- **`PatchHistoryStatus::OBSOLETE`** constant.
+- **Schema migration** `schema/migrations/2026_05_13_103450_patch_history_add_obsolete_status.sql` — extends the `status` ENUM to include `'obsolete'`. Must be run before deploying v2.1.0.
+- **Locale keys** `TEXT_PATCH_HISTORY_STATUS_OBSOLETE` and `TEXT_LABEL_QUEUED_PATCH` added to both en_US and hu_HU.
+
+### Fixed
+- **Per-row Install / Details click** — the delegated click handler now reads `data-patch-id` from the button and calls a new `showSinglePatchDetails(id)` JS function that fetches `GET /details/{id}` (the per-record endpoint). Previously both buttons called `showDetails()` with no arguments, which fetched the full available-patch list and showed "No update available" whenever the remote cache was stale.
+- **Upload modal "Released at" blank** — the upload response now includes `released_at` extracted from the archive's `manifest.json` (falling back to the current timestamp when the manifest lacks the field). The JS `onUploadSuccess` handler now passes this value to the modal instead of hardcoding `null`.
+- **Manual upload dedupe** — re-uploading a patch version that already has a `patch_history` row (including rows created by a server check) now updates the existing row in place (`patch_server_id → NULL`) rather than inserting a new row. The staged archive is renamed to match the existing record's ID.
+- **History table blank after subsequent check** — `PatchChecker::createOrUpdateHistoryRecord()` now skips creating a new `available` row if the version already has a completed, failed, rolled-back, or obsolete record. Previously it created a new `available` row on every check, producing a duplicate with blank install data that displaced the completed row in the history view.
+- **Install button assigned to wrong patch** — the available-patches list was not sorted before determining the installable patch, so an uploaded patch or a server patch could be picked in insertion order rather than version order. The list is now sorted by version (ascending) before the installable row is selected.
+
+---
+
 ## [2.0.1] - 2026-05-12
 
 | Category | Description                                                                                 |

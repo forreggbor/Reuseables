@@ -1,4 +1,4 @@
-# PatchModule v1.8.0 — Integration Guide
+# PatchModule v2.1.0 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -31,6 +31,8 @@ one sidebar entry + one banner include.
 20. [Upgrade notes (v1.6.3 → v1.6.4)](#20-upgrade-notes-v163--v164)
 21. [Upgrade notes (v1.6.4 → v1.7.0)](#21-upgrade-notes-v164--v170)
 22. [Upgrade notes (v1.7.0 → v1.8.0)](#22-upgrade-notes-v170--v180)
+23. [Upgrade notes (v1.x → v2.0.0)](#23-upgrade-notes-v1x--v200)
+24. [Upgrade notes (v2.0.x → v2.1.0)](#24-upgrade-notes-v20x--v210)
 
 ---
 
@@ -1198,3 +1200,85 @@ rewritten warning that names PatrikMol Solutions Kft. as the only acceptable ori
 2. **Remove any code that calls `getArchiveSignatureVerifier()` or `getMaxSignatureSize()`** on the `PatchModule` instance — these methods no longer exist.
 3. **`expected_public_key_pem` is now auto-flow-only** — if you configured it only because manual upload required it, you can remove it. If you use it for patch-server key pinning, keep it.
 4. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+
+---
+
+## 24. Upgrade notes (v2.0.x → v2.1.0)
+
+### Breaking changes
+
+| Area | Change |
+|------|--------|
+| `DatabaseAdapterInterface` | Two new methods added — custom adapter implementations must implement them |
+| `patch_history.status` ENUM | `'obsolete'` value added — run the schema migration before deploying |
+
+### New adapter contract methods
+
+`DatabaseAdapterInterface` gains two methods that all adapter implementations must add:
+
+```php
+/**
+ * Get version strings of all server-fetched patches currently marked available.
+ * @return string[] Version strings
+ */
+public function findAvailableServerVersions(): array;
+
+/**
+ * Mark server-fetched available/downloading patches as obsolete.
+ * Only affects rows where patch_server_id IS NOT NULL and status IN ('available','downloading').
+ * @param string[] $versions Version strings to mark obsolete
+ * @return int Number of rows updated
+ */
+public function markObsoleteByVersions(array $versions): int;
+```
+
+`PdoAdapter` ships a complete implementation. If you use a custom adapter (e.g. a `CallableAdapter` wrapper around your project's ORM), add both methods.
+
+### Schema migration required
+
+Run the migration to extend the `status` ENUM before deploying:
+
+```bash
+mariadb -u root -p your_db < lib/PatchModule/schema/migrations/2026_05_13_103450_patch_history_add_obsolete_status.sql
+```
+
+Alternatively, run the SQL inline:
+
+```sql
+ALTER TABLE `patch_history`
+    MODIFY COLUMN `status`
+        ENUM('available','downloading','installing','completed','failed','rolled_back','obsolete')
+        NOT NULL DEFAULT 'available';
+```
+
+### New `obsolete` status
+
+Patches are now automatically marked `obsolete` in two cases:
+
+1. **Yanked from server** — when `checkForUpdates()` fetches a new patch list and a previously available server patch is no longer in the response, it is marked `obsolete`.
+2. **Direct file-copy install** — on every `AdminActions::index()` render, any `available` row whose version is `≤` the current application version is marked `obsolete`. This handles deployments where the application version is updated by copying files directly rather than through the patch installer.
+
+Obsolete patches are hidden from the available patches table and displayed in the history table with a strikethrough "Obsolete" badge and a greyed row. The rollback button is never shown for obsolete rows.
+
+### Install button gating
+
+The Install button in the available patches table is now shown **only for the oldest available patch** (patches must be installed in order, oldest first). All other available patches show a Details button and a "Queued" badge. This prevents accidentally installing patches out of order.
+
+### Manual upload dedupe improved
+
+Re-uploading a patch version that already has a `patch_history` row (including rows originally inserted by a server check) now **updates the existing row in place** rather than inserting a duplicate. The row's `patch_server_id` is set to `NULL` to reflect that it is now a manually uploaded patch.
+
+### Locale keys added
+
+Add two new keys to your project's locale files if you merge the module locale manually:
+
+| Key | en_US | hu_HU |
+|-----|-------|-------|
+| `TEXT_PATCH_HISTORY_STATUS_OBSOLETE` | Obsolete | Elavult |
+| `TEXT_LABEL_QUEUED_PATCH` | Queued | Sorban áll |
+
+### Action required
+
+1. **Run the schema migration** (see above) before deploying.
+2. **Add both new methods** to any custom `DatabaseAdapterInterface` implementation.
+3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.

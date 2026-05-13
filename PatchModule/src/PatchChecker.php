@@ -225,6 +225,17 @@ class PatchChecker
             $this->createOrUpdateHistoryRecord($patchItem);
         }
 
+        // Mark previously-fetched patches that are no longer on the server as obsolete.
+        // Compare the DB's current set of available server-fetched versions against the
+        // fresh server response; any version missing from the response has been yanked.
+        $existingServerVersions = $this->database->findAvailableServerVersions();
+        $newVersions = array_column($patchesData, 'version');
+        $yankedVersions = array_values(array_diff($existingServerVersions, $newVersions));
+        if (!empty($yankedVersions)) {
+            $count = $this->database->markObsoleteByVersions($yankedVersions);
+            $this->log("Patch check: marked {$count} yanked patch(es) as obsolete: " . implode(', ', $yankedVersions), 'INFO');
+        }
+
         // Cache all patches
         $this->database->setSetting('patch_available_data', json_encode($patchesData));
 
@@ -313,10 +324,11 @@ class PatchChecker
             return true;
         });
 
-        // Re-index and sort by released_at ascending
+        // Re-index and sort oldest-first by version (version_compare gives stable ordering
+        // even when released_at is absent, e.g. for manually uploaded patches).
         $filtered = array_values($filtered);
         usort($filtered, function ($a, $b) {
-            return strcmp($a['released_at'] ?? '', $b['released_at'] ?? '');
+            return version_compare((string) ($a['version'] ?? ''), (string) ($b['version'] ?? ''));
         });
 
         return $filtered;
@@ -566,6 +578,11 @@ class PatchChecker
     /**
      * Create or update a patch_history record from check results
      *
+     * Updates an existing available/downloading row when one exists. When no
+     * such row exists, checks whether the version has already been installed,
+     * failed, rolled back, or marked obsolete — and skips creating a duplicate
+     * available row in those cases.
+     *
      * @param array $patchData Patch data from server response
      * @return void
      */
@@ -578,24 +595,36 @@ class PatchChecker
 
         if ($existing) {
             $this->database->updateHistoryRecord((int) $existing['id'], [
-                'release_notes' => $patchData['release_notes'],
-                'file_size' => $patchData['file_size'],
-                'sha256_hash' => $patchData['sha256'],
+                'release_notes'  => $patchData['release_notes'],
+                'file_size'      => $patchData['file_size'],
+                'sha256_hash'    => $patchData['sha256'],
                 'patch_server_id' => $patchData['patch_id'],
-                'checked_at' => date('Y-m-d H:i:s'),
-                'released_at' => $patchData['released_at'],
+                'checked_at'     => date('Y-m-d H:i:s'),
+                'released_at'    => $patchData['released_at'],
             ]);
-        } else {
-            $this->database->createHistoryRecord([
-                'version' => $patchData['version'],
-                'status' => 'available',
-                'release_notes' => $patchData['release_notes'],
-                'file_size' => $patchData['file_size'],
-                'sha256_hash' => $patchData['sha256'],
-                'patch_server_id' => $patchData['patch_id'],
-                'released_at' => $patchData['released_at'],
-            ]);
+            return;
         }
+
+        // Do not create a new available row when the version was already processed
+        // (installed, failed, rolled back, or obsolete). Creating one would produce a
+        // duplicate row in the history table every time the cache is refreshed.
+        $terminal = $this->database->findHistoryByVersion(
+            $patchData['version'],
+            ['completed', 'failed', 'rolled_back', 'obsolete']
+        );
+        if ($terminal !== null) {
+            return;
+        }
+
+        $this->database->createHistoryRecord([
+            'version'        => $patchData['version'],
+            'status'         => 'available',
+            'release_notes'  => $patchData['release_notes'],
+            'file_size'      => $patchData['file_size'],
+            'sha256_hash'    => $patchData['sha256'],
+            'patch_server_id' => $patchData['patch_id'],
+            'released_at'    => $patchData['released_at'],
+        ]);
     }
 
     /**

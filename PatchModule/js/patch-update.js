@@ -154,6 +154,54 @@ const PatchUpdate = {
     },
 
     /**
+     * Show the patch details modal for a single history record by ID.
+     * Calls the per-record details endpoint, builds a single-item queue, and opens the modal.
+     * Used by per-row Install and Details buttons on the index page.
+     * @param {number} id - patch_history record ID
+     */
+    showSinglePatchDetails: function (id) {
+        var mount = document.getElementById('patch-mount');
+        var currentVersion = mount ? (mount.dataset.currentVersion || null) : null;
+
+        fetch(this.baseUrl + '/details/' + id, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-Token': this.csrfToken }
+        })
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
+                if (!result.ok) {
+                    showNotification(result.errorMessage, 'error');
+                    return;
+                }
+
+                var record = result.data;
+                PatchUpdate.patches = [{
+                    id:            record.id,
+                    version:       record.version       || '',
+                    release_notes: record.release_notes || null,
+                    file_size:     record.file_size     || 0,
+                    released_at:   record.released_at   || null
+                }];
+                PatchUpdate.totalPatches      = 1;
+                PatchUpdate.currentPatchIndex = 0;
+                PatchUpdate.installedCount    = 0;
+
+                PatchUpdate.renderQueue();
+                PatchUpdate.populatePatchDetails(PatchUpdate.patches[0], currentVersion);
+                PatchUpdate.updateInstallButton();
+                PatchUpdate.switchState('details');
+
+                if (!PatchUpdate.modal) {
+                    var modalEl = document.getElementById('patchUpdateModal');
+                    if (modalEl) { PatchUpdate.modal = new bootstrap.Modal(modalEl); }
+                }
+                if (PatchUpdate.modal) { PatchUpdate.modal.show(); }
+            })
+            .catch(function () {
+                showNotification(PatchUpdate.i18n.genericError || 'Request failed.', 'error');
+            });
+    },
+
+    /**
      * Populate modal details with a specific patch's data
      * @param {Object} patch - Patch data object
      * @param {string} currentVersion - Current app version
@@ -976,8 +1024,8 @@ const PatchUpload = {
             id:            data.patch_history_id,
             version:       data.version       || '',
             release_notes: data.release_notes || null,
-            file_size:     data.file_size      || 0,
-            released_at:   null
+            file_size:     data.file_size     || 0,
+            released_at:   data.released_at   || null
         }];
         PatchUpdate.totalPatches      = 1;
         PatchUpdate.currentPatchIndex = 0;
@@ -1119,13 +1167,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Index page: per-patch buttons (Install, Details, Rollback) — delegated
     document.addEventListener('click', function (e) {
-        if (e.target.closest('.patch-install-btn') || e.target.closest('.patch-details-btn')) {
-            PatchUpdate.showDetails();
+        var installBtn = e.target.closest('.patch-install-btn');
+        var detailsBtn = e.target.closest('.patch-details-btn');
+        if (installBtn || detailsBtn) {
+            var actionBtn = installBtn || detailsBtn;
+            var patchId = parseInt(actionBtn.dataset.patchId || '0', 10);
+            if (patchId > 0) PatchUpdate.showSinglePatchDetails(patchId);
         }
         var rollbackBtn = e.target.closest('.patch-rollback-btn');
         if (rollbackBtn) {
-            var id = parseInt(rollbackBtn.dataset.id || '0', 10);
-            if (id > 0) PatchUpdate.rollback(id);
+            var rollbackId = parseInt(rollbackBtn.dataset.id || '0', 10);
+            if (rollbackId > 0) PatchUpdate.rollback(rollbackId);
         }
     });
 });

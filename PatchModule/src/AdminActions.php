@@ -60,6 +60,11 @@ class AdminActions
      * available patches with local IDs, install history, and the user map
      * for installed_by display names.
      *
+     * Also performs a stale-availability sweep on each render: any available patch
+     * whose version is already at or below the installed application version is marked
+     * obsolete. This covers the case where the version was advanced by a direct file
+     * copy on the server without going through PatchModule.
+     *
      * @return array Response array with 'view', 'data', or 403 on permission failure
      */
     public function index(): array
@@ -68,12 +73,20 @@ class AdminActions
             return $this->forbidden();
         }
 
-        $availability    = $this->module->isAvailable();
-        $currentVersion  = $this->module->getVersionResolver()->getCurrentVersion();
+        $availability   = $this->module->isAvailable();
+        $currentVersion = $this->module->getVersionResolver()->getCurrentVersion();
+
+        // Sweep: mark any available patch whose version <= currentVersion as obsolete.
+        // This handles direct file-copy installs that bypassed PatchModule.
+        $this->markStaleAvailableRowsObsolete($currentVersion);
+
         $remotePatches   = $this->module->getAvailablePatches();
         $uploadedPatches = $this->module->getDatabase()->findUploadedAvailablePatches();
         $patches         = $this->enrichPatchesWithLocalIds($this->mergePatches($remotePatches, $uploadedPatches));
         $history         = $this->module->getHistory();
+
+        // Oldest-first among available patches; this determines which row gets the Install button.
+        $installableId = $this->selectInstallableId($patches);
 
         $installedByIds = array_filter(
             array_unique(array_column($history, 'installed_by')),
@@ -88,6 +101,7 @@ class AdminActions
                 'patches'        => $patches,
                 'history'        => $history,
                 'userMap'        => $userMap,
+                'installableId'  => $installableId,
                 'disabled'       => !($availability['enabled'] ?? true),
                 'disabledReason' => $availability['reason'] ?? '',
                 'csrfToken'      => $this->csrf->getToken(),
@@ -505,7 +519,7 @@ class AdminActions
 
             $sha256 = hash_file('sha256', $stagedTgz);
 
-            [$uploadedVersion, $releaseNotes, $manifestJson] = $this->extractManifestFromArchive($stagedTgz);
+            [$uploadedVersion, $releaseNotes, $manifestJson, $releasedAt] = $this->extractManifestFromArchive($stagedTgz);
             if ($uploadedVersion === null) {
                 return $this->uploadError(422, ErrorCode::UPLOAD_INVALID_MANIFEST, 'TEXT_PATCH_ERROR_UPLOAD_INVALID_MANIFEST');
             }
@@ -536,6 +550,7 @@ class AdminActions
                 $uploadedVersion,
                 $releaseNotes,
                 $manifestJson,
+                $releasedAt,
                 $sha256,
                 $fileSize,
                 &$stagedTgz,
@@ -552,42 +567,63 @@ class AdminActions
 
                 $pdo->beginTransaction();
 
-                $priorTgz = null;
                 try {
+                    // Upsert in place: find any existing available row for this version
+                    // (server-fetched or previously uploaded) and UPDATE it so no duplicate
+                    // rows are created. Manual upload always wins: patch_server_id is cleared.
                     $prior = $db->findHistoryByVersion($uploadedVersion, [PatchHistoryStatus::AVAILABLE]);
-                    if ($prior !== null && $prior['patch_server_id'] === null) {
-                        $stmt = $pdo->prepare(
-                            "DELETE FROM patch_history WHERE id = :id AND patch_server_id IS NULL AND status = 'available'"
-                        );
-                        $stmt->execute([':id' => $prior['id']]);
-                        $priorTgz = $this->tempPath . '/patch_uploaded_' . $prior['id'] . '.tgz';
-                    }
 
-                    $newId = $db->createHistoryRecord([
-                        'version'         => $uploadedVersion,
-                        'status'          => PatchHistoryStatus::AVAILABLE,
-                        'release_notes'   => $releaseNotes,
-                        'file_size'       => $fileSize,
-                        'sha256_hash'     => $sha256,
-                        'patch_server_id' => null,
-                    ]);
+                    if ($prior !== null) {
+                        $priorId    = (int) $prior['id'];
+                        $oldTgzPath = $this->tempPath . '/patch_uploaded_' . $priorId . '.tgz';
 
-                    if ($manifestJson !== null) {
-                        $db->updateHistoryRecord($newId, ['manifest_json' => $manifestJson]);
-                    }
+                        $db->updateHistoryRecord($priorId, [
+                            'release_notes'   => $releaseNotes,
+                            'file_size'       => $fileSize,
+                            'sha256_hash'     => $sha256,
+                            'patch_server_id' => null,
+                            'released_at'     => $releasedAt,
+                            'manifest_json'   => $manifestJson,
+                        ]);
 
-                    $finalPath = $this->tempPath . '/patch_uploaded_' . $newId . '.tgz';
-                    if (!rename($stagedTgz, $finalPath)) {
-                        $pdo->rollBack();
-                        return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
-                    }
-                    $stagedTgz = null;
+                        $finalPath = $this->tempPath . '/patch_uploaded_' . $priorId . '.tgz';
+                        if (!rename($stagedTgz, $finalPath)) {
+                            $pdo->rollBack();
+                            return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
+                        }
+                        $stagedTgz = null;
 
-                    $pdo->commit();
-                    $patchHistoryId = $newId;
+                        $pdo->commit();
+                        $patchHistoryId = $priorId;
 
-                    if ($priorTgz !== null && is_file($priorTgz)) {
-                        @unlink($priorTgz);
+                        // Remove the old tgz only when it was a different file (server row had none)
+                        if ($oldTgzPath !== $finalPath && is_file($oldTgzPath)) {
+                            @unlink($oldTgzPath);
+                        }
+                    } else {
+                        $newId = $db->createHistoryRecord([
+                            'version'         => $uploadedVersion,
+                            'status'          => PatchHistoryStatus::AVAILABLE,
+                            'release_notes'   => $releaseNotes,
+                            'file_size'       => $fileSize,
+                            'sha256_hash'     => $sha256,
+                            'patch_server_id' => null,
+                            'released_at'     => $releasedAt,
+                        ]);
+
+                        if ($manifestJson !== null) {
+                            $db->updateHistoryRecord($newId, ['manifest_json' => $manifestJson]);
+                        }
+
+                        $finalPath = $this->tempPath . '/patch_uploaded_' . $newId . '.tgz';
+                        if (!rename($stagedTgz, $finalPath)) {
+                            $pdo->rollBack();
+                            return $this->uploadError(500, ErrorCode::UPLOAD_FAILED, 'TEXT_PATCH_ERROR_UPLOAD_FAILED');
+                        }
+                        $stagedTgz = null;
+
+                        $pdo->commit();
+                        $patchHistoryId = $newId;
                     }
 
                     return null;
@@ -612,6 +648,7 @@ class AdminActions
                     'version'          => $uploadedVersion,
                     'release_notes'    => $releaseNotes,
                     'file_size'        => $fileSize,
+                    'released_at'      => $releasedAt,
                     'sha256'           => $sha256,
                     'warning'          => $warning,
                     'warning_message'  => $warningMessage,
@@ -774,8 +811,19 @@ class AdminActions
                 continue;
             }
 
-            // Self-heal: the cache has this version but no local history row exists.
-            // Create one so that the install/dismiss actions have a valid ID to work with.
+            // Self-heal: the patch cache has this version but no available/downloading row
+            // exists. Before creating one, check whether any terminal row (completed, failed,
+            // rolled_back, obsolete) already exists — creating a duplicate available row on
+            // top of a completed row would produce spurious entries in the history table.
+            $terminalRow = $this->module->getDatabase()->findHistoryByVersion(
+                $version,
+                ['completed', 'failed', 'rolled_back', 'obsolete']
+            );
+            if ($terminalRow !== null) {
+                // Version already processed; skip this patch entry entirely.
+                continue;
+            }
+
             try {
                 $this->module->getDatabase()->createHistoryRecord([
                     'version'         => $version,
@@ -871,6 +919,56 @@ class AdminActions
         }
 
         return true;
+    }
+
+    /**
+     * Mark available patch rows obsolete when their version is at or below the current version
+     *
+     * Covers the case where the application version was bumped by a direct file copy on
+     * the server, bypassing PatchModule. On every admin index render the locally-known
+     * current version is compared against all available patch rows; any row whose version
+     * would be a downgrade or re-install is flipped to 'obsolete'.
+     *
+     * @param string $currentVersion Currently installed application version
+     * @return void
+     */
+    private function markStaleAvailableRowsObsolete(string $currentVersion): void
+    {
+        $db  = $this->module->getDatabase();
+        $pdo = $db->getPdo();
+
+        $stmt = $pdo->query(
+            "SELECT id, version FROM patch_history WHERE status = 'available'"
+        );
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($rows as $row) {
+            $v = (string) ($row['version'] ?? '');
+            if ($v !== '' && version_compare($v, $currentVersion, '<=')) {
+                $db->updateHistoryRecord((int) $row['id'], ['status' => PatchHistoryStatus::OBSOLETE]);
+            }
+        }
+    }
+
+    /**
+     * Return the patch_history ID of the oldest (lowest version) available patch
+     *
+     * Patches are not cumulative — only the oldest not-yet-installed patch should show
+     * the Install button. The $patches array has already been merged and sorted
+     * oldest-first by AdminActions::index().
+     *
+     * @param array $patches Merged available patches list
+     * @return int|null ID of the installable patch, or null when the list is empty
+     */
+    private function selectInstallableId(array $patches): ?int
+    {
+        foreach ($patches as $patch) {
+            $id = (int) ($patch['id'] ?? 0);
+            if ($id > 0) {
+                return $id;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1080,7 +1178,10 @@ class AdminActions
             }
         }
 
-        return array_values($byVersion);
+        $merged = array_values($byVersion);
+        usort($merged, fn($a, $b) => version_compare($a['version'], $b['version']));
+
+        return $merged;
     }
 
     /**
@@ -1182,14 +1283,15 @@ class AdminActions
     }
 
     /**
-     * Extract version, release notes, and JSON-encoded manifest from a patch archive
+     * Extract version, release notes, released_at, and JSON-encoded manifest from a patch archive
      *
      * Delegates to PatchFileManager::extractPatch() which validates the archive,
      * symlink-checks, and parses manifest.json. The extract directory is cleaned up
-     * before returning.
+     * before returning. When the manifest does not include a released_at field the
+     * current timestamp is used so the admin UI always has a date to display.
      *
      * @param string $archivePath Absolute path to the staged .tgz archive
-     * @return array{0: string|null, 1: string|null, 2: string|null} [version, release_notes, manifest_json]
+     * @return array{0: string|null, 1: string|null, 2: string|null, 3: string|null} [version, release_notes, manifest_json, released_at]
      */
     private function extractManifestFromArchive(string $archivePath): array
     {
@@ -1197,11 +1299,11 @@ class AdminActions
             $result = $this->module->getFileManager()->extractPatch($archivePath);
         } catch (\Throwable $e) {
             error_log('[PatchModule] upload: extractPatch failed: ' . $e->getMessage());
-            return [null, null, null];
+            return [null, null, null, null];
         }
 
         if (!($result['success'] ?? false) || !is_array($result['manifest'] ?? null)) {
-            return [null, null, null];
+            return [null, null, null, null];
         }
 
         $manifest   = $result['manifest'];
@@ -1214,12 +1316,13 @@ class AdminActions
         $version      = isset($manifest['version']) ? (string) $manifest['version'] : null;
         $releaseNotes = isset($manifest['release_notes']) ? (string) $manifest['release_notes'] : null;
         $manifestJson = json_encode($manifest) ?: null;
+        $releasedAt   = isset($manifest['released_at']) ? (string) $manifest['released_at'] : date('Y-m-d H:i:s');
 
         if ($version === null || $version === '') {
-            return [null, null, null];
+            return [null, null, null, null];
         }
 
-        return [$version, $releaseNotes, $manifestJson];
+        return [$version, $releaseNotes, $manifestJson, $releasedAt];
     }
 
     /**

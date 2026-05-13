@@ -277,6 +277,18 @@ Without a callback the module behaves as before: a 403 precondition failure caus
 | `getHistoryRecord(int $id)`                                       | `?array` | Single record by ID         |
 | `findHistoryByVersion(string $version, array $statuses)`           | `?array` | Find by version and status  |
 
+**`patch_history.status` values:**
+
+| Status | Meaning |
+|--------|---------|
+| `available` | Patch is available to install |
+| `downloading` | Archive download in progress |
+| `installing` | Install pipeline running |
+| `completed` | Successfully installed |
+| `failed` | Install failed (see `error_message`) |
+| `rolled_back` | Changes were rolled back after failure |
+| `obsolete` | Patch was yanked from the server or superseded by a direct file-copy install |
+
 ### Admin UI
 
 | Method              | Returns                                  | Description                                                        |

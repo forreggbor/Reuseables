@@ -16,19 +16,21 @@
  *   $patches        (array)            — available patch records (remote + uploaded merged)
  *   $history        (array)            — patch_history records
  *   $userMap        (array<int,string>) — maps installed_by user IDs to display names
+ *   $installableId  (int|null)         — patch_history ID of the oldest installable patch
  */
 
 use PatchModule\PatchHistoryStatus;
 
-/** @var callable $tr */
-/** @var string   $baseUrl */
-/** @var string   $csrfToken */
-/** @var bool     $disabled */
-/** @var string   $disabledReason */
-/** @var string   $currentVersion */
-/** @var array    $patches */
-/** @var array    $history */
-/** @var array    $userMap */
+/** @var callable  $tr */
+/** @var string    $baseUrl */
+/** @var string    $csrfToken */
+/** @var bool      $disabled */
+/** @var string    $disabledReason */
+/** @var string    $currentVersion */
+/** @var array     $patches */
+/** @var array     $history */
+/** @var array     $userMap */
+/** @var int|null  $installableId */
 
 // ─── Status badge helper ─────────────────────────────────────────────────────
 /**
@@ -47,6 +49,7 @@ if (!function_exists('patchStatusBadge')) {
             PatchHistoryStatus::INSTALLING  => ['bg-warning',   'TEXT_PATCH_HISTORY_STATUS_INSTALLING'],
             PatchHistoryStatus::COMPLETED   => ['bg-success',   'TEXT_PATCH_HISTORY_STATUS_COMPLETED'],
             PatchHistoryStatus::FAILED      => ['bg-danger',    'TEXT_PATCH_HISTORY_STATUS_FAILED'],
+            PatchHistoryStatus::OBSOLETE    => ['bg-secondary text-decoration-line-through', 'TEXT_PATCH_HISTORY_STATUS_OBSOLETE'],
             PatchHistoryStatus::ROLLED_BACK => ['bg-dark',      'TEXT_PATCH_HISTORY_STATUS_ROLLED_BACK'],
         ];
 
@@ -229,12 +232,16 @@ if (!function_exists('patchStatusBadge')) {
                                 $patchDate       = htmlspecialchars((string) ($patch['released_at'] ?? ''));
                                 $patchSize       = (int) ($patch['file_size'] ?? 0);
                                 $isUploaded      = !empty($patch['is_uploaded']);
+                                $isInstallable   = ($patchId > 0 && $patchId === $installableId);
                                 ?>
                                 <tr>
                                     <td>
                                         <span class="fw-semibold font-monospace">v<?= $patchVersion ?></span>
                                         <?php if ($isUploaded): ?>
                                             <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_BADGE')) ?></span>
+                                        <?php endif; ?>
+                                        <?php if (!$isInstallable): ?>
+                                            <span class="badge bg-light text-muted border ms-1"><?= htmlspecialchars($tr('TEXT_LABEL_QUEUED_PATCH')) ?></span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-muted small"><?= $patchDate !== '' ? $patchDate : '—' ?></td>
@@ -246,12 +253,14 @@ if (!function_exists('patchStatusBadge')) {
                                                 data-patch-version="<?= $patchVersion ?>">
                                             <i class="bi bi-info-circle me-1"></i><?= htmlspecialchars($tr('TEXT_PATCH_VIEW_DETAILS')) ?>
                                         </button>
-                                        <button type="button"
-                                                class="btn btn-sm btn-primary patch-install-btn"
-                                                data-patch-id="<?= $patchId ?>"
-                                                data-patch-version="<?= $patchVersion ?>">
-                                            <i class="bi bi-arrow-up-circle me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_INSTALL_PATCH')) ?>
-                                        </button>
+                                        <?php if ($isInstallable): ?>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary patch-install-btn"
+                                                    data-patch-id="<?= $patchId ?>"
+                                                    data-patch-version="<?= $patchVersion ?>">
+                                                <i class="bi bi-arrow-up-circle me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_INSTALL_PATCH')) ?>
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -299,8 +308,9 @@ if (!function_exists('patchStatusBadge')) {
                                 $recInstalledByName = htmlspecialchars($userMap[$recInstalledBy] ?? '-');
                                 $recErrorMsg        = htmlspecialchars((string) ($record['error_message'] ?? ''));
                                 $canRollback        = $recStatus === PatchHistoryStatus::COMPLETED;
+                                $isObsolete         = $recStatus === PatchHistoryStatus::OBSOLETE;
                                 ?>
-                                <tr>
+                                <tr<?= $isObsolete ? ' class="table-secondary"' : '' ?>>
                                     <td class="fw-semibold font-monospace">v<?= $recVersion ?></td>
                                     <td class="text-muted font-monospace">
                                         <?= $recPrevVersion !== '-' ? 'v' . $recPrevVersion : '-' ?>
