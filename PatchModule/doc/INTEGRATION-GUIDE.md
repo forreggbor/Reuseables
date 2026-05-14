@@ -1,4 +1,4 @@
-# PatchModule v2.1.0 — Integration Guide
+# PatchModule v2.1.2 — Integration Guide
 
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
@@ -486,6 +486,11 @@ function patchJsonResponse(array $r): void {
     header('Content-Type: application/json');
     echo json_encode($r['data']);
     exit;
+}
+
+// Dynamic route: GET /admin/patch-management/details/{id}
+if ($method === 'GET' && preg_match('#^/admin/patch-management/details/(\d+)$#', $path, $m)) {
+    patchJsonResponse($actions->details((int) $m[1]));
 }
 
 match ($method . ' ' . $path) {
@@ -1277,8 +1282,13 @@ Add two new keys to your project's locale files if you merge the module locale m
 | `TEXT_PATCH_HISTORY_STATUS_OBSOLETE` | Obsolete | Elavult |
 | `TEXT_LABEL_QUEUED_PATCH` | Queued | Sorban áll |
 
+### New route required
+
+Add the `GET /details/{id}` route for the per-record details endpoint. The Slim 4 and Laravel examples in [Step 5](#6-step-5-routes) already show it. For vanilla PHP routers, add a `preg_match` check before your `match` block (see the vanilla PHP example in Step 5).
+
 ### Action required
 
 1. **Run the schema migration** (see above) before deploying.
 2. **Add both new methods** to any custom `DatabaseAdapterInterface` implementation.
-3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+3. **Add the `GET /details/{id}` route** to the host router (see above).
+4. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.

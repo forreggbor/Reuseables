@@ -5,6 +5,17 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-05-14
+
+| Category | Description                                                                                                                      |
+|----------|----------------------------------------------------------------------------------------------------------------------------------|
+| Fixed    | Integration guide vanilla PHP router example was missing the `GET /details/{id}` route introduced in v2.1.0                     |
+
+### Fixed
+- **Integration guide vanilla PHP example missing route** — the `GET /details/{id}` route (fetches a single patch_history record for the per-row Details and Install buttons) was present in the Slim 4 and Laravel examples but absent from the vanilla PHP router example. Added a `preg_match` check before the `match` block to handle this dynamic path segment. Also added a "New route required" action item to the v2.0.x → v2.1.0 upgrade notes so existing integrations know to add it.
+
+---
+
 ## [2.1.0] - 2026-05-13
 
 | Category | Description                                                                                                                 |
