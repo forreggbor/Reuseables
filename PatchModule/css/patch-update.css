@@ -264,3 +264,40 @@
         flex: 1;
     }
 }
+
+/* Changelog modal content */
+.patch-changelog-content {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.patch-changelog-content h3,
+.patch-changelog-content h4,
+.patch-changelog-content h5 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.patch-changelog-content h3 { font-size: 1.15rem; }
+.patch-changelog-content h4 { font-size: 1.05rem; }
+.patch-changelog-content h5 { font-size: 0.95rem; }
+
+.patch-changelog-content ul {
+    padding-left: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.patch-changelog-content table {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.patch-changelog-content code {
+    background: var(--patch-bg-active-row);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-family: var(--patch-font-mono);
+}
+
+.patch-changelog-content p { margin-bottom: 0.75rem; }
+.patch-changelog-content hr { margin: 1rem 0; }

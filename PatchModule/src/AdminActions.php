@@ -174,9 +174,18 @@ class AdminActions
 
         $files = $this->buildFilesManifest($manifest, (string) ($record['status'] ?? ''));
 
+        $releaseNotesHtml = SimpleMarkdownRenderer::render(
+            isset($record['release_notes']) ? (string) $record['release_notes'] : null
+        );
+        $isManualUpload = ($record['patch_server_id'] ?? null) === null;
+
         return [
             'status' => 200,
-            'data'   => array_merge($record, ['files' => $files]),
+            'data'   => array_merge($record, [
+                'files'              => $files,
+                'release_notes_html' => $releaseNotesHtml,
+                'is_manual_upload'   => $isManualUpload,
+            ]),
         ];
     }
 
@@ -1314,7 +1323,9 @@ class AdminActions
         }
 
         $version      = isset($manifest['version']) ? (string) $manifest['version'] : null;
-        $releaseNotes = isset($manifest['release_notes']) ? (string) $manifest['release_notes'] : null;
+        $releaseNotes = (isset($result['release_notes_md']) && $result['release_notes_md'] !== '')
+            ? (string) $result['release_notes_md']
+            : null;
         $manifestJson = json_encode($manifest) ?: null;
         $releasedAt   = isset($manifest['released_at']) ? (string) $manifest['released_at'] : date('Y-m-d H:i:s');
 

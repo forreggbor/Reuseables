@@ -122,6 +122,8 @@ Quick integration summary:
 4. Include `views/admin/_banner.php` in your admin layout (use `$module->getBaseUrl()` for the `$baseUrl` local variable).
 5. Link `css/patch-update.css` and `js/patch-update.js` in your admin layout.
 
+The patch history table shows a **Manual upload** badge in the Status column for patches installed from an uploaded archive rather than from the patch server. Each history row also has a **Show changelog** button that opens a modal with the rendered release notes for that version — populated from the `release_notes.md` file inside the patch archive and stored in `patch_history.release_notes`.
+
 See [`doc/INTEGRATION-GUIDE.md`](doc/INTEGRATION-GUIDE.md) for the full
 step-by-step recipe (adapters, route examples for Slim / Laravel / vanilla,
 translator wiring, security checklist, migration recipes for TrafficJournal /
@@ -343,6 +345,7 @@ A patch package is a `.tgz` archive with the following structure:
 
 ```
 manifest.json      # Required: version, files list, migrations list
+release_notes.md   # Optional: Markdown release notes (sliced from CHANGELOG.md by PatchCreator)
 migrations/        # Optional: SQL migration files (omitted when none)
   ├── 2026_05_11_151403_create_foo.sql
   └── 2026_05_11_151503_add_bar.sql

@@ -117,7 +117,8 @@ if (!function_exists('patchStatusBadge')) {
          'checkNoUpdates' => $tr('TEXT_MESSAGE_PATCH_CHECK_NO_UPDATES'),
          'checkFound'     => $tr('TEXT_MESSAGE_PATCH_CHECK_FOUND'),
          'checkFailed'    => $tr('TEXT_MESSAGE_PATCH_CHECK_FAILED'),
-         'genericError'   => $tr('TEXT_PATCH_ERROR_REQUEST_FAILED'),
+         'genericError'        => $tr('TEXT_PATCH_ERROR_REQUEST_FAILED'),
+         'changelogLoadFailed' => $tr('TEXT_MESSAGE_CHANGELOG_LOAD_FAILED'),
      ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
      data-upload-i18n='<?= htmlspecialchars(json_encode([
          'uploading'        => $tr('TEXT_MANUAL_UPLOAD_UPLOADING'),
@@ -317,6 +318,9 @@ if (!function_exists('patchStatusBadge')) {
                                     </td>
                                     <td>
                                         <?= patchStatusBadge($recStatus, $tr) ?>
+                                        <?php if (($record['patch_server_id'] ?? null) === null): ?>
+                                            <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_BADGE')) ?></span>
+                                        <?php endif; ?>
                                         <?php if ($recStatus === 'failed' && $recErrorMsg !== ''): ?>
                                             <span class="d-block text-danger small mt-1"><?= $recErrorMsg ?></span>
                                         <?php endif; ?>
@@ -324,14 +328,18 @@ if (!function_exists('patchStatusBadge')) {
                                     <td class="text-muted small"><?= $recInstalledAt ?></td>
                                     <td class="text-muted small"><?= $recInstalledByName ?></td>
                                     <td class="text-end">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-secondary patch-changelog-btn"
+                                                data-id="<?= $recordId ?>"
+                                                data-version="<?= $recVersion ?>">
+                                            <i class="bi bi-journal-text me-1"></i><?= htmlspecialchars($tr('TEXT_BUTTON_SHOW_CHANGELOG')) ?>
+                                        </button>
                                         <?php if ($canRollback): ?>
                                             <button type="button"
-                                                    class="btn btn-sm btn-outline-danger patch-rollback-btn"
+                                                    class="btn btn-sm btn-outline-danger ms-1 patch-rollback-btn"
                                                     data-id="<?= $recordId ?>">
                                                 <i class="bi bi-arrow-counterclockwise me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_ROLLBACK_PATCH')) ?>
                                             </button>
-                                        <?php else: ?>
-                                            <span class="text-muted small">—</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -346,3 +354,4 @@ if (!function_exists('patchStatusBadge')) {
 </div><!-- /patch-mount -->
 
 <?php include __DIR__ . '/_modal.php'; ?>
+<?php include __DIR__ . '/_changelog_modal.php'; ?>

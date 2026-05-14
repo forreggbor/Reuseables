@@ -69,7 +69,7 @@ class PatchFileManager
      * Rejects the archive if any symbolic link is found in the extracted tree.
      *
      * @param string $filePath Path to the .tgz file
-     * @return array{success: bool, extract_dir: ?string, manifest: ?array, error: ?string, error_code: ?string}
+     * @return array{success: bool, extract_dir: ?string, manifest: ?array, release_notes_md: ?string, error: ?string, error_code: ?string}
      */
     public function extractPatch(string $filePath): array
     {
@@ -242,12 +242,30 @@ class PatchFileManager
 
         $this->log("Patch extracted to: {$extractDir}, version: {$manifest['version']}", 'DEBUG');
 
+        $releaseNotesMd   = null;
+        $releaseNotesPath = $extractDir . '/release_notes.md';
+        if (is_file($releaseNotesPath) && is_readable($releaseNotesPath)) {
+            $size = filesize($releaseNotesPath);
+            if ($size !== false && $size > 0 && $size <= 60000) {
+                $contents = file_get_contents($releaseNotesPath);
+                if ($contents !== false) {
+                    $trimmed = trim($contents);
+                    if ($trimmed !== '') {
+                        $releaseNotesMd = $trimmed;
+                    }
+                }
+            } elseif ($size > 60000) {
+                $this->log("Patch release_notes.md oversized ({$size} bytes); skipping capture", 'WARNING');
+            }
+        }
+
         return [
-            'success'     => true,
-            'extract_dir' => $extractDir,
-            'manifest'    => $manifest,
-            'error'       => null,
-            'error_code'  => null,
+            'success'          => true,
+            'extract_dir'      => $extractDir,
+            'manifest'         => $manifest,
+            'release_notes_md' => $releaseNotesMd,
+            'error'            => null,
+            'error_code'       => null,
         ];
     }
 

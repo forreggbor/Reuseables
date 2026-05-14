@@ -1109,6 +1109,70 @@ const PatchUpload = {
     }
 };
 
+/**
+ * Patch Changelog Viewer
+ *
+ * Opens a read-only modal showing the rendered release notes for a history record.
+ * Reuses PatchUpdate's baseUrl, csrfToken, and parseResponse helpers.
+ */
+const PatchChangelog = {
+    /** @type {bootstrap.Modal|null} */
+    modal: null,
+
+    /**
+     * Open the changelog modal for a given patch history record.
+     *
+     * @param {number|string} id      patch_history record ID
+     * @param {string}        version Human-readable version string (already HTML-escaped from data attribute)
+     */
+    open: function (id, version) {
+        var contentEl  = document.getElementById('patchChangelogContent');
+        var emptyEl    = document.getElementById('patchChangelogEmpty');
+        var versionEl  = document.getElementById('patchChangelogVersion');
+        var modalEl    = document.getElementById('patchChangelogModal');
+
+        if (!contentEl || !emptyEl || !modalEl) return;
+
+        // Reset state: show empty-state while loading
+        if (versionEl) versionEl.textContent = version ? ' v' + version : '';
+        contentEl.style.display = 'none';
+        contentEl.innerHTML     = '';
+        emptyEl.style.display   = '';
+        emptyEl.textContent     = PatchUpdate.i18n.noReleaseNotes || '';
+
+        if (!this.modal) {
+            this.modal = new bootstrap.Modal(modalEl);
+        }
+        this.modal.show();
+
+        fetch(PatchUpdate.baseUrl + '/details/' + id, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-Token': PatchUpdate.csrfToken }
+        })
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
+                if (!result.ok) {
+                    emptyEl.textContent = result.errorMessage
+                        || PatchUpdate.i18n.changelogLoadFailed
+                        || 'Could not load changelog.';
+                    return;
+                }
+
+                var html = result.data && result.data.release_notes_html;
+                if (html) {
+                    // HTML is pre-rendered and sanitised server-side by SimpleMarkdownRenderer
+                    contentEl.innerHTML     = html;
+                    contentEl.style.display = '';
+                    emptyEl.style.display   = 'none';
+                } else {
+                    emptyEl.textContent = PatchUpdate.i18n.noReleaseNotes || '';
+                }
+            })
+            .catch(function () {
+                emptyEl.textContent = PatchUpdate.i18n.changelogLoadFailed || 'Could not load changelog.';
+            });
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function () {
     PatchUpdate.init();
     PatchUpload.init();
@@ -1165,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', function () {
         uploadForm.addEventListener('submit', function (e) { PatchUpload.handleSubmit(e); });
     }
 
-    // Index page: per-patch buttons (Install, Details, Rollback) — delegated
+    // Index page: per-patch buttons (Install, Details, Rollback, Changelog) — delegated
     document.addEventListener('click', function (e) {
         var installBtn = e.target.closest('.patch-install-btn');
         var detailsBtn = e.target.closest('.patch-details-btn');
@@ -1178,6 +1242,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (rollbackBtn) {
             var rollbackId = parseInt(rollbackBtn.dataset.id || '0', 10);
             if (rollbackId > 0) PatchUpdate.rollback(rollbackId);
+        }
+        var changelogBtn = e.target.closest('.patch-changelog-btn');
+        if (changelogBtn) {
+            var historyId = parseInt(changelogBtn.dataset.id || '0', 10);
+            if (historyId > 0) PatchChangelog.open(historyId, changelogBtn.dataset.version || '');
         }
     });
 });
