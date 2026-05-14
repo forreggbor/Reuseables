@@ -1185,14 +1185,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Banner buttons
+    // Toast button
     var bannerDetailsBtn = document.getElementById('patchBannerDetailsBtn');
     if (bannerDetailsBtn) {
         bannerDetailsBtn.addEventListener('click', function () { PatchUpdate.showDetails(); });
-    }
-    var bannerDismissBtn = document.getElementById('patchBannerDismissBtn');
-    if (bannerDismissBtn) {
-        bannerDismissBtn.addEventListener('click', function () { PatchUpdate.dismissAll(); });
     }
 
     // Modal buttons

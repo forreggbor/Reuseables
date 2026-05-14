@@ -3,7 +3,7 @@
 Complete recipe for adding the PatchModule admin UI to any PHP MVC project.
 After following this guide, you will have replaced ~1,300–1,500 lines of
 per-project patch-management code with ~40-line routes + ~80-line adapters +
-one sidebar entry + one banner include.
+one sidebar entry + one toast notification include.
 
 ---
 
@@ -16,7 +16,7 @@ one sidebar entry + one banner include.
 5. [Step 4: Factory wiring](#5-step-4-factory-wiring)
 6. [Step 5: Routes](#6-step-5-routes)
 7. [Step 6: Sidebar entry](#7-step-6-sidebar-entry)
-8. [Step 7: Admin layout banner](#8-step-7-admin-layout-banner)
+8. [Step 7: Admin layout toast notification](#8-step-7-admin-layout-toast-notification)
 9. [Step 8: Translator wiring](#9-step-8-translator-wiring)
 10. [Step 9: Assets](#10-step-9-assets)
 11. [Step 10: Security & deployment requirements](#11-step-10-security--deployment-requirements)
@@ -191,7 +191,7 @@ class AuthAdapter implements AuthAdapterInterface
     }
 
     /** @inheritDoc */
-    public function issueInstallAuthorization(int $ttlSeconds = 1800): string
+    public function issueInstallAuthorization(int $ttlSeconds = 86400): string
     {
         $token = bin2hex(random_bytes(32));
         $_SESSION['patch_install_auth'] = [
@@ -341,7 +341,7 @@ $app->group('/admin/patch-management', function ($group) use ($module) {
         return $res->withHeader('Content-Type', 'text/html');
     });
 
-    // details without ID = all available patches (used by banner JS)
+    // details without ID = all available patches (used by toast JS)
     $group->get('/details', function (Request $req, Response $res) use ($actions) {
         $r = $actions->index();
         $data = [
@@ -541,11 +541,11 @@ if ($isSysadmin && $module->isAvailable()['enabled']) {
 
 ---
 
-## 8. Step 7: Admin layout banner
+## 8. Step 7: Admin layout toast notification
 
-Add one include in the admin layout, after the sidebar and before
-`.main-content`. The banner self-suppresses when no patches are available or
-when the module is not configured.
+Add one include anywhere in the admin layout (position in the HTML is irrelevant
+because the notification uses `position: fixed`). The toast self-suppresses when
+no patches are available or when the module is not configured.
 
 ```php
 <?php
@@ -568,11 +568,11 @@ if (isset($isSysadmin) && $isSysadmin) {
 `PatchModule` instance — substitute accordingly.
 
 When the module is not configured (no `auth_adapter` / `csrf_adapter`),
-`$module->isAvailable()['enabled']` is `false` and the banner never renders —
+`$module->isAvailable()['enabled']` is `false` and the toast never renders —
 no DB query is executed.
 
 The `_modal.php` partial is included automatically by `_banner.php` via a
-once-guard, so it will render only once even when both the banner and the
+once-guard, so it will render only once even when both the toast and the
 index page include it on the same request. `_modal.php` does **not** require
 `$baseUrl` in scope — no host action is needed for it.
 
@@ -633,7 +633,7 @@ Module views call `$tr` with variadic positional arguments:
 `$tr('TEXT_KEY', $param1, $param2)`. This is incompatible with a raw
 `TranslatorInterface::t($key, array $params)` callable. `AdminActions` bridges
 the two signatures internally. When embedding module views directly from your
-own layout (e.g. the banner snippet above), use `getViewTranslator()` to get
+own layout (e.g. the toast snippet above), use `getViewTranslator()` to get
 the same bridge closure rather than building it yourself:
 
 ```php
@@ -897,7 +897,8 @@ Run through these after integration before considering it complete.
 - [ ] Page reloads after successful rollback; row status changes to `rolled_back`
 
 **Dismiss**
-- [ ] "Dismiss all" on banner hides the banner without reload
+- [ ] Toast does not render when there are no available patches
+- [ ] Per-version dismiss (from the index page) removes the patch from the available list; toast disappears on next page load when no patches remain
 - [ ] Dismissed patches do not reappear on reload
 
 **i18n**

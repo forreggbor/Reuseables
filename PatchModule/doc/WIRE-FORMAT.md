@@ -270,7 +270,7 @@ When `has_next` is `false`:
 }
 ```
 
-`next_install_token` is a fresh install authorization token (TTL: 30 min)
+`next_install_token` is a fresh install authorization token (TTL: 24 h)
 issued only when `has_next` is `true`, so the user does not need to re-enter
 their password to install the next queued patch.
 

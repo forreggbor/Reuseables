@@ -5,6 +5,27 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-05-14
+
+| Category | Description                                                                                                                         |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------|
+| Changed  | Admin notification banner replaced with a fixed-position top-right toast that does not conflict with variable-width sidebars        |
+| Fixed    | Per-row Details button in the Available Updates table was silent — the modal now opens correctly for all versions                   |
+| Fixed    | Install button could appear on an already-completed or failed patch version when the patch server still listed it as available      |
+| Fixed    | Install authorization token expired after 30 minutes, interrupting installations in long admin sessions                            |
+| Fixed    | Re-uploading a patch no longer overwrites an existing non-null release notes entry with null when the archive lacks `release_notes.md` |
+
+### Changed
+- **Admin notification toast** — the full-width sticky notification bar at the top of the page has been replaced with a compact fixed-position toast pinned to the top-right corner (`position: fixed; top: 1rem; right: 1rem; z-index: 1080`). The toast no longer conflicts with variable-width sidebars, floats above all other page elements, and has no dismiss button — it disappears only when there are no pending updates.
+
+### Fixed
+- **Install button on completed/failed versions** — when the patch server still listed a version as available after it had been completed, failed, or rolled back locally, the Install button would appear on that version and point at the old terminal-status record. Clicking Install would then either silently fail (for uploaded patches whose archive had been cleaned up) or attempt a redundant re-installation. The root cause was that `selectInstallableId()` did not distinguish patches whose database record is in a terminal status from those with a genuinely installable record.
+- **Per-row Details button** — clicking the "Details" button on an available patch row in the Available Updates table was silently doing nothing. The root cause was that `enrichPatchesWithLocalIds()` did not set the local database ID when a terminal-status record (completed, failed, rolled back, obsolete) existed for the same version, causing the view to render `data-patch-id="0"` and the JS click handler to skip the request. The ID is now correctly assigned for terminal-status rows.
+- **Install authorization lifetime** — the single-use token issued after the sysadmin confirms their password before installing a patch expired after 30 minutes. On long admin sessions this produced a "password confirmation expired" error mid-installation. The token lifetime is now 24 hours, which in practice means it is bound to the host application's session lifetime rather than an arbitrary internal timer.
+- **Release notes not overwritten on re-upload** — when a patch archive is re-uploaded and the new archive does not contain a `release_notes.md` file, the existing release notes in the database are now preserved. Previously a null value was unconditionally included in the UPDATE, silently erasing the stored notes.
+
+---
+
 ## [2.2.0] - 2026-05-14
 
 | Category | Description                                                                                               |

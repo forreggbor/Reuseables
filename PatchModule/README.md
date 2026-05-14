@@ -109,9 +109,9 @@ $result = $module->install($patchHistoryId, true, $userId);
 
 ## Admin UI
 
-PatchModule ships a complete admin patch-management UI (banner,
-modal, index page, progress tracking, multi-patch queue) that can be
-integrated into any PHP MVC project by implementing two thin adapter
+PatchModule ships a complete admin patch-management UI (fixed-position toast
+notification, modal, index page, progress tracking, multi-patch queue) that
+can be integrated into any PHP MVC project by implementing two thin adapter
 classes and adding one route block.
 
 Quick integration summary:

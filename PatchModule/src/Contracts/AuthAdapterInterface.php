@@ -60,10 +60,10 @@ interface AuthAdapterInterface
      * The host stores the token in session or cache with the given TTL.
      * The token must be single-use and cryptographically unpredictable.
      *
-     * @param int $ttlSeconds Lifetime of the token in seconds
+     * @param int $ttlSeconds Lifetime of the token in seconds (default: 86400 — one full day, effectively host-session-bound)
      * @return string The issued authorization token
      */
-    public function issueInstallAuthorization(int $ttlSeconds = 1800): string;
+    public function issueInstallAuthorization(int $ttlSeconds = 86400): string;
 
     /**
      * Atomically verify and consume an install authorization token

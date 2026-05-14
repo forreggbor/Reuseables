@@ -2,8 +2,8 @@
 /**
  * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
  *
- * Patch Update Banner partial — sticky top banner shown in the admin layout
- * when at least one patch is available and the module is not disabled.
+ * Patch Update Toast partial — fixed top-right notification shown when at least
+ * one patch is available and the module is not disabled.
  *
  * Variables expected (passed via extract($data) or included scope):
  *   $tr         (callable) — translator callable
@@ -17,23 +17,23 @@ if (($disabled ?? false) || empty($patches)) {
     return;
 }
 
-$latestPatch = $patches[0];
-$patchCount  = count($patches);
+$latestPatch   = $patches[0];
+$patchCount    = count($patches);
 $latestVersion = htmlspecialchars((string) ($latestPatch['version'] ?? ''));
 $oldestVersion = htmlspecialchars((string) ($patches[$patchCount - 1]['version'] ?? $latestVersion));
 
 if ($patchCount === 1) {
-    $bannerText = htmlspecialchars(
+    $toastText = htmlspecialchars(
         $tr('TEXT_PATCH_UPDATE_AVAILABLE', $latestVersion)
     );
 } else {
-    $bannerText = htmlspecialchars(
+    $toastText = htmlspecialchars(
         $tr('TEXT_PATCH_UPDATES_AVAILABLE', $patchCount, $oldestVersion, $latestVersion)
     );
 }
 ?>
 <div id="patchUpdateBanner"
-     class="patch-update-banner"
+     class="patch-update-toast"
      data-base-url="<?= htmlspecialchars($baseUrl) ?>"
      data-csrf-token="<?= htmlspecialchars($csrfToken) ?>"
      data-step-labels='<?= htmlspecialchars(json_encode([
@@ -79,21 +79,15 @@ if ($patchCount === 1) {
          'allDone'        => $tr('TEXT_MESSAGE_ALL_PATCHES_DONE'),
          'noReleaseNotes' => $tr('TEXT_LABEL_NO_RELEASE_NOTES'),
      ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'>
-    <div class="patch-banner-inner">
-        <span class="patch-banner-icon">
+    <div class="patch-toast-inner">
+        <span class="patch-toast-icon">
             <i class="bi bi-arrow-up-circle-fill"></i>
         </span>
-        <span class="patch-banner-message"><?= $bannerText ?></span>
-        <div class="patch-banner-actions">
-            <button type="button" class="btn btn-sm btn-light patch-banner-details-btn"
-                    id="patchBannerDetailsBtn">
-                <?= htmlspecialchars($tr('TEXT_PATCH_VIEW_DETAILS')) ?>
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-light patch-banner-dismiss-btn"
-                    id="patchBannerDismissBtn">
-                <?= htmlspecialchars($tr('TEXT_PATCH_DISMISS_ALL')) ?>
-            </button>
-        </div>
+        <span class="patch-toast-message"><?= $toastText ?></span>
+        <button type="button" class="btn btn-sm btn-light patch-banner-details-btn"
+                id="patchBannerDetailsBtn">
+            <?= htmlspecialchars($tr('TEXT_PATCH_VIEW_DETAILS')) ?>
+        </button>
     </div>
 </div>
 <?php include __DIR__ . '/_modal.php'; ?>

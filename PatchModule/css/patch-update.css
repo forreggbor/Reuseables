@@ -204,65 +204,43 @@
     to   { transform: rotate(360deg); }
 }
 
-/* ─── Update Banner ──────────────────────────────────────────── */
-.patch-update-banner {
-    position: sticky;
-    top: 0;
-    z-index: 1020;
-    width: 100%;
-    background: linear-gradient(135deg, var(--patch-color-primary), #0b5ed7);
+/* ─── Update Toast ───────────────────────────────────────────── */
+.patch-update-toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1080;
+    width: max-content;
+    max-width: min(420px, calc(100vw - 2rem));
+    background: var(--patch-color-primary);
     color: #fff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+    border-radius: .5rem;
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .2);
 }
 
-.patch-banner-inner {
+.patch-toast-inner {
     display: flex;
     align-items: center;
     gap: .75rem;
-    padding: .625rem 1.25rem;
+    padding: .625rem 1rem;
 }
 
-.patch-banner-icon {
+.patch-toast-icon {
     font-size: 1.25rem;
     line-height: 1;
     flex-shrink: 0;
 }
 
-.patch-banner-message {
+.patch-toast-message {
     flex: 1;
-    font-size: .9375rem;
+    font-size: .9rem;
     line-height: 1.4;
     margin: 0;
 }
 
-.patch-banner-actions {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    margin-left: auto;
-    flex-shrink: 0;
-}
-
-.patch-banner-details-btn:focus-visible,
-.patch-banner-dismiss-btn:focus-visible {
+.patch-banner-details-btn:focus-visible {
     outline: 2px solid rgba(255, 255, 255, .8);
     outline-offset: 2px;
-}
-
-@media (max-width: 576px) {
-    .patch-banner-inner {
-        flex-wrap: wrap;
-    }
-
-    .patch-banner-actions {
-        width: 100%;
-        margin-left: 0;
-    }
-
-    .patch-banner-details-btn,
-    .patch-banner-dismiss-btn {
-        flex: 1;
-    }
 }
 
 /* Changelog modal content */

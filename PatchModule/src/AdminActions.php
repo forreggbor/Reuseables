@@ -283,7 +283,7 @@ class AdminActions
             ];
         }
 
-        $installToken = $this->auth->issueInstallAuthorization(1800);
+        $installToken = $this->auth->issueInstallAuthorization(86400);
 
         return [
             'status' => 200,
@@ -380,7 +380,7 @@ class AdminActions
                     'success'            => true,
                     'has_next'           => $hasNext,
                     'next_version'       => $hasNext && $nextPatch !== null ? ($nextPatch['version'] ?? null) : null,
-                    'next_install_token' => $hasNext ? $this->auth->issueInstallAuthorization(1800) : null,
+                    'next_install_token' => $hasNext ? $this->auth->issueInstallAuthorization(86400) : null,
                     'csrf_token'         => $this->csrfToken(),
                 ],
             ];
@@ -586,14 +586,17 @@ class AdminActions
                         $priorId    = (int) $prior['id'];
                         $oldTgzPath = $this->tempPath . '/patch_uploaded_' . $priorId . '.tgz';
 
-                        $db->updateHistoryRecord($priorId, [
-                            'release_notes'   => $releaseNotes,
+                        $updateFields = [
                             'file_size'       => $fileSize,
                             'sha256_hash'     => $sha256,
                             'patch_server_id' => null,
                             'released_at'     => $releasedAt,
                             'manifest_json'   => $manifestJson,
-                        ]);
+                        ];
+                        if ($releaseNotes !== null) {
+                            $updateFields['release_notes'] = $releaseNotes;
+                        }
+                        $db->updateHistoryRecord($priorId, $updateFields);
 
                         $finalPath = $this->tempPath . '/patch_uploaded_' . $priorId . '.tgz';
                         if (!rename($stagedTgz, $finalPath)) {
@@ -829,7 +832,8 @@ class AdminActions
                 ['completed', 'failed', 'rolled_back', 'obsolete']
             );
             if ($terminalRow !== null) {
-                // Version already processed; skip this patch entry entirely.
+                $patch['id']               = (int) $terminalRow['id'];
+                $patch['_terminal_backed'] = true;
                 continue;
             }
 
@@ -972,6 +976,9 @@ class AdminActions
     private function selectInstallableId(array $patches): ?int
     {
         foreach ($patches as $patch) {
+            if (!empty($patch['_terminal_backed'])) {
+                continue;
+            }
             $id = (int) ($patch['id'] ?? 0);
             if ($id > 0) {
                 return $id;
