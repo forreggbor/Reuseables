@@ -5,6 +5,25 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-05-14
+
+| Category | Description                                                                                               |
+|----------|-----------------------------------------------------------------------------------------------------------|
+| Added    | "Show changelog" button on every patch history row opens a modal with the version's rendered release notes |
+| Added    | "Manual upload" badge in the Status column for patches installed from an uploaded archive                 |
+| Fixed    | Manual uploads now store release notes — the archive's `release_notes.md` is read during upload          |
+
+### Added
+- **Changelog modal** — every row in the patch history table now has a "Show changelog" button. Clicking it opens a Bootstrap modal with the release notes for that version rendered as formatted HTML (headings, lists, tables, bold/italic, inline code, links, horizontal rules). The modal shows a "No release notes available" message for rows where notes are absent.
+- **Manual upload badge** — a "Manual upload" badge is shown in the Status column for any patch history row where `patch_server_id IS NULL`, making it easy to distinguish patches installed from an uploaded archive from those fetched via the patch server.
+- **`SimpleMarkdownRenderer`** — new class that converts a Keep-a-Changelog Markdown slice to sanitised HTML without any external dependencies. Input is fully HTML-escaped before transformation; only the tags the renderer emits can appear in the output. Supports the subset emitted by PatchCreator: `##`/`###`/`####` headings, unordered lists, pipe tables, bold, italic, inline code, links (http/https/mailto only), and horizontal rules.
+- **`release_notes_html` and `is_manual_upload` fields** in the `GET /details/{id}` response — `release_notes_html` carries the pre-rendered HTML (null when no notes), `is_manual_upload` is a boolean derived from `patch_server_id`.
+
+### Fixed
+- **Manual uploads stored NULL for release notes** — `PatchFileManager::extractPatch()` now reads `release_notes.md` from the extracted archive root and returns it as `release_notes_md`. `AdminActions::extractManifestFromArchive()` uses this field instead of the non-existent `manifest.release_notes` key, so manually uploaded patches now correctly populate `patch_history.release_notes` for any archive built with PatchCreator v1.03.00 or later.
+
+---
+
 ## [2.1.2] - 2026-05-14
 
 | Category | Description                                                                                                                      |
