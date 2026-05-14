@@ -82,7 +82,7 @@ PatchCreator.sh [options]
 PatchCreator.sh
 ```
 
-Detects the version from `app/helpers/functions.php`, diffs against the latest git tag, extracts release notes from `CHANGELOG.md`, and creates the archive in `storage/patch/`.
+Searches for `define('APP_VERSION', 'X.Y.Z')` across conventional file locations, diffs against the latest git tag, extracts release notes from `CHANGELOG.md`, and creates the archive in `storage/patch/`.
 
 ### Patch against a specific commit
 
@@ -197,12 +197,19 @@ The following paths are excluded from git diff results by default. Use `-f` with
 
 ## Version Auto-Detection
 
-By default, the script looks for `define('APP_VERSION', 'X.Y.Z')` in `app/helpers/functions.php`. Override the pattern with `-p`:
+The script searches for `define('APP_VERSION', 'X.Y.Z')` across the following candidate files, in order, stopping at the first match:
 
-```bash
-# Custom version constant
-PatchCreator.sh -p "const VERSION = '([^']+)'"
-```
+| Priority | Path |
+|----------|------|
+| 1 | `app/helpers/functions.php` |
+| 2 | `webroot/app/helpers/functions.php` |
+| 3 | `public/app/helpers/functions.php` |
+
+Both `helpers` and `Helpers` folder casings are accepted at each location.
+
+If none of the above files yield a version, the script exits with an error listing the searched paths and suggests using `-v` to specify the version explicitly.
+
+Override the detection pattern with `-p` if the project defines its version under a different constant name.
 
 ## Exit Codes
 

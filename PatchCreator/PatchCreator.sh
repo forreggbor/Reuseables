@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.03.00"
+VERSION="v1.04.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -46,9 +46,14 @@ DEFAULT_EXCLUDES=(
     'phpunit.xml'
 )
 
-# Default version detection pattern (JupitERP convention)
+# Default version detection pattern (APP_VERSION PHP constant)
 DEFAULT_VERSION_PATTERN="define\('APP_VERSION',\s*'([^']+)'\)"
-DEFAULT_VERSION_FILE="app/helpers/functions.php"
+# Candidate paths searched in order; [Hh]elpers covers both casing conventions
+DEFAULT_VERSION_FILES=(
+    "app/[Hh]elpers/functions.php"
+    "webroot/app/[Hh]elpers/functions.php"
+    "public/app/[Hh]elpers/functions.php"
+)
 
 # Exit codes
 EXIT_SUCCESS=0
@@ -236,31 +241,38 @@ get_latest_tag() {
 ##
 # Auto-detect the project version from source files.
 #
-# @param string $1 Project directory
-# @param string $2 Version regex pattern
-# @param string $3 Version file path (relative to project)
+# Iterates over candidate file-glob patterns (relative to project dir) and
+# returns the first non-empty version string found.
+#
+# @param string $1   Project directory
+# @param string $2   Version regex pattern (PCRE, must use \K lookbehind to
+#                    emit only the version string)
+# @param string $3…  Candidate file globs relative to project dir
 # @return Version string or empty
 ##
 detect_version() {
     local project_dir="$1"
     local pattern="$2"
-    local version_file="$3"
-    local full_path="${project_dir}/${version_file}"
+    shift 2
 
-    if [[ ! -f "$full_path" ]]; then
-        return 0
-    fi
+    local prev_nullglob
+    prev_nullglob=$(shopt -p nullglob)
+    shopt -s nullglob
 
-    # Use grep -P with \K to extract only the version string after the pattern prefix
-    local version
-    version=$(grep -oP "define\('APP_VERSION',\s*'\K[^']+" "$full_path" 2>/dev/null | head -1 || echo "")
+    local candidate full_path version
+    for candidate in "$@"; do
+        for full_path in "$project_dir"/$candidate; do
+            [[ -f "$full_path" ]] || continue
+            version=$(grep -oP "define\('APP_VERSION',\s*'\K[^']+" "$full_path" 2>/dev/null | head -1 || true)
+            if [[ -n "$version" ]]; then
+                eval "$prev_nullglob"
+                echo "$version"
+                return 0
+            fi
+        done
+    done
 
-    # If custom pattern provided (different from default), try it as a fallback
-    if [[ -z "$version" && "$pattern" != "$DEFAULT_VERSION_PATTERN" ]]; then
-        version=$(grep -oP "$pattern" "$full_path" 2>/dev/null | head -1 | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' 2>/dev/null | head -1 || echo "")
-    fi
-
-    echo "$version"
+    eval "$prev_nullglob"
 }
 
 ##
@@ -659,10 +671,10 @@ fi
 header "Resolving version"
 
 if [[ -z "$TARGET_VERSION" ]]; then
-    TARGET_VERSION=$(detect_version "$PROJECT_DIR" "$VERSION_PATTERN" "$DEFAULT_VERSION_FILE")
+    TARGET_VERSION=$(detect_version "$PROJECT_DIR" "$VERSION_PATTERN" "${DEFAULT_VERSION_FILES[@]}")
 
     if [[ -z "$TARGET_VERSION" ]]; then
-        error "Could not auto-detect version. Use -v to specify it explicitly."
+        error "Could not auto-detect version (looked in: ${DEFAULT_VERSION_FILES[*]}). Use -v to specify it explicitly."
     fi
 
     info "Auto-detected version: ${BOLD}${TARGET_VERSION}${NC}"

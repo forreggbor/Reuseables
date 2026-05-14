@@ -5,6 +5,18 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.04.00] - 2026-05-14
+
+| Category | Description |
+|----------|-------------|
+| Changed  | Version auto-detection searches multiple conventional file locations instead of a single hardcoded path |
+
+### Changed
+
+- **Universal version auto-detection** — the script now searches `app/[Hh]elpers/functions.php`, `webroot/app/[Hh]elpers/functions.php`, and `public/app/[Hh]elpers/functions.php` in order, stopping at the first match. Projects with a webroot-prefixed layout (e.g. UniCMS) are auto-detected without any extra flags. Both `helpers` and `Helpers` folder casings are accepted.
+
+---
+
 ## [1.03.00] - 2026-05-12
 
 | Category | Description |
