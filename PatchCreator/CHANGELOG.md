@@ -5,6 +5,38 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.06.00] - 2026-05-19
+
+| Category | Description |
+|----------|-------------|
+| Added    | Cumulative base resolution — diffs from the last built patch package's commit SHA, not just the latest git tag |
+| Added    | `built_from_commit` field in `manifest.json` anchors the next patch to an exact commit, surviving missed releases |
+
+### Added
+
+- **Cumulative patch base resolution** — PatchCreator now scans `OUTPUT_DIR` for the highest-version `patch-*.tgz` and reads the `built_from_commit` SHA from its `manifest.json`. If that commit is reachable from HEAD, it becomes the diff base, ensuring every file changed since the last *built* patch is included — even when one or more tagged releases were skipped without creating a patch package. Falls back to a `vX.Y.Z` tag lookup for archives built before this feature, and then to the latest reachable git tag when `OUTPUT_DIR` has no previous patches (preserving the original behavior on first run). If a previous patch is found but neither a SHA nor a matching tag can be resolved, the build aborts rather than silently missing commits.
+- **`built_from_commit` in `manifest.json`** — every newly built archive embeds the HEAD commit SHA at build time. This makes the base-resolution above exact and tag-independent for all future patches. The field is ignored by all current PatchModule versions (unknown fields are not rejected). Build-time manifest validation checks that the field, when present, is a valid 40-character hex SHA.
+
+---
+
+## [1.05.00] - 2026-05-19
+
+| Category | Description |
+|----------|-------------|
+| Added    | Allow-override list and `-i` flag let specific paths bypass broad directory excludes |
+| Changed  | Composer lock, documentation, and schema reference files are now included in patches when changed |
+
+### Added
+
+- **Allow-override list** — a new `DEFAULT_ALLOW_OVERRIDES` array (`vendor/autoload.php`, `vendor/composer/`) lets specific paths bypass broad directory excludes. Files matched by an exclude pattern are re-admitted if they also match an allow-override, keeping `vendor/` broadly excluded while still shipping the PSR-4 autoload map when it changes.
+- **`-i <pattern>` flag** — symmetric to `-e`, adds a runtime allow-override pattern. Useful when a vendor package ships files that need to reach the remote server (e.g. `-i "vendor/acme/"`). Repeatable.
+
+### Changed
+
+- `composer.lock`, `README.md`, `CHANGELOG.md`, `doc/`, and `database/schema/` removed from `DEFAULT_EXCLUDES` — these files are now included in patch archives when they change. Composer lock and autoload files travel with the application on servers where `composer` cannot be run; schema references and documentation are relevant on field installations without remote access.
+
+---
+
 ## [1.04.00] - 2026-05-14
 
 | Category | Description |

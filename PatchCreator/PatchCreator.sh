@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.04.00"
+VERSION="v1.06.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -36,14 +36,16 @@ DEFAULT_EXCLUDES=(
     '*.log'
     'CLAUDE.md'
     '.claude/'
-    'database/schema/'
-    'composer.lock'
     'package-lock.json'
-    'README.md'
-    'CHANGELOG.md'
-    'doc/'
     'tests/'
     'phpunit.xml'
+)
+
+# Paths that are re-admitted even when matched by an exclude pattern.
+# Allows fine-grained exceptions to broad directory excludes (e.g. vendor/).
+DEFAULT_ALLOW_OVERRIDES=(
+    'vendor/autoload.php'
+    'vendor/composer/'
 )
 
 # Default version detection pattern (APP_VERSION PHP constant)
@@ -152,11 +154,12 @@ ${BOLD}USAGE:${NC}
 ${BOLD}OPTIONS:${NC}
     -d <path>       Project root directory (default: current directory)
     -v <version>    Target patch version (default: auto-detect from project)
-    -b <git-ref>    Base git reference to diff against (default: latest tag)
+    -b <git-ref>    Base git reference to diff against (default: last patch's build commit, then latest tag)
     -o <dir>        Output directory (default: <project>/storage/patch)
     -r <file>       Release notes file (overrides CHANGELOG.md extraction)
     -f <file>       File list override (one path per line, relative to project)
     -e <pattern>    Exclude glob pattern (repeatable)
+    -i <pattern>    Allow-override pattern — re-admits files that match an exclude (repeatable)
     -p <pattern>    Version detection regex pattern
     --no-changelog  Skip automatic CHANGELOG.md extraction
     --dry-run       Show what would be packaged without creating archive
@@ -187,6 +190,9 @@ ${BOLD}EXAMPLES:${NC}
 
     # Exclude additional patterns
     ${SCRIPT_NAME} -e "public/uploads/*" -e "*.tmp"
+
+    # Re-admit a specific vendor package that ships its own migration runner
+    ${SCRIPT_NAME} -i "vendor/acme/"
 
 ${BOLD}EXIT CODES:${NC}
     0   Success
@@ -283,6 +289,111 @@ detect_version() {
 ##
 is_valid_semver() {
     [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
+}
+
+##
+# Find the highest-version patch-*.tgz archive in the given output directory.
+#
+# @param string $1 Output directory path
+# @return Absolute path to the highest-version archive, or empty string if none found
+##
+find_last_patch_archive() {
+    local output_dir="$1"
+    local best_path=""
+    local best_ver=""
+
+    [[ -d "$output_dir" ]] || return 0
+
+    local prev_nullglob
+    prev_nullglob=$(shopt -p nullglob)
+    shopt -s nullglob
+
+    local f bn ver
+    for f in "$output_dir"/patch-*.tgz; do
+        [[ -f "$f" ]] || continue
+        bn=$(basename "$f" .tgz)
+        ver="${bn#patch-}"
+        is_valid_semver "$ver" || continue
+
+        if [[ -z "$best_ver" ]] || [[ "$(printf '%s\n%s' "$best_ver" "$ver" | sort -V | tail -1)" == "$ver" && "$ver" != "$best_ver" ]]; then
+            best_ver="$ver"
+            best_path="$f"
+        fi
+    done
+
+    eval "$prev_nullglob"
+    echo "$best_path"
+}
+
+##
+# Extract the built_from_commit SHA from a patch archive's manifest.json.
+#
+# @param string $1 Path to .tgz archive
+# @return 40-character hex SHA, or empty string if the field is absent or unreadable
+##
+extract_manifest_sha() {
+    local tgz_path="$1"
+    tar -xzOf "$tgz_path" manifest.json 2>/dev/null | jq -r '.built_from_commit // empty' 2>/dev/null || true
+}
+
+##
+# Resolve the diff base reference from the last patch archive in OUTPUT_DIR.
+#
+# Resolution order:
+#  1. Read built_from_commit SHA from the last archive's manifest.json.
+#     Use it if it exists in the repo and is an ancestor of HEAD.
+#  2. Fall back to a git tag matching the archive's version (tries vX.Y.Z, then X.Y.Z).
+#     If no matching tag is reachable from HEAD, error out — the caller must pass -b explicitly.
+#  3. If OUTPUT_DIR has no patch archives, return empty (caller falls back to latest tag).
+#
+# @param string $1 Project directory
+# @param string $2 Output directory to scan for patch archives
+# @return Base git reference (SHA or tag name), or empty string if no previous patch found
+##
+resolve_cumulative_base() {
+    local project_dir="$1"
+    local output_dir="$2"
+
+    local last_tgz
+    last_tgz=$(find_last_patch_archive "$output_dir")
+
+    if [[ -z "$last_tgz" ]]; then
+        return 0
+    fi
+
+    local last_basename
+    last_basename=$(basename "$last_tgz")
+    local last_ver="${last_basename%.tgz}"
+    last_ver="${last_ver#patch-}"
+
+    # Prefer the commit SHA embedded in the archive's manifest
+    local sha
+    sha=$(extract_manifest_sha "$last_tgz")
+
+    if [[ -n "$sha" ]]; then
+        if [[ "$sha" =~ ^[0-9a-f]{40}$ ]] &&
+           git -C "$project_dir" rev-parse "$sha^{commit}" &>/dev/null &&
+           git -C "$project_dir" merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
+            info "Cumulative patch since last package (${last_basename}, commit ${sha:0:7})"
+            echo "$sha"
+            return 0
+        else
+            warn "Last patch's commit SHA is not an ancestor of HEAD (rebased or wrong branch); trying tag lookup."
+        fi
+    fi
+
+    # Fallback: resolve via git tag matching the archive version
+    local candidate
+    for candidate in "v${last_ver}" "${last_ver}"; do
+        if git_ref_exists "$project_dir" "$candidate" &&
+           git -C "$project_dir" merge-base --is-ancestor "$candidate" HEAD 2>/dev/null; then
+            info "Cumulative patch since last package (${candidate})"
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    error "Found last patch '${last_basename}' but no build SHA in its manifest and no matching git tag (tried v${last_ver}, ${last_ver}) is reachable from HEAD. Pass -b <ref> to specify the base explicitly, or move the orphan archive out of ${output_dir}." $EXIT_GIT_ERROR
 }
 
 ##
@@ -385,6 +496,13 @@ validate_manifest() {
     # version must match PatchModule's semver regex exactly
     if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
         error "Manifest validation failed: 'version' is not a valid semver string [invalid_manifest_schema]"
+    fi
+
+    # built_from_commit, when present, must be a 40-character lowercase hex SHA
+    local bfc
+    bfc=$(jq -r '.built_from_commit // empty' "$manifest_path" 2>/dev/null)
+    if [[ -n "$bfc" && ! "$bfc" =~ ^[0-9a-f]{40}$ ]]; then
+        error "Manifest validation failed: 'built_from_commit' is not a valid 40-character hex SHA [invalid_manifest_schema]"
     fi
 
     # migrations must be a required array; each entry must be a safe SQL basename
@@ -543,6 +661,7 @@ OUTPUT_DIR=""
 RELEASE_NOTES_FILE=""
 FILE_LIST=""
 USER_EXCLUDES=()
+USER_ALLOW_OVERRIDES=()
 VERSION_PATTERN="$DEFAULT_VERSION_PATTERN"
 NO_CHANGELOG=false
 DRY_RUN=false
@@ -584,6 +703,11 @@ while [[ $# -gt 0 ]]; do
         -e)
             [[ -z "${2:-}" ]] && error "Option -e requires an exclude pattern argument."
             USER_EXCLUDES+=("$2")
+            shift 2
+            ;;
+        -i)
+            [[ -z "${2:-}" ]] && error "Option -i requires an allow-override pattern argument."
+            USER_ALLOW_OVERRIDES+=("$2")
             shift 2
             ;;
         -p)
@@ -689,19 +813,39 @@ fi
 success "Version: ${TARGET_VERSION}"
 
 # ==============================================================================
+# Resolve Output Directory
+# ==============================================================================
+
+if [[ -z "$OUTPUT_DIR" ]]; then
+    OUTPUT_DIR="${PROJECT_DIR}/storage/patch"
+fi
+
+if [[ "$OUTPUT_DIR" != /* ]]; then
+    OUTPUT_DIR="${PROJECT_DIR}/${OUTPUT_DIR}"
+fi
+
+ARCHIVE_NAME="patch-${TARGET_VERSION}.tgz"
+ARCHIVE_PATH="${OUTPUT_DIR}/${ARCHIVE_NAME}"
+HASH_PATH="${ARCHIVE_PATH}.sha256"
+
+# ==============================================================================
 # Resolve Base Reference
 # ==============================================================================
 
 header "Resolving base reference"
 
 if [[ -z "$BASE_REF" ]]; then
-    BASE_REF=$(get_latest_tag "$PROJECT_DIR")
+    BASE_REF=$(resolve_cumulative_base "$PROJECT_DIR" "$OUTPUT_DIR")
 
     if [[ -z "$BASE_REF" ]]; then
-        error "No git tags found. Use -b to specify a base reference explicitly." $EXIT_GIT_ERROR
-    fi
+        BASE_REF=$(get_latest_tag "$PROJECT_DIR")
 
-    info "Using latest tag: ${BOLD}${BASE_REF}${NC}"
+        if [[ -z "$BASE_REF" ]]; then
+            error "No git tags found and no previous patch archive in ${OUTPUT_DIR}. Use -b to specify a base reference explicitly." $EXIT_GIT_ERROR
+        fi
+
+        info "Using latest tag: ${BOLD}${BASE_REF}${NC} (no previous patch package found)"
+    fi
 else
     info "Using specified reference: ${BOLD}${BASE_REF}${NC}"
 fi
@@ -712,6 +856,7 @@ fi
 
 # Show commit range info
 COMMIT_COUNT=$(git -C "$PROJECT_DIR" rev-list --count "${BASE_REF}..HEAD" 2>/dev/null || echo "0")
+HEAD_COMMIT=$(git -C "$PROJECT_DIR" rev-parse HEAD)
 success "Base: ${BASE_REF} (${COMMIT_COUNT} commits since)"
 
 # ==============================================================================
@@ -720,8 +865,9 @@ success "Base: ${BASE_REF} (${COMMIT_COUNT} commits since)"
 
 header "Collecting changed files"
 
-# Combine default and user exclude patterns
+# Combine default and user exclude/allow-override patterns
 ALL_EXCLUDES=("${DEFAULT_EXCLUDES[@]}" "${USER_EXCLUDES[@]}")
+ALL_ALLOW_OVERRIDES=("${DEFAULT_ALLOW_OVERRIDES[@]}" "${USER_ALLOW_OVERRIDES[@]}")
 
 declare -a PATCH_FILES=()
 declare -a REMOVED_FILES=()
@@ -825,7 +971,7 @@ else
     # Partition files: migrations vs regular patch files
     for file in "${RAW_FILES[@]}"; do
         if matches_exclude "$file" "${ALL_EXCLUDES[@]}"; then
-            continue
+            matches_exclude "$file" "${ALL_ALLOW_OVERRIDES[@]}" || continue
         fi
 
         # Verify file still exists (might have been moved/deleted after diff)
@@ -843,7 +989,7 @@ else
 
     for df in "${RAW_DELETED[@]}"; do
         if matches_exclude "$df" "${ALL_EXCLUDES[@]}"; then
-            continue
+            matches_exclude "$df" "${ALL_ALLOW_OVERRIDES[@]}" || continue
         fi
         classify_file "$df" "delete"
     done
@@ -918,22 +1064,6 @@ elif ! $NO_CHANGELOG; then
 else
     info "CHANGELOG extraction skipped (--no-changelog)."
 fi
-
-# ==============================================================================
-# Resolve Output Directory
-# ==============================================================================
-
-if [[ -z "$OUTPUT_DIR" ]]; then
-    OUTPUT_DIR="${PROJECT_DIR}/storage/patch"
-fi
-
-if [[ "$OUTPUT_DIR" != /* ]]; then
-    OUTPUT_DIR="${PROJECT_DIR}/${OUTPUT_DIR}"
-fi
-
-ARCHIVE_NAME="patch-${TARGET_VERSION}.tgz"
-ARCHIVE_PATH="${OUTPUT_DIR}/${ARCHIVE_NAME}"
-HASH_PATH="${ARCHIVE_PATH}.sha256"
 
 # ==============================================================================
 # Summary & Confirmation
@@ -1070,6 +1200,7 @@ fi
 cat > "${TEMP_DIR}/manifest.json" <<EOF
 {
     "version": "${TARGET_VERSION}",
+    "built_from_commit": "${HEAD_COMMIT}",
     "migrations": ${MIGRATIONS_JSON},
     "files": ${FILES_JSON}${REMOVED_FILES_JSON}
 }
