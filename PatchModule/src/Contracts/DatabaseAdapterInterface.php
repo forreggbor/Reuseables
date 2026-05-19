@@ -43,6 +43,17 @@ interface DatabaseAdapterInterface
     public function findHistoryByVersion(string $version, array $statuses = ['available', 'downloading']): ?array;
 
     /**
+     * Find the most recent patch history record for a version regardless of status
+     *
+     * Used as a last-resort fallback when the status-filtered lookups fail to find a row.
+     * Returns the row with the highest id for the given version, or null if none exists.
+     *
+     * @param string $version Semver version string
+     * @return array|null Associative array or null if not found
+     */
+    public function findLatestHistoryByVersion(string $version): ?array;
+
+    /**
      * Get all completed version strings
      *
      * @return string[] List of version strings with status='completed'

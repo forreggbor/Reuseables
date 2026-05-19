@@ -859,6 +859,27 @@ class AdminActions
                     $e->getMessage()
                 ));
             }
+
+            // Last resort: a row may exist under a non-active status (e.g. installing,
+            // completed, failed) and wasn't matched above; or the self-heal insert failed
+            // after a row for this version was already present. Pick the most recent row
+            // regardless of status so the Details button always receives a valid ID.
+            if (!isset($patch['id']) || (int) $patch['id'] === 0) {
+                $anyRow = $this->module->getDatabase()->findLatestHistoryByVersion($version);
+                if ($anyRow !== null) {
+                    $patch['id']               = (int) $anyRow['id'];
+                    $patch['_terminal_backed'] = in_array(
+                        $anyRow['status'] ?? '',
+                        [
+                            PatchHistoryStatus::COMPLETED,
+                            PatchHistoryStatus::FAILED,
+                            PatchHistoryStatus::ROLLED_BACK,
+                            PatchHistoryStatus::OBSOLETE,
+                        ],
+                        true
+                    );
+                }
+            }
         }
         unset($patch);
 

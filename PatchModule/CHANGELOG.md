@@ -5,6 +5,23 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-05-19
+
+| Category | Description |
+|----------|-------------|
+| Added    | New `findLatestHistoryByVersion()` database adapter method used as last-resort fallback in patch enrichment |
+| Fixed    | Details button could still receive `id=0` when all status-filtered lookups failed for a known version |
+
+### Added
+
+- **`DatabaseAdapterInterface::findLatestHistoryByVersion()`** — returns the most recent `patch_history` row for a given version regardless of status (highest `id`). Implemented in `PdoAdapter` and `CallableAdapter`. Required for the fallback path in patch enrichment.
+
+### Fixed
+
+- **Details button last-resort fallback** — `enrichPatchesWithLocalIds()` now calls `findLatestHistoryByVersion()` when all status-filtered lookups fail to produce a valid `id`. Prevents the Details button from silently doing nothing on versions whose history record is in an unexpected status not covered by the existing lookup logic.
+
+---
+
 ## [2.3.0] - 2026-05-14
 
 | Category | Description                                                                                                                         |

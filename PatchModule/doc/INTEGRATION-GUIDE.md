@@ -803,6 +803,22 @@ returns the new token to the client.
 > Rotating in both places means the token is renewed twice per request and the
 > client token becomes stale immediately after the first call.
 
+### Session lifecycle during install
+
+Host controllers that call `session_write_close()` before delegating to `$actions->install()` — to keep `GET /progress` polls unblocked during the long-running install — **must** guard any subsequent `session_start()` with `session_status() === PHP_SESSION_NONE`. A session-aware adapter (e.g. `LicenseModule\NativeSessionAdapter`) accessed during the install may lazily re-open the session, so by the time `install()` returns the session can already be active again. Calling `session_start()` unconditionally at that point emits a PHP Notice.
+
+The canonical post-install block for persisting a rotated CSRF token:
+
+```php
+if (isset($r['data']['csrf_token']) && is_string($r['data']['csrf_token'])) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    $_SESSION['csrf_token'] = $r['data']['csrf_token'];
+    session_write_close();
+}
+```
+
 ### Single-node deployment / sticky sessions
 
 Progress is tracked via a JSON file in `temp_path`. In a multi-node setup,

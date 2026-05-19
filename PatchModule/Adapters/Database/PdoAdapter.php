@@ -98,6 +98,19 @@ class PdoAdapter implements DatabaseAdapterInterface
     /**
      * {@inheritdoc}
      */
+    public function findLatestHistoryByVersion(string $version): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT * FROM patch_history WHERE version = :version ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([':version' => $version]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function findUploadedAvailablePatches(): array
     {
         $stmt = $this->pdo->query(

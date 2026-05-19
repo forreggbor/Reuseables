@@ -76,6 +76,14 @@ class CallableAdapter implements DatabaseAdapterInterface
     /**
      * {@inheritdoc}
      */
+    public function findLatestHistoryByVersion(string $version): ?array
+    {
+        return $this->getAdapter()->findLatestHistoryByVersion($version);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getCompletedVersions(): array
     {
         return $this->getAdapter()->getCompletedVersions();
