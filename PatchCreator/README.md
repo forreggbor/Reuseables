@@ -12,6 +12,7 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 - **Configurable excludes** — Default exclude patterns with additional user-defined patterns
 - **Dry run mode** — Preview what would be packaged without creating the archive
 - **Manual file list** — Override git detection with an explicit file list
+- **Auto-upload** — Optionally push the finished archive to LicenseManager via a bearer token (see [AUTO_UPLOAD.md](AUTO_UPLOAD.md))
 
 ## Requirements
 
@@ -20,6 +21,7 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 - tar, sha256sum
 - grep with Perl-compatible regex (`-P` flag)
 - jq (JSON processing — used for escaping and manifest validation)
+- `curl` (optional — only required when `--upload` is set)
 
 ## Installation
 
@@ -70,6 +72,8 @@ PatchCreator.sh [options]
 | `--no-changelog` | — | — | Skip CHANGELOG.md extraction |
 | `--dry-run` | — | — | Preview without creating archive |
 | `--no-validate` | — | — | Skip PatchModule compatibility validation of the manifest |
+| `--upload` | — | — | Force upload to LicenseManager even if auto-detection would skip it |
+| `--no-upload` | — | — | Skip upload even if a configuration source is present |
 | `-y` | — | — | Auto-confirm (skip prompts) |
 | `-h` | — | — | Show help |
 | `--version` | — | — | Show script version |
@@ -128,6 +132,35 @@ PatchCreator.sh -v 2.33.0 -b v2.32.0 -y
 
 ```bash
 PatchCreator.sh -d /var/www/myproject -o /tmp/patches
+```
+
+### Auto-upload to LicenseManager
+
+Create a `.patchcreator.local` file in the project root (never commit this file):
+
+```json
+{
+  "upload_url": "https://your-licensemanager.example.com/api/v1/patches/upload",
+  "token": "lcmu_your_token_here"
+}
+```
+
+```bash
+chmod 600 .patchcreator.local
+```
+
+Then run as usual — the upload step happens automatically after a successful build:
+
+```bash
+PatchCreator.sh -y -b v1.06.00
+```
+
+> **Note:** Always pass `-b <prev_version>` explicitly until the cumulative-base detection bug is fixed (see `AUTO_UPLOAD.md` — Pre-existing bug section). Without `-b`, the base reference may be corrupted and cause the build to fail.
+
+To skip upload on a specific run:
+
+```bash
+PatchCreator.sh -y --no-upload
 ```
 
 ## Output
@@ -213,13 +246,14 @@ Override the detection pattern with `-p` if the project defines its version unde
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error (invalid arguments, missing files) |
-| 2 | No changed or deleted files to package |
-| 3 | Git error (not a repository, invalid reference) |
-| 4 | User cancelled |
+| Code | Constant              | Meaning |
+|------|-----------------------|---------|
+| 0    | —                     | Success |
+| 1    | —                     | General error (invalid arguments, missing files) |
+| 2    | —                     | No changed or deleted files to package |
+| 3    | —                     | Git error (not a repository, invalid reference) |
+| 4    | —                     | User cancelled |
+| 5    | `EXIT_UPLOAD_FAILED`  | Build succeeded but the upload to LicenseManager failed |
 
 ## Server Compatibility
 

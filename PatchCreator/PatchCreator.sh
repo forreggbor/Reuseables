@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.06.00"
+VERSION="v1.07.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -63,6 +63,7 @@ EXIT_ERROR=1
 EXIT_NO_FILES=2
 EXIT_GIT_ERROR=3
 EXIT_CANCELLED=4
+EXIT_UPLOAD_FAILED=5
 
 # ==============================================================================
 # Color Output
@@ -163,7 +164,9 @@ ${BOLD}OPTIONS:${NC}
     -p <pattern>    Version detection regex pattern
     --no-changelog  Skip automatic CHANGELOG.md extraction
     --dry-run       Show what would be packaged without creating archive
+    --no-upload     Skip automatic upload even if a target is configured
     --no-validate   Skip PatchModule compatibility validation of the manifest
+    --upload        Force upload even if auto-upload would be skipped
     -y              Auto-confirm (skip prompts)
     -h              Show this help message
     --version       Show script version
@@ -200,6 +203,7 @@ ${BOLD}EXIT CODES:${NC}
     2   No changed files to package
     3   Git error (not a repository, invalid reference)
     4   User cancelled
+    5   Upload failed (patch was created but could not be delivered)
 
 ${BOLD}OUTPUT:${NC}
     Creates patch-<version>.tgz and patch-<version>.tgz.sha256 in the
@@ -650,6 +654,224 @@ print_elapsed() {
     fi
 }
 
+##
+# Upload a patch archive to LicenseManager via the /api/v1/patches/upload endpoint.
+#
+# Uses file-based curl I/O (body + headers to temp files) so Retry-After header
+# is readable and response body is available regardless of HTTP status.
+# --fail-with-body is mandatory: --fail discards the body on 4xx/5xx, losing
+# error.error_code on 422 and data.sha256 for 409 idempotent-retry detection.
+# Requires curl >= 7.76 (Ubuntu 24.04 ships 8.x).
+#
+# @param string $1 Path to the .tgz archive
+# @param string $2 SHA-256 hex digest of the archive
+# @param string $3 Version string (e.g. "1.07.00")
+# @param string $4 Upload URL (must be https://)
+# @param string $5 Bearer token
+# @return 0 on success (201 or 409-idempotent), non-zero on any failure
+##
+upload_patch_to_licensemanager() {
+    local archive_path="$1"
+    local sha256="$2"
+    local version="$3"
+    local upload_url="$4"
+    local token="$5"
+
+    local body_file headers_file
+    body_file=$(mktemp) || error "mktemp failed"
+    headers_file=$(mktemp) || error "mktemp failed"
+    # shellcheck disable=SC2064
+    trap "rm -f '$body_file' '$headers_file'" RETURN
+
+    local -a backoff_delays=(5 30 120)
+    local attempt http_code curl_rc
+
+    for attempt in 1 2 3 4; do
+        if [[ $attempt -gt 1 ]]; then
+            local delay="${backoff_delays[$((attempt - 2))]}"
+            info "Upload attempt ${attempt}/4 (waiting ${delay}s after failure)..."
+            sleep "$delay"
+            : > "$body_file"
+            : > "$headers_file"
+        fi
+
+        curl_rc=0
+        http_code=$(curl --fail-with-body --show-error --silent \
+            --max-time 600 \
+            -H "Authorization: Bearer $token" \
+            -H "Expect:" \
+            -F "patch_file=@$archive_path" \
+            -F "sha256=$sha256" \
+            -o "$body_file" -D "$headers_file" \
+            -w '%{http_code}' \
+            "$upload_url") || curl_rc=$?
+
+        # --- Transient network errors → retry ---
+        if [[ $curl_rc -eq 28 || $curl_rc -eq 35 || $curl_rc -eq 56 ]]; then
+            warn "Upload attempt ${attempt}/4 failed (curl exit ${curl_rc})"
+            [[ $attempt -lt 4 ]] && continue
+            warn "Upload failed after 4 attempts (network/TLS error)"
+            return 1
+        fi
+
+        # --- Partial transfer → no retry ---
+        if [[ $curl_rc -eq 18 ]]; then
+            warn "Upload failed: partial transfer — patch may exceed server upload size limit"
+            return 1
+        fi
+
+        # --- Other non-HTTP curl error ---
+        if [[ $curl_rc -ne 0 && $curl_rc -ne 22 ]]; then
+            warn "Upload failed: curl exit ${curl_rc}"
+            return 1
+        fi
+
+        # --- We have an HTTP response (curl_rc=0 success or =22 HTTP error status) ---
+        # Check Content-Type before JSON parsing
+        local content_type
+        content_type=$(grep -i '^content-type:' "$headers_file" | tail -n1 | awk '{print $2}' | tr -d '\r')
+        if [[ "$content_type" != application/json* ]]; then
+            warn "Server returned non-JSON response (HTTP ${http_code}): $(head -c 200 "$body_file")"
+            return 1
+        fi
+
+        # --- HTTP status dispatch ---
+        case "$http_code" in
+            201)
+                local uploaded_version uploaded_patch_id
+                uploaded_version=$(jq -r '.data.version // empty' "$body_file")
+                uploaded_patch_id=$(jq -r '.data.patch_id // empty' "$body_file")
+                success "Uploaded ${uploaded_version} (patch_id=${uploaded_patch_id})"
+                return 0
+                ;;
+            409)
+                local server_sha local_sha
+                server_sha=$(jq -r '.data.sha256 // empty' "$body_file" | tr '[:upper:]' '[:lower:]')
+                local_sha=$(echo "$sha256" | tr '[:upper:]' '[:lower:]')
+                if [[ -n "$server_sha" && "$server_sha" == "$local_sha" ]]; then
+                    info "Patch ${version} already uploaded (idempotent retry)"
+                    return 0
+                fi
+                warn "Version ${version} exists on server with different content (server SHA: ${server_sha:-unknown}, local SHA: ${local_sha}). Manual intervention required."
+                return 1
+                ;;
+            422)
+                local error_code
+                error_code=$(jq -r '.error.error_code // empty' "$body_file")
+                warn "Upload rejected (422 ${error_code:-unknown})"
+                return 1
+                ;;
+            401|403)
+                local msg detail
+                msg=$(jq -r '.error.message // empty' "$body_file")
+                detail=$(jq -r '.error.detail // empty' "$body_file")
+                warn "Upload not authorised (${http_code}): ${msg}${detail:+ — ${detail}}"
+                return 1
+                ;;
+            404)
+                warn "Upload endpoint not found (404) — is LicenseManager >= v2.16.1 at ${upload_url}?"
+                return 1
+                ;;
+            429)
+                local retry_after
+                retry_after=$(grep -i '^retry-after:' "$headers_file" | tail -n1 | awk '{print $2}' | tr -d '\r')
+                retry_after="${retry_after:-60}"
+                info "Rate limited (429) — sleeping ${retry_after}s then retrying once..."
+                sleep "$retry_after"
+                : > "$body_file"
+                : > "$headers_file"
+                curl_rc=0
+                http_code=$(curl --fail-with-body --show-error --silent \
+                    --max-time 600 \
+                    -H "Authorization: Bearer $token" \
+                    -H "Expect:" \
+                    -F "patch_file=@$archive_path" \
+                    -F "sha256=$sha256" \
+                    -o "$body_file" -D "$headers_file" \
+                    -w '%{http_code}' \
+                    "$upload_url") || curl_rc=$?
+                if [[ ($curl_rc -eq 0 || $curl_rc -eq 22) ]]; then
+                    local ct2
+                    ct2=$(grep -i '^content-type:' "$headers_file" | tail -n1 | awk '{print $2}' | tr -d '\r')
+                    if [[ "$ct2" != application/json* ]]; then
+                        warn "Server returned non-JSON on rate-limit retry (HTTP ${http_code}): $(head -c 200 "$body_file")"
+                        return 1
+                    fi
+                    if [[ "$http_code" == "201" ]]; then
+                        local v2 id2
+                        v2=$(jq -r '.data.version // empty' "$body_file")
+                        id2=$(jq -r '.data.patch_id // empty' "$body_file")
+                        success "Uploaded ${v2} (patch_id=${id2})"
+                        return 0
+                    fi
+                fi
+                warn "Upload failed after rate-limit retry (HTTP ${http_code:-?}, curl ${curl_rc})"
+                return 1
+                ;;
+            5*)
+                # Server error → retry via the outer loop
+                warn "Upload attempt ${attempt}/4 failed (HTTP ${http_code} — server error)"
+                [[ $attempt -lt 4 ]] && continue
+                warn "Upload failed after 4 attempts (server error)"
+                return 1
+                ;;
+            *)
+                warn "Unexpected HTTP response: ${http_code}"
+                return 1
+                ;;
+        esac
+    done
+}
+
+##
+# Resolve upload configuration from environment variables or .patchcreator.local.
+#
+# Precedence: env vars (if BOTH are set) → .patchcreator.local → neither.
+# Sets globals UPLOAD_URL and TOKEN.
+# Exits loudly on configuration errors (invalid JSON, missing keys, non-HTTPS URL).
+# Returns silently with exit 1 if no config source is found.
+#
+# @return 0 if UPLOAD_URL and TOKEN are resolved, 1 if no config source present
+##
+resolve_upload_config() {
+    UPLOAD_URL=""
+    TOKEN=""
+
+    # --- Env source (BOTH must be non-empty; partial falls through) ---
+    if [[ -n "${PATCHCREATOR_UPLOAD_URL:-}" && -n "${PATCHCREATOR_TOKEN:-}" ]]; then
+        UPLOAD_URL="$PATCHCREATOR_UPLOAD_URL"
+        TOKEN="$PATCHCREATOR_TOKEN"
+    else
+        # --- File source ---
+        local config_file="${PROJECT_DIR}/.patchcreator.local"
+        if [[ -f "$config_file" ]]; then
+            if [[ ! -s "$config_file" ]]; then
+                error ".patchcreator.local is empty — expected JSON with upload_url and token"
+            fi
+            local config
+            if ! config=$(jq '.' "$config_file" 2>/dev/null); then
+                error ".patchcreator.local contains invalid JSON — aborting"
+            fi
+            UPLOAD_URL=$(echo "$config" | jq -r '.upload_url // empty')
+            TOKEN=$(echo "$config" | jq -r '.token // empty')
+            if [[ -z "$UPLOAD_URL" || -z "$TOKEN" ]]; then
+                error ".patchcreator.local is missing required keys: upload_url and/or token"
+            fi
+        fi
+    fi
+
+    # --- HTTPS guard ---
+    if [[ -n "$UPLOAD_URL" && "$UPLOAD_URL" != https://* ]]; then
+        error "UPLOAD_URL must use https:// — got: $UPLOAD_URL"
+    fi
+
+    # --- Return ---
+    if [[ -z "$UPLOAD_URL" || -z "$TOKEN" ]]; then
+        return 1
+    fi
+    return 0
+}
+
 # ==============================================================================
 # Argument Parsing
 # ==============================================================================
@@ -667,6 +889,7 @@ NO_CHANGELOG=false
 DRY_RUN=false
 AUTO_CONFIRM=false
 VALIDATE=true
+UPLOAD_MODE="auto"          # auto | force | off
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -731,6 +954,14 @@ while [[ $# -gt 0 ]]; do
             AUTO_CONFIRM=true
             shift
             ;;
+        --upload)
+            UPLOAD_MODE="force"
+            shift
+            ;;
+        --no-upload)
+            UPLOAD_MODE="off"
+            shift
+            ;;
         -h|--help)
             usage
             ;;
@@ -753,6 +984,31 @@ header "Validating environment"
 # jq is required for JSON escaping and manifest validation
 if ! command -v jq &>/dev/null; then
     error "Required tool not found: jq. Install it with: sudo apt install jq"
+fi
+
+# Optional: GNU tar required for reproducible archives (idempotent re-upload)
+if ! tar --version 2>/dev/null | grep -q 'GNU tar'; then
+    warn "Non-GNU tar detected — archive may not be byte-reproducible (idempotent re-upload may fail)"
+fi
+
+# Upload configuration — resolved early to fail before the build on bad config
+if [[ "$UPLOAD_MODE" != "off" ]]; then
+    if ! command -v curl &>/dev/null; then
+        if [[ "$UPLOAD_MODE" == "force" ]]; then
+            error "Required tool not found: curl (needed for --upload). Install with: sudo apt install curl"
+        fi
+        UPLOAD_MODE="off"
+        warn "curl not installed — upload step will be skipped"
+    fi
+fi
+
+if [[ "$UPLOAD_MODE" != "off" ]]; then
+    if ! resolve_upload_config; then
+        if [[ "$UPLOAD_MODE" == "force" ]]; then
+            error "--upload set but no config source (env vars or .patchcreator.local) provides upload_url and token"
+        fi
+        UPLOAD_MODE="off"
+    fi
 fi
 
 # Validate project directory
@@ -1225,7 +1481,12 @@ mkdir -p "$OUTPUT_DIR"
 
 # Create .tgz archive
 info "Creating archive: ${ARCHIVE_NAME}"
-tar -czf "${ARCHIVE_PATH}" -C "${TEMP_DIR}" .
+HEAD_COMMIT_TS=$(git -C "$PROJECT_DIR" show -s --format=%ct "$HEAD_COMMIT")
+tar --sort=name \
+    --mtime="@${HEAD_COMMIT_TS}" \
+    --owner=0 --group=0 --numeric-owner \
+    --use-compress-program='gzip -n' \
+    -cf "${ARCHIVE_PATH}" -C "${TEMP_DIR}" .
 
 success "Archive created: ${ARCHIVE_PATH}"
 
@@ -1251,6 +1512,19 @@ echo -e "  ${BOLD}SHA-256:${NC}   ${SHA256}"
 echo -e "  ${BOLD}Files:${NC}     ${#PATCH_FILES[@]}"
 echo -e "  ${BOLD}Migrations:${NC} ${#MIGRATION_FILES[@]}"
 echo ""
+
+# Auto-upload to LicenseManager (opt-in)
+# UPLOAD_MODE="off": no config, --no-upload, curl missing, or auto+no-config
+# UPLOAD_MODE="auto"/"force": UPLOAD_URL + TOKEN guaranteed set by early validation
+if [[ "$UPLOAD_MODE" != "off" ]]; then
+    header "Uploading patch to LicenseManager"
+    if ! upload_patch_to_licensemanager \
+            "$ARCHIVE_PATH" "$SHA256" "$TARGET_VERSION" \
+            "$UPLOAD_URL" "$TOKEN"; then
+        print_elapsed
+        exit $EXIT_UPLOAD_FAILED
+    fi
+fi
 
 print_elapsed
 exit $EXIT_SUCCESS

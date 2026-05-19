@@ -5,6 +5,23 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.07.00] - 2026-05-19
+
+| Category | Description |
+|----------|-------------|
+| Added    | Automatic patch upload to LicenseManager after a successful build |
+| Changed  | Patch archives are now byte-reproducible across rebuilds |
+
+### Added
+- Patch packages can now be uploaded directly to LicenseManager after build, removing the manual admin-panel step.
+- New `--upload` / `--no-upload` flags and `.patchcreator.local` config file for opt-in setup.
+- New exit code `5` (`EXIT_UPLOAD_FAILED`) when the build succeeds but publishing fails.
+
+### Changed
+- Patch archives (`.tgz`) are now byte-reproducible: building the same source twice produces the same SHA-256. Enables safe automatic retry of failed uploads on CI.
+
+---
+
 ## [1.06.00] - 2026-05-19
 
 | Category | Description |
