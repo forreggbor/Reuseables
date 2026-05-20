@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.07.00"
+VERSION="v1.07.01"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -119,7 +119,7 @@ warn() {
 # @param string $1 Info message
 ##
 info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}[INFO]${NC} $1" >&2
 }
 
 ##
@@ -128,7 +128,7 @@ info() {
 # @param string $1 Success message
 ##
 success() {
-    echo -e "${GREEN}[OK]${NC} $1"
+    echo -e "${GREEN}[OK]${NC} $1" >&2
 }
 
 ##
@@ -137,8 +137,8 @@ success() {
 # @param string $1 Header text
 ##
 header() {
-    echo ""
-    echo -e "${BOLD}${CYAN}── $1 ──${NC}"
+    echo "" >&2
+    echo -e "${BOLD}${CYAN}── $1 ──${NC}" >&2
 }
 
 ##
@@ -299,10 +299,12 @@ is_valid_semver() {
 # Find the highest-version patch-*.tgz archive in the given output directory.
 #
 # @param string $1 Output directory path
+# @param string $2 Optional upper bound (exclusive): archives whose version is >= this value are skipped
 # @return Absolute path to the highest-version archive, or empty string if none found
 ##
 find_last_patch_archive() {
     local output_dir="$1"
+    local max_excluded="${2:-}"
     local best_path=""
     local best_ver=""
 
@@ -312,12 +314,17 @@ find_last_patch_archive() {
     prev_nullglob=$(shopt -p nullglob)
     shopt -s nullglob
 
-    local f bn ver
+    local f bn ver hi
     for f in "$output_dir"/patch-*.tgz; do
         [[ -f "$f" ]] || continue
         bn=$(basename "$f" .tgz)
         ver="${bn#patch-}"
         is_valid_semver "$ver" || continue
+
+        if [[ -n "$max_excluded" ]]; then
+            hi=$(printf '%s\n%s' "$ver" "$max_excluded" | sort -V | tail -1)
+            [[ "$hi" == "$ver" ]] && continue
+        fi
 
         if [[ -z "$best_ver" ]] || [[ "$(printf '%s\n%s' "$best_ver" "$ver" | sort -V | tail -1)" == "$ver" && "$ver" != "$best_ver" ]]; then
             best_ver="$ver"
@@ -350,16 +357,21 @@ extract_manifest_sha() {
 #     If no matching tag is reachable from HEAD, error out — the caller must pass -b explicitly.
 #  3. If OUTPUT_DIR has no patch archives, return empty (caller falls back to latest tag).
 #
+# Archives whose version is >= target_version are excluded so that a prior failed/partial
+# build of the same version does not cause the resolver to diff against HEAD itself.
+#
 # @param string $1 Project directory
 # @param string $2 Output directory to scan for patch archives
+# @param string $3 Target version being built (archives >= this version are skipped)
 # @return Base git reference (SHA or tag name), or empty string if no previous patch found
 ##
 resolve_cumulative_base() {
     local project_dir="$1"
     local output_dir="$2"
+    local target_version="$3"
 
     local last_tgz
-    last_tgz=$(find_last_patch_archive "$output_dir")
+    last_tgz=$(find_last_patch_archive "$output_dir" "$target_version")
 
     if [[ -z "$last_tgz" ]]; then
         return 0
@@ -1091,7 +1103,7 @@ HASH_PATH="${ARCHIVE_PATH}.sha256"
 header "Resolving base reference"
 
 if [[ -z "$BASE_REF" ]]; then
-    BASE_REF=$(resolve_cumulative_base "$PROJECT_DIR" "$OUTPUT_DIR")
+    BASE_REF=$(resolve_cumulative_base "$PROJECT_DIR" "$OUTPUT_DIR" "$TARGET_VERSION")
 
     if [[ -z "$BASE_REF" ]]; then
         BASE_REF=$(get_latest_tag "$PROJECT_DIR")
@@ -1113,6 +1125,10 @@ fi
 # Show commit range info
 COMMIT_COUNT=$(git -C "$PROJECT_DIR" rev-list --count "${BASE_REF}..HEAD" 2>/dev/null || echo "0")
 HEAD_COMMIT=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+BASE_COMMIT=$(git -C "$PROJECT_DIR" rev-parse "${BASE_REF}^{commit}" 2>/dev/null || echo "")
+if [[ -n "$BASE_COMMIT" && "$BASE_COMMIT" == "$HEAD_COMMIT" ]]; then
+    error "Base reference '${BASE_REF}' points to the current HEAD (${HEAD_COMMIT:0:7}); the diff would be empty. This usually means the target version (${TARGET_VERSION}) is already tagged at HEAD and no prior-version patch archive was found in ${OUTPUT_DIR}. Pass -b <prior-ref> (e.g. the previous release tag) to specify a real base." $EXIT_GIT_ERROR
+fi
 success "Base: ${BASE_REF} (${COMMIT_COUNT} commits since)"
 
 # ==============================================================================

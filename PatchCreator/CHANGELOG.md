@@ -5,6 +5,19 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.07.01] - 2026-05-20
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | `-y` (auto-confirm) builds aborting because log lines leaked into a captured git ref |
+| Fixed    | Rebuilding a patch whose version is already tagged at HEAD or present in the output dir produced a near-empty package |
+
+### Fixed
+- `info()`, `success()`, and `header()` now write to stderr (matching `warn()`/`error()`), so log lines no longer leak into command-substitution captures. Previously, `BASE_REF=$(resolve_cumulative_base ...)` captured both the `[INFO]` line and the ref, producing an invalid multi-line git reference and breaking subsequent `git` calls — most visibly under `-y`, where no interactive prompt could mask the failure.
+- The cumulative-base resolver no longer selects an archive whose version is equal to or newer than the target version. Rebuilding `patch-X.Y.Z` while `patch-X.Y.Z.tgz` (or any newer archive) is present in the output directory now correctly resolves the base to the most recent prior-version archive. A final safety check also errors out if the resolved base ref still points to HEAD itself (e.g. when HEAD is already tagged with the target version and no prior archive exists), directing the user to pass `-b <prior-ref>` explicitly.
+
+---
+
 ## [1.07.00] - 2026-05-19
 
 | Category | Description |
