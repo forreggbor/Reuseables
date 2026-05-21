@@ -1,0 +1,355 @@
+/**
+ * CronAdmin — self-contained vanilla stylesheet.
+ * All selectors are scoped under .cra-root to avoid collisions with host styles.
+ * No Bootstrap dependency.
+ */
+
+/* ============================================================================
+   Layout helpers
+   ============================================================================ */
+
+.cra-root { font-family: inherit; color: inherit; box-sizing: border-box; }
+.cra-root *, .cra-root *::before, .cra-root *::after { box-sizing: inherit; }
+
+.cra-mb-4 { margin-bottom: 1.5rem; }
+.cra-p-0  { padding: 0; }
+.cra-muted { color: #6c757d; }
+.cra-text-warning { color: #856404; }
+.cra-row  { display: flex; flex-direction: row; align-items: flex-start; }
+.cra-align-center { align-items: center; }
+.cra-gap-sm  { gap: 0.5rem; }
+.cra-flex-wrap { flex-wrap: wrap; }
+
+/* ============================================================================
+   Alerts
+   ============================================================================ */
+
+.cra-alert {
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+}
+.cra-alert--danger  { background: #f8d7da; border-color: #f5c2c7; color: #842029; }
+.cra-alert--warning { background: #fff3cd; border-color: #ffecb5; color: #664d03; }
+.cra-alert--info    { background: #cff4fc; border-color: #b6effb; color: #055160; }
+
+.cra-violation-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+/* ============================================================================
+   Card
+   ============================================================================ */
+
+.cra-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background: #fff;
+    margin-bottom: 1rem;
+}
+.cra-card-body { padding: 1rem; }
+
+/* ============================================================================
+   Table
+   ============================================================================ */
+
+.cra-table-responsive { overflow-x: auto; }
+
+.cra-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+.cra-table thead tr {
+    background: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+.cra-table th, .cra-table td {
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: 1px solid #dee2e6;
+}
+.cra-table tbody tr:last-child td { border-bottom: none; }
+.cra-table tbody tr:hover td { background: #f8f9fa; }
+
+/* ============================================================================
+   Toggle switch
+   ============================================================================ */
+
+.cra-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+.cra-toggle-label input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.cra-toggle { display: inline-flex; align-items: center; }
+.cra-toggle-input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.cra-toggle-slider {
+    display: inline-block;
+    width: 2.5rem;
+    height: 1.375rem;
+    border-radius: 1rem;
+    background: #adb5bd;
+    position: relative;
+    transition: background 0.2s;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.cra-toggle-slider::after {
+    content: '';
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.2s;
+}
+input:checked + .cra-toggle-slider { background: #0d6efd; }
+input:checked + .cra-toggle-slider::after { transform: translateX(1.125rem); }
+.cra-toggle--disabled .cra-toggle-slider { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================================
+   Form elements
+   ============================================================================ */
+
+.cra-form-group { margin-bottom: 1rem; }
+
+.cra-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+}
+.cra-form-hint {
+    font-size: 0.8125rem;
+    margin-top: 0.25rem;
+    color: #6c757d;
+}
+
+.cra-select, .cra-input {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    background: #fff;
+    color: inherit;
+    line-height: 1.5;
+}
+.cra-select:focus, .cra-input:focus {
+    outline: 2px solid #0d6efd;
+    outline-offset: 1px;
+    border-color: #86b7fe;
+}
+.cra-input--narrow { width: 5rem; }
+
+.cra-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+.cra-check-input { cursor: pointer; }
+
+/* ============================================================================
+   Badges
+   ============================================================================ */
+
+.cra-badge {
+    display: inline-block;
+    padding: 0.25em 0.5em;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+.cra-badge--success { background: #198754; color: #fff; }
+.cra-badge--danger  { background: #dc3545; color: #fff; }
+.cra-badge--muted   { background: #6c757d; color: #fff; }
+.cra-badge--light   { background: #f8f9fa; color: #212529; border: 1px solid #dee2e6; }
+
+/* ============================================================================
+   Buttons
+   ============================================================================ */
+
+.cra-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    line-height: 1.5;
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+.cra-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+.cra-btn--sm { padding: 0.25rem 0.5rem; font-size: 0.8125rem; }
+
+.cra-btn--primary { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+.cra-btn--primary:hover:not(:disabled) { background: #0b5ed7; border-color: #0a58ca; }
+
+.cra-btn--outline { border-color: #6c757d; color: #212529; }
+.cra-btn--outline:hover:not(:disabled) { background: #f8f9fa; }
+
+/* ============================================================================
+   Job table columns
+   ============================================================================ */
+
+.cra-job-toggle-cell   { width: 3rem; }
+.cra-job-actions-cell  { text-align: right; white-space: nowrap; }
+.cra-job-run-cell      { font-size: 0.8125rem; white-space: nowrap; }
+.cra-job-name-cell     { min-width: 10rem; }
+.cra-job-name          { display: block; font-weight: 600; }
+.cra-job-desc          { display: block; font-size: 0.8125rem; color: #6c757d; }
+.cra-schedule-summary  { font-size: 0.875rem; }
+
+/* ============================================================================
+   Run-now spinner
+   ============================================================================ */
+
+@keyframes cra-spin { to { transform: rotate(360deg); } }
+
+.cra-spinner {
+    display: inline-block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 2px solid #adb5bd;
+    border-top-color: #0d6efd;
+    border-radius: 50%;
+    animation: cra-spin 0.65s linear infinite;
+    vertical-align: middle;
+}
+
+.cra-run-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8125rem;
+    color: #6c757d;
+    margin-left: 0.5rem;
+}
+
+/* ============================================================================
+   Modals
+   ============================================================================ */
+
+.cra-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cra-modal[hidden] { display: none; }
+
+.cra-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+}
+
+.cra-modal-dialog {
+    position: relative;
+    z-index: 1;
+    background: #fff;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 34rem;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+.cra-modal-dialog--lg { max-width: 54rem; }
+
+.cra-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #dee2e6;
+}
+.cra-modal-title { margin: 0; font-size: 1.1rem; font-weight: 600; }
+
+.cra-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #6c757d;
+    padding: 0 0.25rem;
+    line-height: 1;
+}
+.cra-modal-close:hover { color: #212529; }
+
+.cra-modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1 1 auto;
+}
+
+.cra-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.cra-body-modal-open { overflow: hidden; }
+
+/* ============================================================================
+   Output pre block
+   ============================================================================ */
+
+.cra-output-pre {
+    background: #212529;
+    color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    max-height: 24rem;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 0.8125rem;
+    margin: 0;
+}
+
+/* ============================================================================
+   Notifications (built-in fallback)
+   ============================================================================ */
+
+.cra-notification {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 9999;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.375rem;
+    color: #fff;
+    font-size: 0.9rem;
+    box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.2);
+    transition: opacity 0.4s;
+}
+.cra-notification--success { background: #198754; }
+.cra-notification--error   { background: #dc3545; }
+.cra-notification--info    { background: #0d6efd; }
+.cra-notification--fade    { opacity: 0; }

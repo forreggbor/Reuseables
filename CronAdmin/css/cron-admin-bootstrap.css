@@ -1,0 +1,151 @@
+/**
+ * CronAdmin — Bootstrap 5 flavoured stylesheet.
+ *
+ * Overrides the vanilla .cra-* classes to delegate visual rendering to
+ * Bootstrap 5 utilities and components. Load INSTEAD OF cron-admin.css when
+ * the host already has Bootstrap 5 loaded (controlled by 'use_bootstrap' config).
+ *
+ * Requires Bootstrap 5 CSS to be loaded by the host before this file.
+ * Does NOT duplicate Bootstrap classes — only bridges the .cra-* names.
+ */
+
+/* ============================================================================
+   Layout helpers → Bootstrap equivalents
+   ============================================================================ */
+
+.cra-root { }
+
+.cra-mb-4  { margin-bottom: 1.5rem !important; }
+.cra-p-0   { padding: 0 !important; }
+.cra-muted { color: var(--bs-secondary-color, #6c757d) !important; }
+.cra-text-warning { color: var(--bs-warning-text-emphasis, #664d03) !important; }
+.cra-row          { display: flex !important; flex-direction: row; align-items: flex-start; }
+.cra-align-center { align-items: center !important; }
+.cra-gap-sm  { gap: 0.5rem !important; }
+.cra-flex-wrap { flex-wrap: wrap !important; }
+
+/* ============================================================================
+   Alerts → Bootstrap alert pattern
+   ============================================================================ */
+
+.cra-alert { padding: 1rem; border-radius: var(--bs-border-radius, 0.375rem); margin-bottom: 1rem; border: 1px solid transparent; }
+.cra-alert--danger  { background-color: var(--bs-danger-bg-subtle,  #f8d7da); border-color: var(--bs-danger-border-subtle,  #f5c2c7); color: var(--bs-danger-text-emphasis,  #842029); }
+.cra-alert--warning { background-color: var(--bs-warning-bg-subtle, #fff3cd); border-color: var(--bs-warning-border-subtle, #ffecb5); color: var(--bs-warning-text-emphasis, #664d03); }
+.cra-alert--info    { background-color: var(--bs-info-bg-subtle,    #cff4fc); border-color: var(--bs-info-border-subtle,    #b6effb); color: var(--bs-info-text-emphasis,    #055160); }
+
+.cra-violation-list { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+
+/* ============================================================================
+   Card → Bootstrap card
+   ============================================================================ */
+
+.cra-card      { @extend .card; }
+.cra-card-body { padding: 1rem; }
+
+/* ============================================================================
+   Table → Bootstrap table
+   ============================================================================ */
+
+.cra-table-responsive { overflow-x: auto; }
+.cra-table { width: 100%; border-collapse: collapse; }
+.cra-table thead tr { background-color: var(--bs-light, #f8f9fa); border-bottom: 2px solid var(--bs-border-color, #dee2e6); }
+.cra-table th, .cra-table td { padding: 0.6rem 0.75rem; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--bs-border-color, #dee2e6); font-size: 0.875rem; }
+.cra-table tbody tr:last-child td { border-bottom: none; }
+.cra-table tbody tr:hover td { background-color: var(--bs-tertiary-bg, #f8f9fa); }
+
+/* ============================================================================
+   Toggle switch → Bootstrap form-switch
+   ============================================================================ */
+
+/* Delegate to vanilla implementation; Bootstrap's form-switch uses different markup */
+.cra-toggle-label { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; }
+.cra-toggle-label input, .cra-toggle-input { position: absolute; opacity: 0; width: 0; height: 0; }
+.cra-toggle { display: inline-flex; align-items: center; }
+.cra-toggle-slider { display: inline-block; width: 2.5rem; height: 1.375rem; border-radius: 1rem; background: var(--bs-secondary-bg-subtle, #adb5bd); position: relative; transition: background 0.2s; cursor: pointer; flex-shrink: 0; }
+.cra-toggle-slider::after { content: ''; position: absolute; top: 0.1875rem; left: 0.1875rem; width: 1rem; height: 1rem; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+input:checked + .cra-toggle-slider { background: var(--bs-primary, #0d6efd); }
+input:checked + .cra-toggle-slider::after { transform: translateX(1.125rem); }
+.cra-toggle--disabled .cra-toggle-slider { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================================
+   Form elements → Bootstrap form controls
+   ============================================================================ */
+
+.cra-form-group { margin-bottom: 1rem; }
+.cra-label { display: block; font-weight: 600; margin-bottom: 0.375rem; font-size: 0.875rem; }
+.cra-form-hint { font-size: 0.8125rem; margin-top: 0.25rem; color: var(--bs-secondary-color, #6c757d); }
+
+.cra-select, .cra-input {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--bs-border-color, #ced4da);
+    border-radius: var(--bs-border-radius, 0.375rem);
+    font-size: 0.875rem;
+    background: var(--bs-body-bg, #fff);
+    color: var(--bs-body-color, inherit);
+    line-height: 1.5;
+}
+.cra-select:focus, .cra-input:focus { outline: none; border-color: var(--bs-primary, #86b7fe); box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25); }
+.cra-input--narrow { width: 5rem; }
+
+.cra-check-label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; font-size: 0.875rem; }
+.cra-check-input { cursor: pointer; }
+
+/* ============================================================================
+   Badges → Bootstrap badge
+   ============================================================================ */
+
+.cra-badge { display: inline-block; padding: 0.25em 0.5em; border-radius: var(--bs-border-radius-sm, 0.25rem); font-size: 0.75rem; font-weight: 600; line-height: 1; white-space: nowrap; }
+.cra-badge--success { background-color: var(--bs-success, #198754); color: #fff; }
+.cra-badge--danger  { background-color: var(--bs-danger, #dc3545);  color: #fff; }
+.cra-badge--muted   { background-color: var(--bs-secondary, #6c757d); color: #fff; }
+.cra-badge--light   { background-color: var(--bs-light, #f8f9fa); color: var(--bs-dark, #212529); border: 1px solid var(--bs-border-color, #dee2e6); }
+
+/* ============================================================================
+   Buttons → Bootstrap button shape
+   ============================================================================ */
+
+.cra-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.75rem; border-radius: var(--bs-border-radius, 0.375rem); border: 1px solid transparent; font-size: 0.875rem; font-weight: 500; cursor: pointer; text-decoration: none; line-height: 1.5; background: transparent; transition: color .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out, box-shadow .15s ease-in-out; white-space: nowrap; }
+.cra-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+.cra-btn--sm { padding: 0.25rem 0.5rem; font-size: 0.8125rem; }
+.cra-btn--primary { background-color: var(--bs-primary, #0d6efd); border-color: var(--bs-primary, #0d6efd); color: #fff; }
+.cra-btn--primary:hover:not(:disabled) { background-color: #0b5ed7; border-color: #0a58ca; }
+.cra-btn--outline { border-color: var(--bs-secondary, #6c757d); color: var(--bs-body-color, #212529); }
+.cra-btn--outline:hover:not(:disabled) { background-color: var(--bs-secondary-bg, #f8f9fa); }
+
+/* ============================================================================
+   Job column layout
+   ============================================================================ */
+
+.cra-job-toggle-cell   { width: 3rem; }
+.cra-job-actions-cell  { text-align: right; white-space: nowrap; }
+.cra-job-run-cell      { font-size: 0.8125rem; white-space: nowrap; }
+.cra-job-name          { display: block; font-weight: 600; }
+.cra-job-desc          { display: block; font-size: 0.8125rem; color: var(--bs-secondary-color, #6c757d); }
+
+/* ============================================================================
+   Spinner, modals, notifications — same as vanilla (BS-independent)
+   ============================================================================ */
+
+@keyframes cra-spin { to { transform: rotate(360deg); } }
+.cra-spinner { display: inline-block; width: 0.85rem; height: 0.85rem; border: 2px solid #adb5bd; border-top-color: var(--bs-primary, #0d6efd); border-radius: 50%; animation: cra-spin 0.65s linear infinite; vertical-align: middle; }
+.cra-run-status { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8125rem; color: var(--bs-secondary-color, #6c757d); margin-left: 0.5rem; }
+
+.cra-modal { position: fixed; inset: 0; z-index: 1055; display: flex; align-items: center; justify-content: center; }
+.cra-modal[hidden] { display: none; }
+.cra-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); cursor: pointer; }
+.cra-modal-dialog { position: relative; z-index: 1; background: var(--bs-body-bg, #fff); border-radius: var(--bs-border-radius-lg, 0.5rem); box-shadow: var(--bs-box-shadow-lg, 0 0.5rem 1rem rgba(0,0,0,.2)); width: 90%; max-width: 34rem; max-height: 90vh; display: flex; flex-direction: column; }
+.cra-modal-dialog--lg { max-width: 54rem; }
+.cra-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--bs-border-color, #dee2e6); }
+.cra-modal-title { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.cra-modal-close { background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--bs-secondary-color, #6c757d); padding: 0 0.25rem; line-height: 1; }
+.cra-modal-body { padding: 1.25rem; overflow-y: auto; flex: 1 1 auto; }
+.cra-modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.25rem; border-top: 1px solid var(--bs-border-color, #dee2e6); }
+.cra-body-modal-open { overflow: hidden; }
+
+.cra-output-pre { background: #212529; color: #f8f9fa; padding: 1rem; border-radius: var(--bs-border-radius, 0.375rem); max-height: 24rem; overflow-y: auto; white-space: pre-wrap; word-break: break-all; font-size: 0.8125rem; margin: 0; }
+
+.cra-notification { position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 9999; padding: 0.75rem 1.25rem; border-radius: var(--bs-border-radius, 0.375rem); color: #fff; font-size: 0.9rem; box-shadow: var(--bs-box-shadow, 0 0.25rem 0.75rem rgba(0,0,0,.2)); transition: opacity 0.4s; }
+.cra-notification--success { background-color: var(--bs-success, #198754); }
+.cra-notification--error   { background-color: var(--bs-danger, #dc3545); }
+.cra-notification--info    { background-color: var(--bs-primary, #0d6efd); }
+.cra-notification--fade    { opacity: 0; }
