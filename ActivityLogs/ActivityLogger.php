@@ -482,7 +482,7 @@ class ActivityLogger
         foreach ($data as $key => $value) {
             if (is_array($value)) {
                 $data[$key] = self::maskSensitiveData($value, $sensitiveFields);
-            } elseif (in_array(strtolower($key), array_map('strtolower', $sensitiveFields), true)) {
+            } elseif (is_string($key) && in_array(strtolower($key), array_map('strtolower', $sensitiveFields), true)) {
                 $data[$key] = '***MASKED***';
             }
         }

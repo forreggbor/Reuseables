@@ -5,6 +5,22 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-05-21
+
+| Category | Description                                                                       |
+|----------|-----------------------------------------------------------------------------------|
+| Fixed    | `maskSensitiveData()` crash on integer-keyed sub-arrays under PHP 8.3 strict mode |
+
+### Fixed
+
+- `ActivityLogger::log()` previously failed silently when `oldValues`, `newValues`, or `context`
+  contained arrays with integer keys (e.g. `['added' => ['key_a', 'key_b']]`).
+  `maskSensitiveData()` called `strtolower()` on every key during its recursive walk; PHP 8.3
+  rejects an integer argument to `strtolower()`, killing the entire audit log write. Integer keys
+  are now skipped — they can never match a `sensitive_fields` name anyway. Affects every consumer
+  that passes nested arrays with non-string keys (CronAdmin's `sync_cron_manifest` diff in
+  particular).
+
 ## [1.1.0] - 2026-03-11
 
 | Category | Description                                                           |
