@@ -5,6 +5,24 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-05-22
+
+### Summary
+
+| Category      | Description                                                                              |
+|---------------|------------------------------------------------------------------------------------------|
+| Added         | Pagination, search, folder navigation, and wide modal for the Server image gallery tab   |
+
+### Added
+- **Server gallery pagination**: server returns one page at a time; client renders pager controls ("Previous / Page N of M / Next"); page size configurable via new `serverImagesPageSize` option (default 16)
+- **Server gallery search**: debounced search input (300 ms) in the Server tab toolbar; URL form sends `?q=` to the endpoint; Array form filters in memory
+- **Server gallery folder navigation**: left sidebar lists the full folder tree; URL form receives `folderTree[]` from the server; Array form infers the tree from item URL paths; breadcrumb shows clickable path segments
+- **Wide modal**: when `serverImages` is configured, the image modal opens at 80 vw (capped at 1 100 px) to accommodate the sidebar layout
+- **New JSON envelope** for URL endpoints: `{ items, total, page, pageSize, folder, folderTree }` — replaces the old bare array response; hosts must update existing endpoints (migration note in README)
+- **Error state**: network or parse failures show an error message and a Retry button in the grid area; sidebar and pager remain mounted
+- **`serverImagesPageSize`** configuration option (default `16`)
+- **`test-images.php`** extended to honour `?page`, `?pageSize`, `?q`, `?folder`, return the new envelope, and scan subfolders recursively
+
 ## [2.4.0] - 2026-02-07
 
 ### Summary

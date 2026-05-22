@@ -11,7 +11,7 @@ A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textar
 - Text and background color formatting
 - Table insertion with configurable dimensions
 - Table editing: properties (border, padding, width), add/delete rows and columns
-- Image insertion via URL or file upload (base64)
+- Image insertion via server gallery, local file upload (base64), or URL
 - Image editing: resize by dragging, edit alt text, delete
 - Code view for HTML source editing
 - Keyboard shortcuts (Ctrl/Cmd + B, I, U, K, Z, Y)
@@ -86,6 +86,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
     imageUpload: true,
     maxImageSize: 5242880,
     allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    serverImages: null,
     onChange: function(html) {
         console.log('Content changed:', html);
     },
@@ -117,6 +118,8 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `imageUpload` | Boolean | `true` | Enable file upload for images |
 | `maxImageSize` | Number | `5242880` | Max upload size in bytes (5MB) |
 | `allowedImageTypes` | Array | `['image/jpeg', ...]` | Allowed MIME types |
+| `serverImages` | String\|Array\|null | `null` | Enable server gallery tab. String: URL endpoint returning JSON envelope. Array: pre-built image list. See below. |
+| `serverImagesPageSize` | Number | `16` | Number of images per page in the server gallery. |
 | `locale` | String | `'auto'` | UI language: `'auto'`, `'en'`, or `'hu'` |
 | `onChange` | Function | `null` | Callback when content changes |
 | `onFocus` | Function | `null` | Callback when editor gains focus |
@@ -181,6 +184,137 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `codeView`    | Toggle HTML source view          |
 | `all`         | Include all buttons (shorthand)  |
 | `\|`          | Separator (vertical line)        |
+
+## Image Insert
+
+The image modal has three tabs rendered in this order: **Server | Upload | URL**.
+
+Default active tab is chosen automatically:
+- **Server** — when `serverImages` is configured
+- **Upload** — when `serverImages` is not set and `imageUpload` is `true` (the default)
+- **URL** — when neither is enabled
+
+The Server tab is always visible. When `serverImages` is not set it shows an empty state. When `imageUpload: false` the modal shows Server and URL tabs only.
+
+## Server Image Gallery
+
+The `serverImages` option enables a browsable server-side image gallery in the image modal. Content editors can pick existing assets from the server instead of re-uploading them.
+
+The gallery modal is always wide (~80 vw, max 1100 px) when `serverImages` is configured. It includes:
+
+- **Folder sidebar** — click any folder to navigate; `Root` shows top-level items.
+- **Breadcrumb** — current path, each segment clickable.
+- **Search input** — debounced 300 ms; filters by image name.
+- **Pagination** — `« Previous | Page N of M | Next »`; controlled by `serverImagesPageSize` (default 16).
+
+### URL endpoint (string)
+
+```javascript
+const editor = new WYSIWYGEditor(document.getElementById('content'), {
+    serverImages: '/admin/images/list',
+    serverImagesPageSize: 20,
+});
+```
+
+The editor sends a `GET` request with query parameters and expects a JSON envelope:
+
+```
+GET /admin/images/list?page=1&pageSize=20&q=&folder=
+```
+
+| Param | Description |
+|-------|-------------|
+| `page` | 1-based page number |
+| `pageSize` | mirrors `serverImagesPageSize` |
+| `q` | search string (may be empty) |
+| `folder` | folder path relative to gallery root (`""` for root) |
+
+**Response envelope:**
+
+```json
+{
+  "items": [
+    { "url": "/uploads/hero.jpg", "name": "hero.jpg" },
+    { "url": "/uploads/logo.svg", "name": "logo.svg", "thumb": "/uploads/.thumbs/logo.svg" }
+  ],
+  "total": 87,
+  "page": 1,
+  "pageSize": 20,
+  "folder": "",
+  "folderTree": ["2026", "2026/04", "2026/05"]
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `items` | yes | Page of image objects |
+| `items[].url` | yes | URL used as `<img src>` when inserted |
+| `items[].name` | yes | Display label shown below the thumbnail |
+| `items[].thumb` | no | Thumbnail URL; falls back to `url` |
+| `total` | yes | Total matching items (used to compute page count) |
+| `page` | yes | Echoed current page (client detects server-side clamping) |
+| `pageSize` | yes | Echoed page size |
+| `folder` | yes | Echoed current folder |
+| `folderTree` | yes | Flat sorted list of all folder paths relative to root |
+
+The endpoint must be same-origin (or send CORS headers). Session cookies are sent via `credentials: 'same-origin'`; no auth headers are added — return only images the current user may embed.
+
+**PHP endpoint skeleton:**
+
+```php
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+// Add your own auth/permission check here
+// if (!$currentUser->can('manage_media')) { http_response_code(403); echo json_encode(['items'=>[],'total'=>0,'page'=>1,'pageSize'=>16,'folder'=>'','folderTree'=>[]]); exit; }
+
+$root     = '/var/www/project/storage/uploads';
+$page     = max(1, (int)($_GET['page']     ?? 1));
+$pageSize = max(1, min(100, (int)($_GET['pageSize'] ?? 16)));
+$q        = strtolower(trim($_GET['q']     ?? ''));
+$folder   = trim($_GET['folder'] ?? '', '/');
+
+// Validate folder (reject .. and escapes), then list + paginate + build folderTree
+// See test-images.php in the WYSIWYGEditor source for a complete reference implementation.
+```
+
+### Pre-built array (no fetch)
+
+Pass an array directly — useful when the list is already available in the page. The client handles sidebar, search, and pagination entirely in memory. No server changes needed.
+
+```javascript
+const editor = new WYSIWYGEditor(document.getElementById('content'), {
+    serverImages: [
+        { url: '/uploads/hero.jpg', name: 'hero.jpg' },
+        { url: '/uploads/2026/logo.svg', name: 'logo.svg' },
+    ],
+    serverImagesPageSize: 20,
+});
+```
+
+Folder paths are inferred from the `url` field: the path portion before the last `/` is the folder. Items whose URL contains no `/` belong to the root.
+
+Per-item shape is unchanged (`{url, name, thumb?}`) — no migration needed for Array users.
+
+### Deployment note
+
+The bundled `test-images.php` and `images/` folder are **development-only**. Exclude them from your rsync when deploying:
+
+```bash
+rsync -av --delete \
+  --exclude=test.html \
+  --exclude=test-images.php \
+  --exclude=images/ \
+  reusables/WYSIWYGEditor/ project/public/js/WYSIWYGEditor.js
+```
+
+### Migration note — breaking JSON contract change
+
+If you implemented the basic Server tab (before pagination was added), your endpoint returned a bare JSON **array** (`[{url, name}, ...]`). The client now expects a **JSON object envelope** (`{items, total, page, pageSize, folder, folderTree}`). You must update your endpoint to return the new shape; the bare-array format is no longer supported.
+
+### Migration note (`imageUpload: false`)
+
+Hosts using `imageUpload: false` previously saw a single URL input with no tabs. They will now see **Server | URL** tabs, with URL pre-selected. Insert behavior is unchanged.
 
 ## API Reference
 

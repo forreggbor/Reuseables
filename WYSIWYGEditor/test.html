@@ -157,7 +157,7 @@
 <header>
     <h1>WYSIWYGEditor</h1>
     <span class="badge">Dev Test</span>
-    <span class="badge">v2.2.2</span>
+    <span class="badge">v2.5.0</span>
 </header>
 
 <div class="container">
@@ -242,6 +242,24 @@
             </form>
             <div class="panel-title" style="margin-top:16px;">Submitted value of <code style="color:#7af; font-size:12px;">article</code></div>
             <div class="form-result" id="form-result">— submit the form to see the value —</div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════ SECTION 5: Server gallery -->
+    <section>
+        <div class="section-title">Server Image Gallery</div>
+
+        <div class="two-col">
+            <div class="panel">
+                <span class="variant-label">serverImages: Array — works via file://</span>
+                <p style="font-size:12px; color:#666; margin-bottom:10px;">Uses an inline array (6 images across 3 folders). Sidebar, search, and pager run client-side. No server needed. <code style="color:#c0392b;">serverImagesPageSize:2</code> forces pagination.</p>
+                <textarea id="editor-server-array" name="content_server_array"></textarea>
+            </div>
+            <div class="panel">
+                <span class="variant-label">serverImages: URL — requires Apache</span>
+                <p style="font-size:12px; color:#666; margin-bottom:10px;">Fetches <code style="color:#c0392b; font-size:12px;">./test-images.php</code> with <code style="color:#c0392b; font-size:12px;">?page&amp;pageSize&amp;q&amp;folder</code>. Sidebar/search/pager trigger new fetches. Open via Apache — file:// fetch will fail.</p>
+                <textarea id="editor-server-url" name="content_server_url"></textarea>
+            </div>
         </div>
     </section>
 
@@ -336,11 +354,12 @@
     });
 
     // ── Variant D: shortcuts disabled + imageUpload false ────────────────────
+    // Server tab still renders (always-on); URL is the default when imageUpload is false.
     new WYSIWYGEditor(document.getElementById('editor-d'), {
         shortcuts: false,
         imageUpload: false,
         minHeight: '180px',
-        placeholder: 'No keyboard shortcuts. Image upload tab disabled (URL only).',
+        placeholder: 'No keyboard shortcuts. imageUpload: false — Server (empty) + URL tabs shown.',
         toolbar: ['bold', 'italic', 'underline', '|', 'link', 'image', '|', 'table', '|', 'undo', 'redo'],
     });
 
@@ -348,6 +367,33 @@
     new WYSIWYGEditor(document.getElementById('editor-form'), {
         minHeight: '160px',
         placeholder: 'Type something, then submit the form…',
+    });
+
+    // ── Server gallery (Array form — works via file://) ───────────────────────
+    // serverImagesPageSize:2 → 3 root items = 2 pages; 2 icons items = 1 page; 1 landscape = 1 page
+    new WYSIWYGEditor(document.getElementById('editor-server-array'), {
+        minHeight: '180px',
+        toolbar: ['bold', 'italic', '|', 'image'],
+        serverImages: [
+            { url: 'images/placeholder-1.svg', name: 'placeholder-1.svg' },
+            { url: 'images/placeholder-2.svg', name: 'placeholder-2.svg' },
+            { url: 'images/placeholder-3.svg', name: 'placeholder-3.svg' },
+            { url: 'images/landscape/placeholder-1.svg', name: 'landscape/placeholder-1.svg' },
+            { url: 'images/icons/placeholder-2.svg', name: 'icons/placeholder-2.svg' },
+            { url: 'images/icons/placeholder-3.svg', name: 'icons/placeholder-3.svg' },
+        ],
+        serverImagesPageSize: 2,
+        placeholder: 'Click the image button → Server tab is the default…',
+    });
+
+    // ── Server gallery (URL form — requires serving via Apache) ───────────────
+    // serverImagesPageSize:2 exercises pagination against test-images.php
+    new WYSIWYGEditor(document.getElementById('editor-server-url'), {
+        minHeight: '180px',
+        toolbar: ['bold', 'italic', '|', 'image'],
+        serverImages: './test-images.php',
+        serverImagesPageSize: 2,
+        placeholder: 'Click the image button → Server tab fetches test-images.php…',
     });
 
     // ── API button handlers ──────────────────────────────────────────────────

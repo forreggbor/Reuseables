@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 2.2.2
+ * @version 2.5.0
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -62,6 +62,8 @@ class WYSIWYGEditor {
         imageUpload: true,
         maxImageSize: 5242880,
         allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+        serverImages: null,
+        serverImagesPageSize: 16,
         locale: 'auto'
     };
 
@@ -121,12 +123,25 @@ class WYSIWYGEditor {
 
             // Image modal
             'modal.insertImage': 'Insert Image',
-            'modal.tabUrl': 'URL',
+            'modal.tabServer': 'Server',
             'modal.tabUpload': 'Upload',
+            'modal.tabUrl': 'URL',
             'modal.imageUrl': 'Image URL',
             'modal.selectImage': 'Select Image',
             'modal.altText': 'Alt Text',
             'modal.altPlaceholder': 'Image description',
+            'modal.serverLoading': 'Loading…',
+            'modal.serverEmpty': 'No images found in the configured folder.',
+            'modal.serverNotConfigured': 'Server gallery is not configured.',
+            'modal.serverError': 'Could not load images.',
+            'modal.serverNoResults': 'No images match your search.',
+            'modal.serverSearch': 'Search…',
+            'modal.serverFolders': 'Folders',
+            'modal.serverRoot': 'Root',
+            'modal.serverPagePrev': 'Previous',
+            'modal.serverPageNext': 'Next',
+            'modal.serverPageOf': 'Page %1 of %2',
+            'modal.retry': 'Retry',
 
             // Alt text edit modal
             'modal.editAltText': 'Edit Alt Text',
@@ -226,12 +241,25 @@ class WYSIWYGEditor {
 
             // Image modal
             'modal.insertImage': 'Kép beszúrása',
-            'modal.tabUrl': 'URL',
+            'modal.tabServer': 'Szerver',
             'modal.tabUpload': 'Feltöltés',
+            'modal.tabUrl': 'URL',
             'modal.imageUrl': 'Kép URL',
             'modal.selectImage': 'Kép kiválasztása',
             'modal.altText': 'Alt szöveg',
             'modal.altPlaceholder': 'Kép leírása',
+            'modal.serverLoading': 'Betöltés…',
+            'modal.serverEmpty': 'Nincs kép a beállított mappában.',
+            'modal.serverNotConfigured': 'A szerver galéria nincs beállítva.',
+            'modal.serverError': 'A képek betöltése sikertelen.',
+            'modal.serverNoResults': 'Nincs találat.',
+            'modal.serverSearch': 'Keresés…',
+            'modal.serverFolders': 'Mappák',
+            'modal.serverRoot': 'Gyökér',
+            'modal.serverPagePrev': 'Előző',
+            'modal.serverPageNext': 'Következő',
+            'modal.serverPageOf': '%1. oldal / %2',
+            'modal.retry': 'Újra',
 
             // Alt text edit modal
             'modal.editAltText': 'Alt szöveg szerkesztése',
@@ -653,6 +681,140 @@ class WYSIWYGEditor {
         }
         .wysiwyg-modal-tab-content-active {
             display: block;
+        }
+        .wysiwyg-modal-wide {
+            width: 80vw;
+            max-width: 1100px;
+        }
+        .wysiwyg-server-layout {
+            display: flex;
+            gap: 16px;
+            min-height: 420px;
+        }
+        .wysiwyg-server-sidebar {
+            flex: 0 0 180px;
+            border-right: 1px solid #eee;
+            padding-right: 12px;
+            overflow-y: auto;
+            max-height: 460px;
+        }
+        .wysiwyg-server-sidebar-label {
+            font-weight: 600;
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .wysiwyg-server-folder-tree {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .wysiwyg-server-folder-tree li {
+            padding: 4px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wysiwyg-server-folder-tree li:hover { background: #f5f5f5; }
+        .wysiwyg-server-folder-active {
+            background: #eef5ff;
+            color: #007bff;
+            font-weight: 600;
+        }
+        .wysiwyg-server-main {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .wysiwyg-server-toolbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .wysiwyg-server-breadcrumb {
+            flex: 1 1 auto;
+            font-size: 13px;
+            color: #555;
+        }
+        .wysiwyg-server-breadcrumb span { cursor: pointer; }
+        .wysiwyg-server-breadcrumb span:hover { text-decoration: underline; }
+        .wysiwyg-server-search {
+            flex: 0 0 220px;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .wysiwyg-server-grid-area {
+            flex: 1 1 auto;
+            min-height: 280px;
+            overflow-y: auto;
+        }
+        .wysiwyg-server-pager {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .wysiwyg-server-pager button {
+            padding: 4px 10px;
+            cursor: pointer;
+        }
+        .wysiwyg-server-pager button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .wysiwyg-server-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 8px;
+        }
+        .wysiwyg-server-image {
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 4px;
+            text-align: center;
+            overflow: hidden;
+        }
+        .wysiwyg-server-image:hover {
+            background: #f5f5f5;
+        }
+        .wysiwyg-server-image-selected {
+            border-color: #007bff;
+            background: #eef5ff;
+        }
+        .wysiwyg-server-image img {
+            width: 100%;
+            height: 80px;
+            object-fit: contain;
+            display: block;
+        }
+        .wysiwyg-server-image-name {
+            font-size: 12px;
+            color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 4px;
+        }
+        .wysiwyg-server-images-message {
+            padding: 24px 12px;
+            text-align: center;
+            color: #666;
+        }
+        .wysiwyg-server-images-message button {
+            margin-left: 8px;
+            padding: 4px 10px;
+            cursor: pointer;
         }
         .wysiwyg-image-selected {
             outline: 2px solid #007bff;
@@ -1814,33 +1976,50 @@ class WYSIWYGEditor {
             <div class="${prefix}-modal-body">
         `;
 
-        if (this.config.imageUpload) {
-            content += `
-                <div class="${prefix}-modal-tabs">
-                    <div class="${prefix}-modal-tab ${prefix}-modal-tab-active" data-tab="url">${this.t('modal.tabUrl')}</div>
-                    <div class="${prefix}-modal-tab" data-tab="upload">${this.t('modal.tabUpload')}</div>
-                </div>
-                <div class="${prefix}-modal-tab-content ${prefix}-modal-tab-content-active" data-tab-content="url">
-                    <div class="${prefix}-modal-row">
-                        <label class="${prefix}-modal-label">${this.t('modal.imageUrl')}</label>
-                        <input type="url" class="${prefix}-modal-input" id="${prefix}-image-url" placeholder="https://example.com/image.jpg">
+        const defaultTab = this.config.serverImages != null ? 'server'
+            : (this.config.imageUpload ? 'upload' : 'url');
+
+        const tabActive = (tab) => tab === defaultTab ? ` ${prefix}-modal-tab-active` : '';
+        const contentActive = (tab) => tab === defaultTab ? ` ${prefix}-modal-tab-content-active` : '';
+
+        content += `
+            <div class="${prefix}-modal-tabs">
+                <div class="${prefix}-modal-tab${tabActive('server')}" data-tab="server">${this.t('modal.tabServer')}</div>
+                ${this.config.imageUpload ? `<div class="${prefix}-modal-tab${tabActive('upload')}" data-tab="upload">${this.t('modal.tabUpload')}</div>` : ''}
+                <div class="${prefix}-modal-tab${tabActive('url')}" data-tab="url">${this.t('modal.tabUrl')}</div>
+            </div>
+            <div class="${prefix}-modal-tab-content${contentActive('server')}" data-tab-content="server">
+                <div class="${prefix}-server-layout">
+                    <aside class="${prefix}-server-sidebar">
+                        <div class="${prefix}-server-sidebar-label">${this.t('modal.serverFolders')}</div>
+                        <ul class="${prefix}-server-folder-tree"></ul>
+                    </aside>
+                    <div class="${prefix}-server-main">
+                        <div class="${prefix}-server-toolbar">
+                            <div class="${prefix}-server-breadcrumb"></div>
+                            <input type="search" class="${prefix}-server-search" placeholder="${this.t('modal.serverSearch')}">
+                        </div>
+                        <div class="${prefix}-server-grid-area">
+                            <div class="${prefix}-server-images-message">${this.t('modal.serverLoading')}</div>
+                        </div>
+                        <div class="${prefix}-server-pager"></div>
                     </div>
                 </div>
-                <div class="${prefix}-modal-tab-content" data-tab-content="upload">
-                    <div class="${prefix}-modal-row">
-                        <label class="${prefix}-modal-label">${this.t('modal.selectImage')}</label>
-                        <input type="file" class="${prefix}-modal-input" id="${prefix}-image-file" accept="${this.config.allowedImageTypes.join(',')}">
-                    </div>
+            </div>
+            ${this.config.imageUpload ? `
+            <div class="${prefix}-modal-tab-content${contentActive('upload')}" data-tab-content="upload">
+                <div class="${prefix}-modal-row">
+                    <label class="${prefix}-modal-label">${this.t('modal.selectImage')}</label>
+                    <input type="file" class="${prefix}-modal-input" id="${prefix}-image-file" accept="${this.config.allowedImageTypes.join(',')}">
                 </div>
-            `;
-        } else {
-            content += `
+            </div>` : ''}
+            <div class="${prefix}-modal-tab-content${contentActive('url')}" data-tab-content="url">
                 <div class="${prefix}-modal-row">
                     <label class="${prefix}-modal-label">${this.t('modal.imageUrl')}</label>
                     <input type="url" class="${prefix}-modal-input" id="${prefix}-image-url" placeholder="https://example.com/image.jpg">
                 </div>
-            `;
-        }
+            </div>
+        `;
 
         content += `
                 <div class="${prefix}-modal-row">
@@ -1854,22 +2033,32 @@ class WYSIWYGEditor {
             </div>
         `;
 
+        const modalOptions = this.config.serverImages != null
+            ? { modalClass: `${prefix}-modal-wide` }
+            : {};
+
         this.showModal(content, (modal) => {
-            const url = modal.querySelector(`#${prefix}-image-url`);
-            const file = modal.querySelector(`#${prefix}-image-file`);
+            const activeTab = modal.querySelector(`.${prefix}-modal-tab-active`);
+            const activeTabName = activeTab ? activeTab.dataset.tab : 'url';
             const alt = modal.querySelector(`#${prefix}-image-alt`).value || '';
 
-            // Check which tab is active
-            const activeTab = modal.querySelector(`.${prefix}-modal-tab-active`);
-            const isUploadTab = activeTab && activeTab.dataset.tab === 'upload';
-
-            if (isUploadTab && file && file.files.length > 0) {
-                this.insertImageFromFile(file.files[0], alt);
-            } else if (url && url.value) {
-                this.insertImageFromUrl(url.value, alt);
+            if (activeTabName === 'server') {
+                const selectedUrl = modal._serverState ? modal._serverState.selectedUrl : null;
+                if (selectedUrl) {
+                    this.insertImageFromUrl(selectedUrl, alt);
+                }
+            } else if (activeTabName === 'upload') {
+                const file = modal.querySelector(`#${prefix}-image-file`);
+                if (file && file.files.length > 0) {
+                    this.insertImageFromFile(file.files[0], alt);
+                }
+            } else {
+                const url = modal.querySelector(`#${prefix}-image-url`);
+                if (url && url.value) {
+                    this.insertImageFromUrl(url.value, alt);
+                }
             }
         }, (modal) => {
-            // Setup tab switching
             const tabs = modal.querySelectorAll(`.${prefix}-modal-tab`);
             tabs.forEach(tab => {
                 tab.addEventListener('click', (e) => {
@@ -1880,13 +2069,21 @@ class WYSIWYGEditor {
                     tab.classList.add(`${prefix}-modal-tab-active`);
 
                     const tabName = tab.dataset.tab;
-                    modal.querySelectorAll(`.${prefix}-modal-tab-content`).forEach(content => {
-                        content.classList.remove(`${prefix}-modal-tab-content-active`);
+                    modal.querySelectorAll(`.${prefix}-modal-tab-content`).forEach(c => {
+                        c.classList.remove(`${prefix}-modal-tab-content-active`);
                     });
                     modal.querySelector(`[data-tab-content="${tabName}"]`).classList.add(`${prefix}-modal-tab-content-active`);
+
+                    if (tabName === 'server') {
+                        this.loadServerTab(modal, prefix);
+                    }
                 });
             });
-        });
+
+            if (defaultTab === 'server') {
+                this.loadServerTab(modal, prefix);
+            }
+        }, modalOptions);
     }
 
     /**
@@ -1931,21 +2128,431 @@ class WYSIWYGEditor {
     }
 
     /**
+     * Initialize and show the Server tab: set up per-modal state, wire event handlers,
+     * and kick off the first load. Re-entrant: safe to call multiple times; only runs once.
+     *
+     * @param {HTMLElement} modal - The modal root element
+     * @param {string} prefix - CSS class prefix
+     */
+    loadServerTab(modal, prefix) {
+        if (modal.dataset.serverLoaded) return;
+        modal.dataset.serverLoaded = '1';
+
+        modal._serverState = {
+            folder: '',
+            query: '',
+            page: 1,
+            pageSize: this.config.serverImagesPageSize,
+            selectedUrl: null,
+            folderTree: null,
+            items: [],
+            total: 0,
+            abortController: null,
+            arraySource: null,
+            searchDebounce: null,
+        };
+
+        const cfg = this.config.serverImages;
+        if (cfg == null) {
+            this.setServerError(modal, prefix, this.t('modal.serverNotConfigured'), null);
+            return;
+        }
+        if (Array.isArray(cfg)) {
+            modal._serverState.arraySource = cfg;
+            modal._serverState.folderTree = this.inferFolderTreeFromArray(cfg);
+        }
+
+        this.attachServerSearchHandler(modal, prefix);
+
+        const sidebar = modal.querySelector(`.${prefix}-server-folder-tree`);
+        sidebar.addEventListener('click', (e) => {
+            const li = e.target.closest('li[data-folder]');
+            if (!li) return;
+            modal._serverState.selectedUrl = null;
+            modal._serverState.folder = li.dataset.folder;
+            modal._serverState.page = 1;
+            this.reloadServerTab(modal, prefix);
+        });
+
+        const pager = modal.querySelector(`.${prefix}-server-pager`);
+        pager.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-page]');
+            if (!btn || btn.disabled) return;
+            modal._serverState.selectedUrl = null;
+            modal._serverState.page = parseInt(btn.dataset.page, 10);
+            this.reloadServerTab(modal, prefix);
+        });
+
+        this.reloadServerTab(modal, prefix);
+    }
+
+    /**
+     * Dispatch to the appropriate loader based on whether the source is an Array or URL.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    reloadServerTab(modal, prefix) {
+        if (modal._serverState.arraySource !== null) {
+            this.loadServerArrayPage(modal, prefix);
+        } else {
+            this.fetchServerImagesPage(modal, prefix);
+        }
+    }
+
+    /**
+     * Fetch one page of images from the URL endpoint, honouring current state.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    fetchServerImagesPage(modal, prefix) {
+        const state = modal._serverState;
+
+        state.abortController?.abort();
+        const controller = new AbortController();
+        state.abortController = controller;
+
+        this.setServerLoading(modal, prefix);
+
+        const qs = new URLSearchParams({
+            page: state.page,
+            pageSize: state.pageSize,
+            q: state.query,
+            folder: state.folder,
+        }).toString();
+
+        fetch(`${this.config.serverImages}?${qs}`, {
+            credentials: 'same-origin',
+            signal: controller.signal,
+        })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                if (controller.signal.aborted) return;
+                if (!data || typeof data !== 'object' || !Array.isArray(data.items)) {
+                    throw new Error('Invalid envelope');
+                }
+                if (data.items.length === 0 && data.total > 0) {
+                    state.page = 1;
+                    this.fetchServerImagesPage(modal, prefix);
+                    return;
+                }
+                state.items = data.items;
+                state.total = data.total;
+                state.page = data.page;
+                state.pageSize = data.pageSize;
+                state.folder = data.folder;
+                state.folderTree = data.folderTree || [];
+                this.renderServerTab(modal, prefix);
+            })
+            .catch(err => {
+                if (err.name === 'AbortError') return;
+                this.setServerError(modal, prefix, this.t('modal.serverError'), () => {
+                    this.fetchServerImagesPage(modal, prefix);
+                });
+            });
+    }
+
+    /**
+     * Filter and paginate the inline Array source in memory, then render.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    loadServerArrayPage(modal, prefix) {
+        const state = modal._serverState;
+        const q = state.query.toLowerCase();
+
+        const filtered = state.arraySource.filter(item => {
+            const urlPath = item.url.includes('/') ? item.url.substring(0, item.url.lastIndexOf('/')) : '';
+            const folderMatch = urlPath === state.folder;
+            const queryMatch = !q || item.name.toLowerCase().includes(q);
+            return folderMatch && queryMatch;
+        });
+
+        state.total = filtered.length;
+        const start = (state.page - 1) * state.pageSize;
+        state.items = filtered.slice(start, start + state.pageSize);
+
+        this.renderServerTab(modal, prefix);
+    }
+
+    /**
+     * Render sidebar, breadcrumb, image grid, and pager from current state.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    renderServerTab(modal, prefix) {
+        this.renderFolderSidebar(modal, prefix);
+        this.renderBreadcrumb(modal, prefix);
+        const gridArea = modal.querySelector(`.${prefix}-server-grid-area`);
+        this.renderServerImageGrid(gridArea, modal._serverState, prefix);
+        this.renderPager(modal, prefix);
+    }
+
+    /**
+     * Build the folder sidebar from state.folderTree.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    renderFolderSidebar(modal, prefix) {
+        const state = modal._serverState;
+        const ul = modal.querySelector(`.${prefix}-server-folder-tree`);
+        ul.replaceChildren();
+
+        const rootLi = document.createElement('li');
+        rootLi.dataset.folder = '';
+        rootLi.textContent = this.t('modal.serverRoot');
+        if (state.folder === '') rootLi.classList.add(`${prefix}-server-folder-active`);
+        ul.appendChild(rootLi);
+
+        (state.folderTree || []).forEach(folderPath => {
+            const depth = folderPath.split('/').length - 1;
+            const li = document.createElement('li');
+            li.dataset.folder = folderPath;
+            li.style.paddingLeft = `${6 + depth * 12}px`;
+            const name = folderPath.split('/').pop();
+            li.textContent = name;
+            if (folderPath === state.folder) li.classList.add(`${prefix}-server-folder-active`);
+            ul.appendChild(li);
+        });
+    }
+
+    /**
+     * Render the breadcrumb path for the current folder.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    renderBreadcrumb(modal, prefix) {
+        const state = modal._serverState;
+        const bc = modal.querySelector(`.${prefix}-server-breadcrumb`);
+        bc.replaceChildren();
+
+        const rootSpan = document.createElement('span');
+        rootSpan.textContent = this.t('modal.serverRoot');
+        rootSpan.addEventListener('click', () => {
+            state.selectedUrl = null;
+            state.folder = '';
+            state.page = 1;
+            this.reloadServerTab(modal, prefix);
+        });
+        bc.appendChild(rootSpan);
+
+        if (state.folder) {
+            const parts = state.folder.split('/');
+            parts.forEach((part, i) => {
+                const sep = document.createTextNode(' › ');
+                bc.appendChild(sep);
+                const span = document.createElement('span');
+                span.textContent = part;
+                const targetFolder = parts.slice(0, i + 1).join('/');
+                span.addEventListener('click', () => {
+                    state.selectedUrl = null;
+                    state.folder = targetFolder;
+                    state.page = 1;
+                    this.reloadServerTab(modal, prefix);
+                });
+                bc.appendChild(span);
+            });
+        }
+    }
+
+    /**
+     * Render the image grid inside the given container from state.
+     *
+     * @param {HTMLElement} container - The grid-area element
+     * @param {Object} state - Per-modal server state
+     * @param {string} prefix - CSS class prefix
+     */
+    renderServerImageGrid(container, state, prefix) {
+        container.replaceChildren();
+
+        if (state.items.length === 0) {
+            const msg = document.createElement('div');
+            msg.className = `${prefix}-server-images-message`;
+            msg.textContent = state.query
+                ? this.t('modal.serverNoResults')
+                : this.t('modal.serverEmpty');
+            container.appendChild(msg);
+            return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = `${prefix}-server-images-grid`;
+
+        state.items.forEach(item => {
+            const cell = document.createElement('div');
+            cell.className = `${prefix}-server-image`;
+            cell.dataset.url = item.url;
+            if (item.url === state.selectedUrl) {
+                cell.classList.add(`${prefix}-server-image-selected`);
+            }
+
+            const img = document.createElement('img');
+            img.src = item.thumb || item.url;
+            img.alt = item.name;
+            img.draggable = false;
+
+            const label = document.createElement('div');
+            label.className = `${prefix}-server-image-name`;
+            label.textContent = item.name;
+
+            cell.appendChild(img);
+            cell.appendChild(label);
+
+            cell.addEventListener('click', () => {
+                grid.querySelectorAll(`.${prefix}-server-image`).forEach(el => {
+                    el.classList.remove(`${prefix}-server-image-selected`);
+                });
+                cell.classList.add(`${prefix}-server-image-selected`);
+                state.selectedUrl = item.url;
+            });
+
+            grid.appendChild(cell);
+        });
+
+        container.appendChild(grid);
+    }
+
+    /**
+     * Render pagination controls below the grid.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    renderPager(modal, prefix) {
+        const state = modal._serverState;
+        const pager = modal.querySelector(`.${prefix}-server-pager`);
+        pager.replaceChildren();
+
+        const totalPages = Math.ceil(state.total / state.pageSize);
+        if (totalPages <= 1) return;
+
+        const prev = document.createElement('button');
+        prev.type = 'button';
+        prev.textContent = `« ${this.t('modal.serverPagePrev')}`;
+        prev.dataset.page = state.page - 1;
+        prev.disabled = state.page <= 1;
+        pager.appendChild(prev);
+
+        const info = document.createElement('span');
+        info.textContent = this.t('modal.serverPageOf')
+            .replace('%1', state.page)
+            .replace('%2', totalPages);
+        pager.appendChild(info);
+
+        const next = document.createElement('button');
+        next.type = 'button';
+        next.textContent = `${this.t('modal.serverPageNext')} »`;
+        next.dataset.page = state.page + 1;
+        next.disabled = state.page >= totalPages;
+        pager.appendChild(next);
+    }
+
+    /**
+     * Infer a sorted flat list of folder paths from an Array of image items.
+     *
+     * @param {Array<{url: string}>} items
+     * @returns {string[]}
+     */
+    inferFolderTreeFromArray(items) {
+        const folders = new Set();
+        items.forEach(item => {
+            if (!item.url.includes('/')) return;
+            const parts = item.url.split('/');
+            parts.pop();
+            parts.forEach((_, i) => {
+                folders.add(parts.slice(0, i + 1).join('/'));
+            });
+        });
+        return Array.from(folders).sort();
+    }
+
+    /**
+     * Wire the search input with a 300ms debounce on the modal.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    attachServerSearchHandler(modal, prefix) {
+        const input = modal.querySelector(`.${prefix}-server-search`);
+        if (!input) return;
+        input.addEventListener('input', () => {
+            const state = modal._serverState;
+            clearTimeout(state.searchDebounce);
+            state.searchDebounce = setTimeout(() => {
+                state.selectedUrl = null;
+                state.query = input.value;
+                state.page = 1;
+                this.reloadServerTab(modal, prefix);
+            }, 300);
+        });
+    }
+
+    /**
+     * Show a loading indicator in the grid area only.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    setServerLoading(modal, prefix) {
+        const gridArea = modal.querySelector(`.${prefix}-server-grid-area`);
+        if (!gridArea) return;
+        gridArea.replaceChildren();
+        const msg = document.createElement('div');
+        msg.className = `${prefix}-server-images-message`;
+        msg.textContent = this.t('modal.serverLoading');
+        gridArea.appendChild(msg);
+    }
+
+    /**
+     * Show an error message in the grid area with an optional Retry button.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     * @param {string} message
+     * @param {Function|null} onRetry
+     */
+    setServerError(modal, prefix, message, onRetry) {
+        const gridArea = modal.querySelector(`.${prefix}-server-grid-area`);
+        if (!gridArea) return;
+        gridArea.replaceChildren();
+        const msg = document.createElement('div');
+        msg.className = `${prefix}-server-images-message`;
+        msg.textContent = message;
+        if (onRetry) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = this.t('modal.retry');
+            btn.addEventListener('click', onRetry);
+            msg.appendChild(btn);
+        }
+        gridArea.appendChild(msg);
+    }
+
+    /**
      * Show a modal dialog
      *
      * @param {string} content - The modal HTML content
      * @param {Function} onConfirm - Callback when confirm button is clicked
      * @param {Function} onSetup - Optional callback for additional setup after modal is created
+     * @param {Object} options - Optional configuration: { modalClass }
      * @private
      */
-    showModal(content, onConfirm, onSetup = null) {
+    showModal(content, onConfirm, onSetup = null, options = {}) {
         const prefix = this.config.classPrefix;
 
         const overlay = document.createElement('div');
         overlay.className = `${prefix}-modal-overlay`;
 
         const modal = document.createElement('div');
-        modal.className = `${prefix}-modal`;
+        modal.className = `${prefix}-modal${options.modalClass ? ' ' + options.modalClass : ''}`;
         modal.innerHTML = content;
 
         overlay.appendChild(modal);
@@ -2018,6 +2625,11 @@ class WYSIWYGEditor {
      * @private
      */
     closeModal(overlay) {
+        const modal = overlay.firstElementChild;
+        if (modal && modal._serverState) {
+            modal._serverState.abortController?.abort();
+            clearTimeout(modal._serverState.searchDebounce);
+        }
         overlay.remove();
     }
 
