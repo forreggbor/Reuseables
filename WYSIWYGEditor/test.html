@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WYSIWYGEditor — Dev Test</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            background: #f0f2f5;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        header {
+            background: #fff;
+            border-bottom: 2px solid #dde1e7;
+            padding: 16px 24px;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+        header h1 { font-size: 18px; color: #111; font-weight: 600; }
+        .badge {
+            font-size: 11px;
+            background: #e6f4ea;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+            border-radius: 4px;
+            padding: 2px 8px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 32px; }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #dde1e7;
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #dde1e7;
+            border-radius: 6px;
+            padding: 16px;
+        }
+        .panel + .panel { margin-top: 16px; }
+        .panel-title { font-size: 12px; font-weight: 600; color: #888; margin-bottom: 12px; }
+
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        .btn-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid #cdd1d8;
+            border-radius: 4px;
+            background: #f5f6f8;
+            color: #444;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #e8eaed; border-color: #adb1b8; color: #111; }
+        .btn-primary { background: #e8f0fe; border-color: #aac4f6; color: #1a56c4; }
+        .btn-primary:hover { background: #d2e3fc; }
+        .btn-danger { background: #fce8e8; border-color: #f5a8a8; color: #c62828; }
+        .btn-danger:hover { background: #fad0d0; }
+        .btn-success { background: #e6f4ea; border-color: #a5d6a7; color: #2e7d32; }
+        .btn-success:hover { background: #d4edda; }
+
+        .output {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dde1e7;
+            border-radius: 4px;
+            padding: 10px;
+            min-height: 60px;
+            max-height: 200px;
+            overflow-y: auto;
+            word-break: break-all;
+            white-space: pre-wrap;
+            color: #1a6b1a;
+            margin-top: 8px;
+        }
+        .output.log-area { max-height: 220px; color: #444; }
+        .log-line { padding: 2px 0; border-bottom: 1px solid #eee; display: flex; gap: 6px; flex-wrap: wrap; }
+        .log-line:last-child { border-bottom: none; }
+        .log-ts { color: #aaa; flex-shrink: 0; }
+        .log-change { color: #1a56c4; flex-shrink: 0; font-weight: 600; }
+        .log-focus  { color: #e65c00; flex-shrink: 0; font-weight: 600; }
+        .log-blur   { color: #888; flex-shrink: 0; font-weight: 600; }
+        .log-detail { color: #666; word-break: break-all; }
+
+        .textarea-output {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dde1e7;
+            border-radius: 4px;
+            padding: 10px;
+            height: 120px;
+            overflow-y: auto;
+            word-break: break-all;
+            white-space: pre-wrap;
+            color: #795600;
+            resize: vertical;
+        }
+
+        .variant-label {
+            display: inline-block;
+            font-size: 11px;
+            background: #e8f0fe;
+            color: #1a56c4;
+            border: 1px solid #aac4f6;
+            border-radius: 3px;
+            padding: 2px 8px;
+            margin-bottom: 10px;
+        }
+
+        .form-result {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dde1e7;
+            border-radius: 4px;
+            padding: 10px;
+            min-height: 40px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #0c5460;
+            margin-top: 8px;
+        }
+        .form-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+        .form-submit { padding: 6px 16px; background: #e6f4ea; border: 1px solid #a5d6a7; color: #2e7d32; border-radius: 4px; cursor: pointer; font-size: 13px; font-family: inherit; }
+        .form-submit:hover { background: #d4edda; }
+
+        .shortcut-table { border-collapse: collapse; width: 100%; }
+        .shortcut-table td { padding: 4px 10px; border: 1px solid #dde1e7; font-size: 12px; }
+        .shortcut-table td:first-child { font-family: monospace; color: #c0392b; background: #fafafa; white-space: nowrap; }
+        kbd { display: inline-block; background: #f5f6f8; border: 1px solid #cdd1d8; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 11px; color: #333; }
+
+        @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>WYSIWYGEditor</h1>
+    <span class="badge">Dev Test</span>
+    <span class="badge">v2.2.2</span>
+</header>
+
+<div class="container">
+
+    <!-- ══════════════════════════════════ SECTION 1: Main editor -->
+    <section>
+        <div class="section-title">Main Editor — Full Toolbar</div>
+
+        <div class="panel">
+            <textarea id="editor-main" name="content"></textarea>
+        </div>
+
+        <div class="panel" style="margin-top:12px;">
+            <div class="panel-title">API Methods</div>
+            <div class="btn-grid">
+                <button class="btn btn-primary" onclick="apiGetContent()">getContent()</button>
+                <button class="btn btn-primary" onclick="apiGetText()">getText()</button>
+                <button class="btn btn-primary" onclick="apiIsEmpty()">isEmpty()</button>
+                <button class="btn" onclick="apiSetContent()">setContent(sample)</button>
+                <button class="btn" onclick="apiSetEmpty()">setContent('')</button>
+                <button class="btn" onclick="mainEditor.focus()">focus()</button>
+                <button class="btn" onclick="mainEditor.blur()">blur()</button>
+                <button class="btn" onclick="mainEditor.sync()">sync()</button>
+                <button class="btn" onclick="mainEditor.toggleCodeView()">toggleCodeView()</button>
+                <button class="btn" onclick="apiInsertTable()">insertTable(3,4)</button>
+                <button class="btn btn-danger" onclick="apiDestroy()">destroy()</button>
+                <button class="btn btn-success" onclick="apiReinit()">reinitialize</button>
+            </div>
+            <div class="output" id="api-output">— output appears here —</div>
+        </div>
+
+        <div class="two-col" style="margin-top:12px;">
+            <div class="panel">
+                <div class="panel-title">Event Log</div>
+                <div class="output log-area" id="event-log"></div>
+                <button class="btn" style="margin-top:8px; font-size:11px;" onclick="clearLog()">clear log</button>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Textarea value (live sync)</div>
+                <div class="textarea-output" id="textarea-mirror"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════ SECTION 2: Config variants -->
+    <section>
+        <div class="section-title">Config Variants</div>
+
+        <div class="two-col">
+            <div class="panel">
+                <span class="variant-label">locale: hu · pasteAsPlainText: true</span>
+                <textarea id="editor-hu" name="content_hu"></textarea>
+            </div>
+            <div class="panel">
+                <span class="variant-label">minimal toolbar · maxHeight: 200px</span>
+                <textarea id="editor-minimal" name="content_minimal"></textarea>
+            </div>
+        </div>
+
+        <div class="two-col" style="margin-top:16px;">
+            <div class="panel">
+                <span class="variant-label">classPrefix: editor-c · linkTargetBlank: false</span>
+                <textarea id="editor-c" name="content_c"></textarea>
+            </div>
+            <div class="panel">
+                <span class="variant-label">shortcuts: false · imageUpload: false</span>
+                <textarea id="editor-d" name="content_d"></textarea>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════ SECTION 3: Form test -->
+    <section>
+        <div class="section-title">Form Submission Test</div>
+        <div class="panel">
+            <form id="test-form" onsubmit="handleFormSubmit(event)">
+                <textarea id="editor-form" name="article"></textarea>
+                <div class="form-actions">
+                    <button type="submit" class="form-submit">Submit form</button>
+                    <span style="font-size:12px; color:#666;">Intercepts submit — shows the serialized field value below</span>
+                </div>
+            </form>
+            <div class="panel-title" style="margin-top:16px;">Submitted value of <code style="color:#7af; font-size:12px;">article</code></div>
+            <div class="form-result" id="form-result">— submit the form to see the value —</div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════ SECTION 4: Keyboard shortcuts -->
+    <section>
+        <div class="section-title">Keyboard Shortcuts Reference</div>
+        <div class="panel">
+            <table class="shortcut-table">
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>B</kbd></td><td>Bold</td></tr>
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>I</kbd></td><td>Italic</td></tr>
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>U</kbd></td><td>Underline</td></tr>
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>K</kbd></td><td>Insert link</td></tr>
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Y</kbd></td><td>Redo</td></tr>
+                <tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Redo (alt)</td></tr>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+<script src="./WYSIWYGEditor.js"></script>
+<script>
+    // ── Sample content covering every formatting feature ────────────────────
+    const IMG_SRC = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='60'%3E%3Crect width='180' height='60' rx='4' fill='%234a90d9'/%3E%3Ctext x='90' y='36' text-anchor='middle' fill='white' font-family='sans-serif' font-size='13'%3ETest Image%3C%2Ftext%3E%3C%2Fsvg%3E";
+
+    const SAMPLE_HTML = [
+        '<h1>Heading 1</h1>',
+        '<h2>Heading 2</h2>',
+        '<h3>Heading 3</h3>',
+        '<h4>Heading 4</h4>',
+        '<h5>Heading 5</h5>',
+        '<h6>Heading 6</h6>',
+        '<hr>',
+        '<p><strong>Bold</strong>, <em>italic</em>, <u>underline</u>, <s>strikethrough</s>, X<sub>sub</sub>, X<sup>sup</sup></p>',
+        '<p><span style="font-size:24px">Large 24px</span> · <span style="font-family:Georgia,serif">Georgia font</span></p>',
+        '<p><span style="color:#cc0000">Red text</span> · <span style="background-color:#ffff00;color:#000">yellow highlight</span></p>',
+        '<p style="text-align:left">Left aligned paragraph</p>',
+        '<p style="text-align:center">Centered paragraph</p>',
+        '<p style="text-align:right">Right aligned paragraph</p>',
+        '<p style="text-align:justify">Justified — Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>',
+        '<p style="margin-left:40px">Indented (40px)</p>',
+        '<p style="margin-left:80px">Double indented (80px)</p>',
+        '<blockquote><p>This is a blockquote.</p></blockquote>',
+        '<pre>function hello() {\n    console.log("preformatted block");\n}</pre>',
+        '<ul><li>Bullet item one</li><li>Bullet item two</li><li>Bullet item three</li></ul>',
+        '<ol><li>Numbered item one</li><li>Numbered item two</li><li>Numbered item three</li></ol>',
+        '<p><a href="https://example.com" target="_blank" rel="noopener noreferrer">Link to example.com</a></p>',
+        '<table><tbody>',
+        '<tr><th>Header A</th><th>Header B</th><th>Header C</th></tr>',
+        '<tr><td>Row 1 · Col 1</td><td>Row 1 · Col 2</td><td>Row 1 · Col 3</td></tr>',
+        '<tr><td>Row 2 · Col 1</td><td>Row 2 · Col 2</td><td>Row 2 · Col 3</td></tr>',
+        '</tbody></table>',
+        '<p><img src="' + IMG_SRC + '" alt="Test image — click to select, drag to resize"></p>',
+    ].join('\n');
+
+    // ── Main editor ──────────────────────────────────────────────────────────
+    let mainEditor = new WYSIWYGEditor(document.getElementById('editor-main'), {
+        minHeight: '320px',
+        placeholder: 'Start typing, or click setContent(sample) to load all formatting types…',
+        onChange: function(html) {
+            logEvent('onChange', html.length + ' chars');
+            document.getElementById('textarea-mirror').textContent = html;
+        },
+        onFocus: function() { logEvent('onFocus', ''); },
+        onBlur:  function() { logEvent('onBlur', ''); },
+    });
+
+    // ── Variant A: Hungarian + pasteAsPlainText ──────────────────────────────
+    new WYSIWYGEditor(document.getElementById('editor-hu'), {
+        locale: 'hu',
+        pasteAsPlainText: true,
+        minHeight: '180px',
+        placeholder: 'Magyar felület — beillesztés sima szövegként…',
+    });
+
+    // ── Variant B: Minimal toolbar + maxHeight ───────────────────────────────
+    new WYSIWYGEditor(document.getElementById('editor-minimal'), {
+        toolbar: ['bold', 'italic', 'underline', '|', 'link', 'unlink', '|', 'ul', 'ol', '|', 'undo', 'redo'],
+        minHeight: '100px',
+        maxHeight: '200px',
+        placeholder: 'Minimal toolbar, height capped at 200px…',
+    });
+
+    // ── Variant C: Custom classPrefix + linkTargetBlank false ────────────────
+    new WYSIWYGEditor(document.getElementById('editor-c'), {
+        classPrefix: 'editor-c',
+        linkTargetBlank: false,
+        minHeight: '180px',
+        placeholder: 'Custom classPrefix. Links open in same tab.',
+        toolbar: ['bold', 'italic', '|', 'h1', 'h2', '|', 'link', 'unlink', '|', 'table', 'image', '|', 'codeView'],
+    });
+
+    // ── Variant D: shortcuts disabled + imageUpload false ────────────────────
+    new WYSIWYGEditor(document.getElementById('editor-d'), {
+        shortcuts: false,
+        imageUpload: false,
+        minHeight: '180px',
+        placeholder: 'No keyboard shortcuts. Image upload tab disabled (URL only).',
+        toolbar: ['bold', 'italic', 'underline', '|', 'link', 'image', '|', 'table', '|', 'undo', 'redo'],
+    });
+
+    // ── Form editor ──────────────────────────────────────────────────────────
+    new WYSIWYGEditor(document.getElementById('editor-form'), {
+        minHeight: '160px',
+        placeholder: 'Type something, then submit the form…',
+    });
+
+    // ── API button handlers ──────────────────────────────────────────────────
+    function apiGetContent() {
+        var html = mainEditor.getContent();
+        showOutput('getContent() → ' + html.length + ' chars:\n' + html);
+    }
+
+    function apiGetText() {
+        var text = mainEditor.getText();
+        showOutput('getText() → ' + text.length + ' chars:\n' + text);
+    }
+
+    function apiIsEmpty() {
+        showOutput('isEmpty() → ' + mainEditor.isEmpty());
+    }
+
+    function apiSetContent() {
+        mainEditor.setContent(SAMPLE_HTML);
+        document.getElementById('textarea-mirror').textContent = mainEditor.getContent();
+        showOutput('setContent(SAMPLE_HTML) — all formatting types loaded.');
+    }
+
+    function apiSetEmpty() {
+        mainEditor.setContent('');
+        document.getElementById('textarea-mirror').textContent = '';
+        showOutput('setContent(\'\') — editor cleared.');
+    }
+
+    function apiInsertTable() {
+        mainEditor.focus();
+        mainEditor.insertTable(3, 4);
+        showOutput('insertTable(3, 4) — 3×4 table inserted at cursor.');
+    }
+
+    function apiDestroy() {
+        mainEditor.destroy();
+        mainEditor = null;
+        showOutput('destroy() — editor removed, original textarea restored.');
+    }
+
+    function apiReinit() {
+        if (mainEditor) {
+            showOutput('Already initialized — destroy() first.');
+            return;
+        }
+        mainEditor = new WYSIWYGEditor(document.getElementById('editor-main'), {
+            minHeight: '320px',
+            placeholder: 'Reinitialized…',
+            onChange: function(html) {
+                logEvent('onChange', html.length + ' chars');
+                document.getElementById('textarea-mirror').textContent = html;
+            },
+            onFocus: function() { logEvent('onFocus', ''); },
+            onBlur:  function() { logEvent('onBlur', ''); },
+        });
+        showOutput('reinitialize — new instance created on the same textarea.');
+    }
+
+    // ── Form submit ──────────────────────────────────────────────────────────
+    function handleFormSubmit(e) {
+        e.preventDefault();
+        var data = new FormData(e.target);
+        document.getElementById('form-result').textContent = data.get('article') || '(empty)';
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function showOutput(text) {
+        document.getElementById('api-output').textContent = text;
+    }
+
+    function clearLog() {
+        var log = document.getElementById('event-log');
+        while (log.firstChild) log.removeChild(log.firstChild);
+    }
+
+    function logEvent(name, detail) {
+        var log = document.getElementById('event-log');
+
+        var now = new Date();
+        var ts  = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+        var colorClass = name === 'onChange' ? 'log-change' : name === 'onFocus' ? 'log-focus' : 'log-blur';
+
+        var line = document.createElement('div');
+        line.className = 'log-line';
+
+        var tsSpan = document.createElement('span');
+        tsSpan.className = 'log-ts';
+        tsSpan.textContent = ts;
+        line.appendChild(tsSpan);
+
+        var nameSpan = document.createElement('span');
+        nameSpan.className = colorClass;
+        nameSpan.textContent = name;
+        line.appendChild(nameSpan);
+
+        if (detail) {
+            var detailSpan = document.createElement('span');
+            detailSpan.className = 'log-detail';
+            detailSpan.textContent = detail.length > 80 ? detail.slice(0, 80) + '…' : detail;
+            line.appendChild(detailSpan);
+        }
+
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
