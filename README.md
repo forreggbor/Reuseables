@@ -8,19 +8,19 @@
 
 ## Components
 
-| Component                           | Version  | Description                                                                          |
-|-------------------------------------|----------|--------------------------------------------------------------------------------------|
-| [ActivityLogs](ActivityLogs/)       | v1.00.00 | Framework-agnostic PHP activity logging with flexible schema and integrity checks    |
-| [CronAdmin](CronAdmin/)             | v1.1.0   | Framework-agnostic PHP cron job administration: manifest-driven dispatcher, admin UI, POSIX locking, Run-Now, audit logging |
-| [CodeWarden](CodeWarden/)           | v1.05.00 | Bash utility for project maintenance (PO/MO localization, ownership, permissions)    |
-| [DotEnv](DotEnv/)                   | v1.00.00 | Lightweight framework-agnostic PHP .env parser, zero dependencies, phpdotenv-compatible API |
-| [ErrorHandling](ErrorHandling/)     | v1.00.01 | Framework-agnostic PHP error and exception logging with severity levels              |
-| [GettextFallback](GettextFallback/) | v1.00.00 | Gettext translation with MO parser fallback for servers without installed locales    |
-| [MFA](MFA/)                         | v1.00.00 | RFC 6238 TOTP multi-factor authentication with built-in QR code generator            |
-| [LicenseModule](LicenseModule/)     | v1.03.00 | Framework-agnostic PHP module for license validation and tier-based feature gating   |
-| [PatchCreator](PatchCreator/)       | v1.07.01 | Bash patch package builder for PatchModule with git diff and SHA-256 verification     |
-| [PatchModule](PatchModule/)         | v2.4.0   | Framework-agnostic patch management with update checking, installation, and rollback  |
-| [SzamlazzHuAgent](SzamlazzHuAgent/) | v1.02.00 | Framework-agnostic PHP module for Szamlazz.hu invoice integration                    |
-| [Virtualjog](Virtualjog/)           | v1.00.00 | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent)   |
-| [WYSIWYGEditor](WYSIWYGEditor/)     | v2.04.00 | Lightweight WYSIWYG rich text editor with tables, images, colors, and code view      |
+| Component                           | Description                                                                          |
+|-------------------------------------|--------------------------------------------------------------------------------------|
+| [ActivityLogs](ActivityLogs/)       | Framework-agnostic PHP activity logging with flexible schema and integrity checks    |
+| [CronAdmin](CronAdmin/)             | Framework-agnostic PHP cron job administration: manifest-driven dispatcher, admin UI, POSIX locking, Run-Now, audit logging |
+| [CodeWarden](CodeWarden/)           | Bash utility for project maintenance (PO/MO localization, ownership, permissions)    |
+| [DotEnv](DotEnv/)                   | Lightweight framework-agnostic PHP .env parser, zero dependencies, phpdotenv-compatible API |
+| [ErrorHandling](ErrorHandling/)     | Framework-agnostic PHP error and exception logging with severity levels              |
+| [GettextFallback](GettextFallback/) | Gettext translation with MO parser fallback for servers without installed locales    |
+| [MFA](MFA/)                         | RFC 6238 TOTP multi-factor authentication with built-in QR code generator            |
+| [LicenseModule](LicenseModule/)     | Framework-agnostic PHP module for license validation and tier-based feature gating   |
+| [PatchCreator](PatchCreator/)       | Bash patch package builder for PatchModule with git diff and SHA-256 verification     |
+| [PatchModule](PatchModule/)         | Framework-agnostic patch management with update checking, installation, and rollback  |
+| [SzamlazzHuAgent](SzamlazzHuAgent/) | Framework-agnostic PHP module for Szamlazz.hu invoice integration                    |
+| [Virtualjog](Virtualjog/)           | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent)   |
+| [WYSIWYGEditor](WYSIWYGEditor/)     | Lightweight WYSIWYG rich text editor with tables, images, colors, and code view      |
 
