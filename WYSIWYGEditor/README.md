@@ -124,6 +124,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `onChange` | Function | `null` | Callback when content changes |
 | `onFocus` | Function | `null` | Callback when editor gains focus |
 | `onBlur` | Function | `null` | Callback when editor loses focus |
+| `onImageInsert` | Function | `null` | Hook called before every image insertion. Controls the inserted HTML. See below. |
 
 ### Default Toolbar
 
@@ -316,6 +317,86 @@ If you implemented the basic Server tab (before pagination was added), your endp
 
 Hosts using `imageUpload: false` previously saw a single URL input with no tabs. They will now see **Server | URL** tabs, with URL pre-selected. Insert behavior is unchanged.
 
+## Image Insert Hook
+
+The `onImageInsert` callback lets host applications control what HTML is inserted into the editor whenever a user confirms an image from any tab (Server, Upload, or URL). Use it to inject database IDs, wrap images in custom markup, or add any application-specific attributes — without monkey-patching the editor instance.
+
+### Callback signature
+
+```javascript
+onImageInsert: function({ url, alt, source, serverItem }) {
+    // url        — resolved image URL or base64 data URI
+    // alt        — alt text entered by the user
+    // source     — 'url' | 'upload' | 'server'
+    // serverItem — full server item object when source === 'server', null otherwise
+}
+```
+
+### Return values
+
+| Return value | Behaviour |
+|---|---|
+| `string` | Inserted verbatim as HTML. Use for full control (e.g. wrapping in `<figure>`). |
+| `object` | Key/value pairs merged as extra attributes on a plain `<img src alt …>`. |
+| `null` / `undefined` | Default `<img src alt>` is inserted unchanged. |
+
+### Extra attributes (object return)
+
+```javascript
+new WYSIWYGEditor('#content', {
+    serverImages: '/admin/media/editor-api',
+    onImageInsert: function({ source, serverItem }) {
+        if (source === 'server' && serverItem?.id) {
+            return { 'data-media-id': serverItem.id };
+        }
+    }
+});
+// Inserts: <img src="…" alt="…" data-media-id="42">
+```
+
+### Custom HTML (string return)
+
+```javascript
+new WYSIWYGEditor('#content', {
+    serverImages: '/admin/media/editor-api',
+    onImageInsert: function({ url, alt, source, serverItem }) {
+        if (source === 'server' && serverItem) {
+            return '<figure class="post-figure">'
+                + '<img src="' + url + '" alt="' + (serverItem.alt_text || alt) + '"'
+                + ' data-media-id="' + serverItem.id + '">'
+                + '<figcaption>' + (serverItem.caption || '') + '</figcaption>'
+                + '</figure>';
+        }
+        // Fall back to default for URL and upload tabs
+        return null;
+    }
+});
+```
+
+### Passing extra fields via the server endpoint
+
+The editor uses only `url`, `name`, and `thumb` from each item for display. Any additional fields your endpoint returns are ignored by the editor but passed through unchanged in `serverItem` inside the callback. Extend the response freely:
+
+```json
+{
+  "items": [
+    {
+      "url": "/uploads/photo.jpg",
+      "name": "photo.jpg",
+      "thumb": "/uploads/.thumbs/photo.jpg",
+      "id": 42,
+      "alt_text": "A descriptive alt",
+      "caption": "Photo caption",
+      "title": "Photo title",
+      "description": "Longer description"
+    }
+  ],
+  "total": 1, "page": 1, "pageSize": 16, "folder": "", "folderTree": []
+}
+```
+
+All fields (`id`, `alt_text`, `caption`, `title`, `description`, or any custom field) will be available on `serverItem` in the callback.
+
 ## API Reference
 
 ### Constructor
@@ -349,7 +430,7 @@ new WYSIWYGEditor(textarea, options)
 | `deleteTableRow(table, cell)` | void | Delete row containing cell |
 | `deleteTableColumn(table, cell)` | void | Delete column containing cell |
 | `deleteTable(table)` | void | Delete the entire table |
-| `insertImageFromUrl(url, alt)` | void | Insert image from URL |
+| `insertImageFromUrl(url, alt, options?)` | void | Insert image from URL. Optional `options.source` and `options.serverItem` are forwarded to `onImageInsert`. |
 | `selectImage(img)` | void | Select an image for editing |
 | `deselectImage()` | void | Deselect the currently selected image |
 | `editImageAlt(img)` | void | Open alt text editor for image |

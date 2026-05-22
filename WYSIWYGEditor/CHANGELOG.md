@@ -5,6 +5,24 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-05-22
+
+### Summary
+
+| Category | Description                                                                        |
+|----------|------------------------------------------------------------------------------------|
+| Added    | `onImageInsert` callback hook for host applications to customise inserted HTML     |
+
+### Added
+- **`onImageInsert` callback**: optional config function called before every image insertion. Receives `{ url, alt, source, serverItem }` and controls the inserted HTML:
+  - Return a **string** to insert that HTML verbatim (e.g. wrap in `<figure>`)
+  - Return an **object** to merge extra attributes onto a plain `<img>` (e.g. `{ 'data-media-id': 42 }`)
+  - Return `null` or `undefined` to use the default `<img src alt>` behaviour
+- **`source`** field in the callback payload identifies the insertion origin: `'url'` (URL tab), `'upload'` (file upload tab), `'server'` (server gallery tab)
+- **`serverItem`** field passes the full server item object through to the callback when `source === 'server'`, including any extra fields the host endpoint returns beyond `url`, `name`, and `thumb`
+- **`selectedItem`** tracked in server gallery state so the full item is available at insert time
+- `insertImageFromUrl(url, alt, options)` — third parameter `options` added (`{ source, serverItem }`); fully backward-compatible (existing callers with two arguments continue to work unchanged)
+
 ## [2.5.0] - 2026-05-22
 
 ### Summary

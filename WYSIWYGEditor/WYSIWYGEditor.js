@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 2.5.0
+ * @version 2.6.0
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -40,6 +40,7 @@ class WYSIWYGEditor {
         onChange: null,
         onFocus: null,
         onBlur: null,
+        onImageInsert: null,
         shortcuts: true,
         classPrefix: 'wysiwyg',
         linkTargetBlank: true,
@@ -2043,9 +2044,9 @@ class WYSIWYGEditor {
             const alt = modal.querySelector(`#${prefix}-image-alt`).value || '';
 
             if (activeTabName === 'server') {
-                const selectedUrl = modal._serverState ? modal._serverState.selectedUrl : null;
-                if (selectedUrl) {
-                    this.insertImageFromUrl(selectedUrl, alt);
+                const state = modal._serverState;
+                if (state && state.selectedUrl) {
+                    this._insertImage(state.selectedUrl, alt, 'server', state.selectedItem);
                 }
             } else if (activeTabName === 'upload') {
                 const file = modal.querySelector(`#${prefix}-image-file`);
@@ -2055,7 +2056,7 @@ class WYSIWYGEditor {
             } else {
                 const url = modal.querySelector(`#${prefix}-image-url`);
                 if (url && url.value) {
-                    this.insertImageFromUrl(url.value, alt);
+                    this._insertImage(url.value, alt, 'url', null);
                 }
             }
         }, (modal) => {
@@ -2087,20 +2088,21 @@ class WYSIWYGEditor {
     }
 
     /**
-     * Insert an image from a URL
+     * Insert an image from a URL.
      *
-     * @param {string} url - The image URL
-     * @param {string} alt - The alt text
+     * Applies the onImageInsert hook when configured. Pass options.source / options.serverItem
+     * when calling programmatically from a host application that needs to identify the origin.
+     *
+     * @param {string} url     - The image URL
+     * @param {string} alt     - The alt text
+     * @param {Object} options - Optional: { source?: 'url'|'upload'|'server', serverItem?: Object|null }
      */
-    insertImageFromUrl(url, alt = '') {
-        const html = `<img src="${this.escapeHtml(url)}" alt="${this.escapeHtml(alt)}">`;
-        this.restoreSelection();
-        document.execCommand('insertHTML', false, html);
-        this.sync();
+    insertImageFromUrl(url, alt = '', options = {}) {
+        this._insertImage(url, alt, options.source || 'url', options.serverItem || null);
     }
 
     /**
-     * Insert an image from a file (converts to base64)
+     * Insert an image from a file (converts to base64 data URL).
      *
      * @param {File} file - The image file
      * @param {string} alt - The alt text
@@ -2119,12 +2121,46 @@ class WYSIWYGEditor {
 
         const reader = new FileReader();
         reader.onload = (e) => {
-            const html = `<img src="${e.target.result}" alt="${this.escapeHtml(alt)}">`;
-            this.restoreSelection();
-            document.execCommand('insertHTML', false, html);
-            this.sync();
+            this._insertImage(e.target.result, alt, 'upload', null);
         };
         reader.readAsDataURL(file);
+    }
+
+    /**
+     * Build and insert image HTML, applying the onImageInsert hook if configured.
+     *
+     * Calls onImageInsert({ url, alt, source, serverItem }) and uses its return value:
+     *   - string  → inserted verbatim as HTML
+     *   - object  → key/value pairs merged as extra attributes on a plain <img>
+     *   - null/undefined → plain <img src alt>
+     *
+     * @param {string}      url        - Resolved image URL or base64 data URI
+     * @param {string}      alt        - Alt text
+     * @param {string}      source     - 'url' | 'upload' | 'server'
+     * @param {Object|null} serverItem - Full server item object (only when source === 'server')
+     */
+    _insertImage(url, alt, source, serverItem) {
+        let html;
+
+        if (typeof this.config.onImageInsert === 'function') {
+            const result = this.config.onImageInsert({ url, alt, source, serverItem });
+            if (typeof result === 'string') {
+                html = result;
+            } else if (result !== null && result !== undefined && typeof result === 'object') {
+                const extraAttrs = Object.entries(result)
+                    .map(([k, v]) => ` ${k}="${this.escapeHtml(String(v))}"`)
+                    .join('');
+                html = `<img src="${this.escapeHtml(url)}" alt="${this.escapeHtml(alt)}"${extraAttrs}>`;
+            }
+        }
+
+        if (!html) {
+            html = `<img src="${this.escapeHtml(url)}" alt="${this.escapeHtml(alt)}">`;
+        }
+
+        this.restoreSelection();
+        document.execCommand('insertHTML', false, html);
+        this.sync();
     }
 
     /**
@@ -2144,6 +2180,7 @@ class WYSIWYGEditor {
             page: 1,
             pageSize: this.config.serverImagesPageSize,
             selectedUrl: null,
+            selectedItem: null,
             folderTree: null,
             items: [],
             total: 0,
@@ -2168,7 +2205,8 @@ class WYSIWYGEditor {
         sidebar.addEventListener('click', (e) => {
             const li = e.target.closest('li[data-folder]');
             if (!li) return;
-            modal._serverState.selectedUrl = null;
+            modal._serverState.selectedUrl  = null;
+            modal._serverState.selectedItem = null;
             modal._serverState.folder = li.dataset.folder;
             modal._serverState.page = 1;
             this.reloadServerTab(modal, prefix);
@@ -2178,7 +2216,8 @@ class WYSIWYGEditor {
         pager.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-page]');
             if (!btn || btn.disabled) return;
-            modal._serverState.selectedUrl = null;
+            modal._serverState.selectedUrl  = null;
+            modal._serverState.selectedItem = null;
             modal._serverState.page = parseInt(btn.dataset.page, 10);
             this.reloadServerTab(modal, prefix);
         });
@@ -2337,7 +2376,8 @@ class WYSIWYGEditor {
         const rootSpan = document.createElement('span');
         rootSpan.textContent = this.t('modal.serverRoot');
         rootSpan.addEventListener('click', () => {
-            state.selectedUrl = null;
+            state.selectedUrl  = null;
+            state.selectedItem = null;
             state.folder = '';
             state.page = 1;
             this.reloadServerTab(modal, prefix);
@@ -2353,7 +2393,8 @@ class WYSIWYGEditor {
                 span.textContent = part;
                 const targetFolder = parts.slice(0, i + 1).join('/');
                 span.addEventListener('click', () => {
-                    state.selectedUrl = null;
+                    state.selectedUrl  = null;
+                    state.selectedItem = null;
                     state.folder = targetFolder;
                     state.page = 1;
                     this.reloadServerTab(modal, prefix);
@@ -2411,7 +2452,8 @@ class WYSIWYGEditor {
                     el.classList.remove(`${prefix}-server-image-selected`);
                 });
                 cell.classList.add(`${prefix}-server-image-selected`);
-                state.selectedUrl = item.url;
+                state.selectedUrl  = item.url;
+                state.selectedItem = item;
             });
 
             grid.appendChild(cell);
@@ -2487,7 +2529,8 @@ class WYSIWYGEditor {
             const state = modal._serverState;
             clearTimeout(state.searchDebounce);
             state.searchDebounce = setTimeout(() => {
-                state.selectedUrl = null;
+                state.selectedUrl  = null;
+                state.selectedItem = null;
                 state.query = input.value;
                 state.page = 1;
                 this.reloadServerTab(modal, prefix);
