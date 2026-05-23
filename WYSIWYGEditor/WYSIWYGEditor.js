@@ -5,7 +5,7 @@
  * using native browser APIs (contenteditable, execCommand).
  *
  * @package WYSIWYGEditor
- * @version 2.6.0
+ * @version 2.7.0
  * @license MIT
  */
 class WYSIWYGEditor {
@@ -65,7 +65,12 @@ class WYSIWYGEditor {
         allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
         serverImages: null,
         serverImagesPageSize: 16,
-        locale: 'auto'
+        locale: 'auto',
+        serverGalleries: null,
+        serverGalleriesPageSize: 12,
+        onGalleryInsert: null,
+        onContentIn: null,
+        onContentOut: null
     };
 
     /**
@@ -188,7 +193,15 @@ class WYSIWYGEditor {
 
             // Alert messages
             'alert.invalidImageType': 'Invalid image type. Allowed: ',
-            'alert.imageTooLarge': 'Image too large. Maximum size: '
+            'alert.imageTooLarge': 'Image too large. Maximum size: ',
+
+            // Gallery picker
+            'toolbar.gallery': 'Insert gallery',
+            'modal.galleryPickerTitle': 'Select gallery',
+            'modal.galleryEmpty': 'No galleries available.',
+            'modal.galleryImageCount': '%d images',
+            'modal.galleryError': 'Failed to load galleries.',
+            'modal.galleryNotConfigured': 'Gallery source not configured.'
         },
 
         hu: {
@@ -306,7 +319,15 @@ class WYSIWYGEditor {
 
             // Alert messages
             'alert.invalidImageType': 'Érvénytelen képformátum. Engedélyezett: ',
-            'alert.imageTooLarge': 'A kép túl nagy. Maximális méret: '
+            'alert.imageTooLarge': 'A kép túl nagy. Maximális méret: ',
+
+            // Gallery picker
+            'toolbar.gallery': 'Galéria beszúrása',
+            'modal.galleryPickerTitle': 'Galéria kiválasztása',
+            'modal.galleryEmpty': 'Nincs elérhető galéria.',
+            'modal.galleryImageCount': '%d kép',
+            'modal.galleryError': 'A galériák betöltése sikertelen.',
+            'modal.galleryNotConfigured': 'Galériaforrás nincs beállítva.'
         }
     };
 
@@ -349,6 +370,7 @@ class WYSIWYGEditor {
         bgColor: { icon: '<span style="background:#ff0;padding:0 2px">A</span>', title: 'Background Color', command: 'backColor', custom: true, type: 'colorPicker' },
         table: { icon: '&#9638;', title: 'Insert Table', command: 'insertTable', custom: true },
         image: { icon: '&#128247;', title: 'Insert Image', command: 'insertImage', custom: true },
+        gallery: { icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>', title: 'Insert gallery', command: 'insertGallery', custom: true },
         codeView: { icon: '&lt;/&gt;', title: 'View HTML Source', command: 'codeView', custom: true },
         '|': { type: 'separator' }
     };
@@ -881,6 +903,85 @@ class WYSIWYGEditor {
             left: -5px;
             top: -5px;
             cursor: nw-resize;
+        }
+
+        /* Gallery picker */
+        .wysiwyg-gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+        @media (max-width: 576px) {
+            .wysiwyg-gallery-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        .wysiwyg-gallery-card {
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.15s, box-shadow 0.15s;
+            background: #fff;
+            outline: none;
+        }
+        .wysiwyg-gallery-card:hover,
+        .wysiwyg-gallery-card:focus {
+            border-color: #4b6bfb;
+            box-shadow: 0 0 0 3px rgba(75, 107, 251, 0.15);
+        }
+        .wysiwyg-gallery-card--selected {
+            border-color: #d4a017;
+            box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.25);
+        }
+        .wysiwyg-gallery-card__thumb {
+            aspect-ratio: 4 / 3;
+            background: #f1f3f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            color: #adb5bd;
+            font-size: 1.5rem;
+        }
+        .wysiwyg-gallery-card__thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .wysiwyg-gallery-card__info {
+            padding: 0.5rem 0.625rem;
+        }
+        .wysiwyg-gallery-card__name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #212529;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .wysiwyg-gallery-card__count {
+            font-size: 0.7rem;
+            color: #6c757d;
+            margin-top: 0.125rem;
+        }
+        .wysiwyg-gallery-message {
+            text-align: center;
+            padding: 1.5rem 0;
+            color: #6c757d;
+            font-size: 0.875rem;
+        }
+        .wysiwyg-gallery-message button {
+            display: block;
+            margin: 0.5rem auto 0;
+        }
+        .wysiwyg-gallery-pager {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            font-size: 0.8rem;
         }
     `;
 
@@ -1445,6 +1546,9 @@ class WYSIWYGEditor {
                 break;
             case 'insertImage':
                 this.showImageModal();
+                break;
+            case 'insertGallery':
+                this.showGalleryModal();
                 break;
             case 'subscript':
                 this.toggleSubscript();
@@ -2164,6 +2268,352 @@ class WYSIWYGEditor {
     }
 
     /**
+     * Show the gallery picker modal.
+     */
+    showGalleryModal() {
+        const prefix = this.config.classPrefix;
+
+        this.saveSelection();
+
+        const content = `
+            <div class="${prefix}-modal-header">${this.t('modal.galleryPickerTitle')}</div>
+            <div class="${prefix}-modal-body">
+                <div class="${prefix}-gallery-grid-area">
+                    <div class="${prefix}-gallery-message">${this.t('modal.serverLoading')}</div>
+                </div>
+                <div class="${prefix}-gallery-pager"></div>
+            </div>
+            <div class="${prefix}-modal-footer">
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-secondary" data-action="cancel">${this.t('modal.cancel')}</button>
+                <button type="button" class="${prefix}-modal-btn ${prefix}-modal-btn-primary" data-action="insert" disabled>${this.t('modal.insert')}</button>
+            </div>
+        `;
+
+        this.showModal(content, (modal) => {
+            const state = modal._galleryState;
+            if (state && state.selectedItem) {
+                this._insertGallery(state.selectedItem, 'picker');
+            }
+        }, (modal) => {
+            this.loadGalleryTab(modal, prefix);
+        }, { modalClass: `${prefix}-modal-wide` });
+    }
+
+    /**
+     * Initialise gallery picker state and wire pager. Re-entrant guard via dataset flag.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    loadGalleryTab(modal, prefix) {
+        if (modal.dataset.galleryLoaded) return;
+        modal.dataset.galleryLoaded = '1';
+
+        modal._galleryState = {
+            page: 1,
+            pageSize: this.config.serverGalleriesPageSize,
+            items: [],
+            total: 0,
+            selectedItem: null,
+            abortController: null,
+            arraySource: null,
+        };
+
+        const cfg = this.config.serverGalleries;
+        if (cfg == null) {
+            this.setGalleryError(modal, prefix, this.t('modal.galleryNotConfigured'), null);
+            return;
+        }
+        if (Array.isArray(cfg)) {
+            modal._galleryState.arraySource = cfg;
+        }
+
+        const pager = modal.querySelector(`.${prefix}-gallery-pager`);
+        pager.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-page]');
+            if (!btn || btn.disabled) return;
+            modal._galleryState.selectedItem = null;
+            modal.querySelector('[data-action="insert"]').disabled = true;
+            modal._galleryState.page = parseInt(btn.dataset.page, 10);
+            this.reloadGalleryTab(modal, prefix);
+        });
+
+        this.reloadGalleryTab(modal, prefix);
+    }
+
+    /**
+     * Dispatch to array or URL loader based on source type.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    reloadGalleryTab(modal, prefix) {
+        if (modal._galleryState.arraySource !== null) {
+            this.loadGalleryArrayPage(modal, prefix);
+        } else {
+            this.fetchGalleryPage(modal, prefix);
+        }
+    }
+
+    /**
+     * Fetch one page of galleries from the URL endpoint.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    fetchGalleryPage(modal, prefix) {
+        const state = modal._galleryState;
+
+        state.abortController?.abort();
+        const controller = new AbortController();
+        state.abortController = controller;
+
+        this.setGalleryLoading(modal, prefix);
+
+        const qs = new URLSearchParams({
+            page: state.page,
+            pageSize: state.pageSize,
+        }).toString();
+
+        fetch(`${this.config.serverGalleries}?${qs}`, {
+            credentials: 'same-origin',
+            signal: controller.signal,
+        })
+            .then(response => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                if (controller.signal.aborted) return;
+                if (!data || typeof data !== 'object' || !Array.isArray(data.items)) {
+                    throw new Error('Invalid envelope');
+                }
+                state.items    = data.items;
+                state.total    = data.total    ?? data.items.length;
+                state.page     = data.page     ?? state.page;
+                state.pageSize = data.pageSize ?? state.pageSize;
+                this.renderGalleryGrid(modal, prefix);
+            })
+            .catch(err => {
+                if (err.name === 'AbortError') return;
+                this.setGalleryError(modal, prefix, this.t('modal.galleryError'), () => {
+                    this.fetchGalleryPage(modal, prefix);
+                });
+            });
+    }
+
+    /**
+     * Paginate an inline Array source and render.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    loadGalleryArrayPage(modal, prefix) {
+        const state    = modal._galleryState;
+        state.total    = state.arraySource.length;
+        const start    = (state.page - 1) * state.pageSize;
+        state.items    = state.arraySource.slice(start, start + state.pageSize);
+        this.renderGalleryGrid(modal, prefix);
+    }
+
+    /**
+     * Render the gallery card grid and pager from current state.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    renderGalleryGrid(modal, prefix) {
+        const state     = modal._galleryState;
+        const container = modal.querySelector(`.${prefix}-gallery-grid-area`);
+        const insertBtn = modal.querySelector('[data-action="insert"]');
+        container.replaceChildren();
+
+        if (state.items.length === 0) {
+            const msg = document.createElement('div');
+            msg.className = `${prefix}-gallery-message`;
+            msg.textContent = this.t('modal.galleryEmpty');
+            container.appendChild(msg);
+            this.renderGalleryPager(modal, prefix);
+            return;
+        }
+
+        const grid = document.createElement('div');
+        grid.className = `${prefix}-gallery-grid`;
+
+        state.items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = `${prefix}-gallery-card`;
+            card.setAttribute('tabindex', '0');
+            card.setAttribute('role', 'option');
+            card.setAttribute('aria-selected', 'false');
+
+            const thumb = document.createElement('div');
+            thumb.className = `${prefix}-gallery-card__thumb`;
+            if (item.cover) {
+                const img = document.createElement('img');
+                img.src     = item.cover;
+                img.alt     = '';
+                img.loading = 'lazy';
+                thumb.appendChild(img);
+            } else {
+                const ph = document.createElement('span');
+                ph.setAttribute('aria-hidden', 'true');
+                ph.textContent = '🖼';
+                thumb.appendChild(ph);
+            }
+
+            const info    = document.createElement('div');
+            info.className = `${prefix}-gallery-card__info`;
+
+            const nameEl = document.createElement('div');
+            nameEl.className  = `${prefix}-gallery-card__name`;
+            nameEl.textContent = item.name;
+
+            const countEl = document.createElement('div');
+            countEl.className  = `${prefix}-gallery-card__count`;
+            countEl.textContent = this.t('modal.galleryImageCount')
+                .replace('%d', String(item.image_count ?? 0));
+
+            info.appendChild(nameEl);
+            info.appendChild(countEl);
+            card.appendChild(thumb);
+            card.appendChild(info);
+
+            const selectCard = () => {
+                grid.querySelectorAll(`.${prefix}-gallery-card`).forEach(c => {
+                    c.classList.remove(`${prefix}-gallery-card--selected`);
+                    c.setAttribute('aria-selected', 'false');
+                });
+                card.classList.add(`${prefix}-gallery-card--selected`);
+                card.setAttribute('aria-selected', 'true');
+                state.selectedItem  = item;
+                insertBtn.disabled  = false;
+            };
+
+            card.addEventListener('click', selectCard);
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCard(); }
+            });
+
+            if (state.selectedItem && state.selectedItem.id === item.id) {
+                card.classList.add(`${prefix}-gallery-card--selected`);
+                card.setAttribute('aria-selected', 'true');
+            }
+
+            grid.appendChild(card);
+        });
+
+        container.appendChild(grid);
+        this.renderGalleryPager(modal, prefix);
+    }
+
+    /**
+     * Render pagination controls for the gallery picker.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    renderGalleryPager(modal, prefix) {
+        const state = modal._galleryState;
+        const pager = modal.querySelector(`.${prefix}-gallery-pager`);
+        pager.replaceChildren();
+
+        const totalPages = Math.ceil(state.total / state.pageSize);
+        if (totalPages <= 1) return;
+
+        const prev = document.createElement('button');
+        prev.type        = 'button';
+        prev.textContent = `« ${this.t('modal.serverPagePrev')}`;
+        prev.dataset.page = state.page - 1;
+        prev.disabled    = state.page <= 1;
+        pager.appendChild(prev);
+
+        const info = document.createElement('span');
+        info.textContent = this.t('modal.serverPageOf')
+            .replace('%1', state.page)
+            .replace('%2', totalPages);
+        pager.appendChild(info);
+
+        const next = document.createElement('button');
+        next.type        = 'button';
+        next.textContent = `${this.t('modal.serverPageNext')} »`;
+        next.dataset.page = state.page + 1;
+        next.disabled    = state.page >= totalPages;
+        pager.appendChild(next);
+    }
+
+    /**
+     * Show a loading indicator in the gallery grid area.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     */
+    setGalleryLoading(modal, prefix) {
+        const container = modal.querySelector(`.${prefix}-gallery-grid-area`);
+        if (!container) return;
+        container.replaceChildren();
+        const msg = document.createElement('div');
+        msg.className  = `${prefix}-gallery-message`;
+        msg.textContent = this.t('modal.serverLoading');
+        container.appendChild(msg);
+    }
+
+    /**
+     * Show an error message in the gallery grid area with an optional Retry button.
+     *
+     * @param {HTMLElement} modal
+     * @param {string} prefix
+     * @param {string} message
+     * @param {Function|null} onRetry
+     */
+    setGalleryError(modal, prefix, message, onRetry) {
+        const container = modal.querySelector(`.${prefix}-gallery-grid-area`);
+        if (!container) return;
+        container.replaceChildren();
+        const msg = document.createElement('div');
+        msg.className  = `${prefix}-gallery-message`;
+        msg.textContent = message;
+        if (onRetry) {
+            const btn = document.createElement('button');
+            btn.type        = 'button';
+            btn.textContent = this.t('modal.retry');
+            btn.addEventListener('click', onRetry);
+            msg.appendChild(btn);
+        }
+        container.appendChild(msg);
+    }
+
+    /**
+     * Build and insert gallery embed HTML, applying the onGalleryInsert hook if configured.
+     *
+     * Calls onGalleryInsert({ gallery, source }) and uses its return value:
+     *   - string → inserted verbatim as HTML
+     *   - null/undefined → block-level placeholder div
+     *
+     * @param {Object} item   - Gallery item object from the picker state
+     * @param {string} source - 'picker'
+     */
+    _insertGallery(item, source) {
+        let html;
+
+        if (typeof this.config.onGalleryInsert === 'function') {
+            const result = this.config.onGalleryInsert({ gallery: item, source });
+            if (typeof result === 'string') {
+                html = result;
+            }
+        }
+
+        if (!html) {
+            const prefix = this.config.classPrefix;
+            html = `<div class="${prefix}-gallery-embed" data-gallery-id="${parseInt(item.id, 10)}" contenteditable="false">${this.escapeHtml(String(item.name ?? ''))}</div>`;
+        }
+
+        this.restoreSelection();
+        document.execCommand('insertHTML', false, html);
+        this.sync();
+    }
+
+    /**
      * Initialize and show the Server tab: set up per-modal state, wire event handlers,
      * and kick off the first load. Re-entrant: safe to call multiple times; only runs once.
      *
@@ -2672,6 +3122,9 @@ class WYSIWYGEditor {
         if (modal && modal._serverState) {
             modal._serverState.abortController?.abort();
             clearTimeout(modal._serverState.searchDebounce);
+        }
+        if (modal && modal._galleryState) {
+            modal._galleryState.abortController?.abort();
         }
         overlay.remove();
     }
@@ -3552,7 +4005,11 @@ class WYSIWYGEditor {
         clone.querySelectorAll(`.${prefix}-image-selected`).forEach(el => el.classList.remove(`${prefix}-image-selected`));
         clone.querySelectorAll(`.${prefix}-table-selected`).forEach(el => el.classList.remove(`${prefix}-table-selected`));
 
-        return clone.innerHTML;
+        const cleaned = clone.innerHTML;
+        if (typeof this.config.onContentOut === 'function') {
+            return this.config.onContentOut(cleaned);
+        }
+        return cleaned;
     }
 
     /**
@@ -3575,7 +4032,11 @@ class WYSIWYGEditor {
         temp.querySelectorAll(`.${prefix}-image-selected`).forEach(el => el.classList.remove(`${prefix}-image-selected`));
         temp.querySelectorAll(`.${prefix}-table-selected`).forEach(el => el.classList.remove(`${prefix}-table-selected`));
 
-        return temp.innerHTML;
+        const sanitized = temp.innerHTML;
+        if (typeof this.config.onContentIn === 'function') {
+            return this.config.onContentIn(sanitized);
+        }
+        return sanitized;
     }
 
     /**

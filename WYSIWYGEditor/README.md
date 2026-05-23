@@ -120,11 +120,16 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `allowedImageTypes` | Array | `['image/jpeg', ...]` | Allowed MIME types |
 | `serverImages` | String\|Array\|null | `null` | Enable server gallery tab. String: URL endpoint returning JSON envelope. Array: pre-built image list. See below. |
 | `serverImagesPageSize` | Number | `16` | Number of images per page in the server gallery. |
+| `serverGalleries` | String\|Array\|null | `null` | Enable gallery picker button. String: URL endpoint. Array: pre-built gallery list. See below. |
+| `serverGalleriesPageSize` | Number | `12` | Number of galleries per page in the picker. |
 | `locale` | String | `'auto'` | UI language: `'auto'`, `'en'`, or `'hu'` |
 | `onChange` | Function | `null` | Callback when content changes |
 | `onFocus` | Function | `null` | Callback when editor gains focus |
 | `onBlur` | Function | `null` | Callback when editor loses focus |
 | `onImageInsert` | Function | `null` | Hook called before every image insertion. Controls the inserted HTML. See below. |
+| `onGalleryInsert` | Function | `null` | Hook called when user picks a gallery. Return a string to insert verbatim, or `null` for a generic placeholder. See below. |
+| `onContentIn` | Function | `null` | Sync transform applied at the end of `sanitizeEditorUI`: host-storage-format → editor DOM. Must be pure and synchronous. Register as a pair with `onContentOut`. |
+| `onContentOut` | Function | `null` | Sync transform applied at the end of `getCleanContent`: editor DOM → host-storage-format. Must be pure and synchronous. Register as a pair with `onContentIn`. |
 
 ### Default Toolbar
 
@@ -179,6 +184,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `outdent`     | Decrease indentation             |
 | `table`       | Insert table                     |
 | `image`       | Insert image                     |
+| `gallery`     | Open gallery picker (requires `serverGalleries`) |
 | `undo`        | Undo last action                 |
 | `redo`        | Redo last action                 |
 | `clearFormat` | Remove all formatting            |
@@ -396,6 +402,95 @@ The editor uses only `url`, `name`, and `thumb` from each item for display. Any 
 ```
 
 All fields (`id`, `alt_text`, `caption`, `title`, `description`, or any custom field) will be available on `serverItem` in the callback.
+
+## Gallery Picker
+
+Add `'gallery'` to the `toolbar` array and set `serverGalleries` to enable the built-in gallery picker.
+
+```javascript
+new WYSIWYGEditor('#content', {
+    locale: 'hu',
+    toolbar: ['bold', 'italic', '|', 'image', 'gallery', '|', 'codeView'],
+    serverGalleries: '/admin/galleries/api',
+    onGalleryInsert: function ({ gallery }) {
+        return '<figure class="gallery-embed" data-gallery-id="' + gallery.id + '">'
+            + '<span>' + gallery.name + '</span>'
+            + '</figure>';
+    }
+});
+```
+
+### Endpoint envelope (URL string)
+
+Aligned with the `serverImages` shape:
+
+```json
+{
+  "items": [
+    { "id": 12, "name": "Summer 2024", "image_count": 18, "cover": "/path/to/cover.jpg" }
+  ],
+  "total": 42,
+  "page": 1,
+  "pageSize": 12
+}
+```
+
+Pagination fields (`total`, `page`, `pageSize`) are optional — the picker handles a flat list without them. Extra item fields pass through unchanged to `onGalleryInsert({ gallery })`.
+
+### Pre-built array (no fetch)
+
+```javascript
+serverGalleries: [
+    { id: 1, name: 'Portraits', image_count: 12, cover: '/img/cover1.jpg' },
+    { id: 2, name: 'Events',    image_count: 34, cover: '/img/cover2.jpg' }
+]
+```
+
+### `onGalleryInsert` callback signature
+
+```
+onGalleryInsert({ gallery, source })
+  gallery : full item object from the endpoint (id, name, image_count, cover, …)
+  source  : 'picker'
+  returns : string (inserted verbatim) | null (generic block placeholder)
+```
+
+## Content Transform Hooks
+
+`onContentIn` and `onContentOut` are a **matched pair** of synchronous string transforms. Wire both or neither — registering only one silently breaks the round-trip.
+
+| Hook | When it runs | Direction |
+|---|---|---|
+| `onContentIn(html) => html'` | End of `sanitizeEditorUI` (every load, every code-view toggle back) | host storage → editor DOM |
+| `onContentOut(html) => html'` | End of `getCleanContent` (every save, every code-view toggle forward) | editor DOM → host storage |
+
+Both hooks fire on **every** call, not just when gallery markup is present — keep implementations pure, synchronous, and idempotent.
+
+### UniCMS shortcode round-trip example
+
+```javascript
+new WYSIWYGEditor('#content', {
+    serverGalleries: '/admin/galeria/api',
+    onGalleryInsert: function ({ gallery }) {
+        return buildGalleryEmbed(gallery.id, gallery.name, gallery.image_count);
+    },
+    onContentIn: function (html) {
+        // [gallery id=N] → placeholder figure (editor display)
+        return html.replace(/\[gallery id=(\d+)\]/g, function (_, id) {
+            var info = galleryCache[id] || { name: '#' + id, image_count: '?' };
+            return buildGalleryEmbed(id, info.name, info.image_count);
+        });
+    },
+    onContentOut: function (html) {
+        // placeholder figure → [gallery id=N] (DB storage)
+        html = html.replace(
+            /<(figure|div|p)\b[^>]*data-gallery-id="(\d+)"[^>]*>[\s\S]*?<\/\1>/gi,
+            '[gallery id=$2]'
+        );
+        return html.replace(/\s*contenteditable="[^"]*"/gi, '');
+    }
+});
+```
 
 ## API Reference
 

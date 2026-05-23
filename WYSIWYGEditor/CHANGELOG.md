@@ -5,6 +5,23 @@ All notable changes to WYSIWYGEditor will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-05-23
+
+### Summary
+
+| Category | Description                                                                                        |
+|----------|----------------------------------------------------------------------------------------------------|
+| Added    | First-class gallery picker with `onGalleryInsert` hook and generic `onContentIn`/`onContentOut` content-transform hooks |
+
+### Added
+- **`serverGalleries`**: URL string or pre-built Array to enable the gallery picker toolbar button. Mirrors `serverImages` shape — endpoint returns `{ items, total, page, pageSize }`.
+- **`serverGalleriesPageSize`**: page size for the gallery picker (default `12`).
+- **`onGalleryInsert({ gallery, source })` callback**: called when the user picks a gallery. Return a **string** to insert verbatim, or `null`/`undefined` for the generic block placeholder.
+- **`onContentIn(html) => html'`** and **`onContentOut(html) => html'`**: a matched pair of synchronous string transforms. `onContentIn` runs at the end of `sanitizeEditorUI` (host-format → editor DOM, e.g. `[gallery id=N]` → placeholder HTML). `onContentOut` runs at the end of `getCleanContent` (editor DOM → host-format). Both hooks fire on every load/save, not just for galleries — register them as a pair; wiring only one breaks the round-trip.
+- **Gallery toolbar button**: include `'gallery'` in the `toolbar` array to show the button. Calls the reusable's built-in picker — no host-side modal code required.
+- **Gallery picker modal**: single-pane card grid (cover thumbnail + name + image count), Cancel/Insert buttons, pagination controls. Reuses the existing `showModal`/`closeModal` shell; no Bootstrap dependency.
+- **6 new translation keys** in both `en` and `hu` blocks: `toolbar.gallery`, `modal.galleryPickerTitle`, `modal.galleryEmpty`, `modal.galleryImageCount`, `modal.galleryError`, `modal.galleryNotConfigured`.
+
 ## [2.6.0] - 2026-05-22
 
 ### Summary
