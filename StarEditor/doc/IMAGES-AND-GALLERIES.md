@@ -34,7 +34,7 @@ When `serverImages` is configured the modal opens wide (~80 vw, capped at 1100 p
 Enable a browsable server-side image gallery inside the image modal so editors can pick existing assets instead of re-uploading them.
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverImages: '/admin/media/editor-api',
     serverImagesPageSize: 20,
 });
@@ -137,7 +137,7 @@ If you implemented the Server tab before v2.5.0, your endpoint returned a bare J
 Pass the full list directly. Pagination, search, and folder navigation all work in memory — no server changes needed.
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverImages: [
         { url: '/uploads/hero.jpg',      name: 'hero.jpg' },
         { url: '/uploads/2026/logo.svg', name: 'logo.svg', thumb: '/uploads/.thumbs/logo.svg' },
@@ -180,7 +180,7 @@ onImageInsert: function({ url, alt, source, serverItem }) { … }
 Use this to attach a database ID to a plain `<img>` without building the full tag:
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverImages: '/admin/media/editor-api',
     onImageInsert: function({ source, serverItem }) {
         if (source === 'server' && serverItem?.id) {
@@ -199,7 +199,7 @@ All attribute values are HTML-escaped by the editor.
 Use this to wrap the image in application markup and pull through any extra server fields:
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverImages: '/admin/media/editor-api',
     onImageInsert: function({ url, alt, source, serverItem }) {
         if (source === 'server' && serverItem) {
@@ -248,7 +248,7 @@ Every field (`id`, `alt_text`, `caption`, `title`, `description`, or any custom 
 `insertImageFromUrl(url, alt, options?)` inserts an image programmatically, passing through the `onImageInsert` hook just like the modal does.
 
 ```javascript
-const editor = new WYSIWYGEditor('#content', {
+const editor = new StarEditor('#content', {
     serverImages: '/admin/media/editor-api',
     onImageInsert: function({ source, serverItem }) {
         if (source === 'server' && serverItem?.id) {
@@ -282,7 +282,7 @@ The gallery picker adds a dedicated toolbar button that opens a modal where edit
 Enable by adding `'gallery'` to `toolbar` and setting `serverGalleries`:
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     toolbar: ['bold', 'italic', '|', 'image', 'gallery', '|', 'codeView'],
     serverGalleries: '/admin/galleries/api',
     serverGalleriesPageSize: 12,    // default
@@ -361,7 +361,7 @@ onGalleryInsert: function({ gallery, source }) { … }
 | Return type           | Behaviour                                                                                                                    |
 |-----------------------|------------------------------------------------------------------------------------------------------------------------------|
 | `string`              | Inserted verbatim as HTML                                                                                                    |
-| `null` \| `undefined` | Generic block-level placeholder: `<div class="wysiwyg-gallery-embed" data-gallery-id="N" contenteditable="false">name</div>` |
+| `null` \| `undefined` | Generic block-level placeholder: `<div class="star-gallery-embed" data-gallery-id="N" contenteditable="false">name</div>` |
 
 The `object` return form is **not** supported for `onGalleryInsert` (unlike `onImageInsert`). Return a string or null.
 
@@ -410,7 +410,7 @@ This is the primary use case: shortcodes in storage (`[gallery id=N]`), visual p
 ```javascript
 var galleryCache = {};  // id (string) → { id, name, image_count, cover }
 
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverGalleries: '/admin/galleries/api',
 
     onGalleryInsert: function({ gallery }) {
@@ -454,9 +454,9 @@ A realistic CMS page with a server image gallery, `onImageInsert` for media libr
 var galleryCache = {};  // populated before editor init
 
 (function() {
-    if (typeof WYSIWYGEditor === 'undefined') { return; }
+    if (typeof StarEditor === 'undefined') { return; }
 
-    var textareas = Array.from(document.querySelectorAll('textarea.wysiwyg-editor'));
+    var textareas = Array.from(document.querySelectorAll('textarea.star-editor'));
     if (textareas.length === 0) { return; }
 
     var csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
@@ -469,7 +469,7 @@ var galleryCache = {};  // populated before editor init
 
     function initEditors() {
         textareas.forEach(function(textarea) {
-            new WYSIWYGEditor(textarea, {
+            new StarEditor(textarea, {
                 minHeight:    '300px',
                 locale:       'hu',
                 imageUpload:  true,
@@ -550,10 +550,10 @@ var galleryCache = {};  // populated before editor init
 function buildGalleryEmbed(id, name, imageCount) {
     var count = (imageCount === '?' || imageCount === undefined)
         ? '?' : String(parseInt(imageCount, 10));
-    return '<figure class="wysiwyg-gallery-embed" data-gallery-id="' + parseInt(id, 10)
+    return '<figure class="star-gallery-embed" data-gallery-id="' + parseInt(id, 10)
         + '" contenteditable="false">'
-        + '<span class="wysiwyg-gallery-embed__name">' + escHtml(String(name)) + '</span>'
-        + '<span class="wysiwyg-gallery-embed__count">' + count + ' kép</span>'
+        + '<span class="star-gallery-embed__name">' + escHtml(String(name)) + '</span>'
+        + '<span class="star-gallery-embed__count">' + count + ' kép</span>'
         + '</figure>';
 }
 

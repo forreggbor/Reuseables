@@ -1,14 +1,14 @@
 /**
- * WYSIWYGEditor - Lightweight rich text editor without external dependencies
+ * StarEditor - Lightweight rich text editor without external dependencies
  *
  * A simple, customizable WYSIWYG editor that transforms a textarea into a rich text editor
  * using native browser APIs (contenteditable, execCommand).
  *
- * @package WYSIWYGEditor
+ * @package StarEditor
  * @version 2.7.0
  * @license MIT
  */
-class WYSIWYGEditor {
+class StarEditor {
     /**
      * Whether styles have been injected into the document
      * @type {boolean}
@@ -42,7 +42,7 @@ class WYSIWYGEditor {
         onBlur: null,
         onImageInsert: null,
         shortcuts: true,
-        classPrefix: 'wysiwyg',
+        classPrefix: 'star',
         linkTargetBlank: true,
         fontSizes: ['12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px'],
         fontFamilies: [
@@ -380,13 +380,13 @@ class WYSIWYGEditor {
      * @type {string}
      */
     static styles = `
-        .wysiwyg-wrapper {
+        .star-wrapper {
             border: 1px solid #ccc;
             border-radius: 4px;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        .wysiwyg-toolbar {
+        .star-toolbar {
             display: flex;
             flex-wrap: wrap;
             gap: 2px;
@@ -394,7 +394,7 @@ class WYSIWYGEditor {
             background: #f5f5f5;
             border-bottom: 1px solid #ddd;
         }
-        .wysiwyg-btn {
+        .star-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -409,29 +409,29 @@ class WYSIWYGEditor {
             color: #333;
             transition: background-color 0.15s, border-color 0.15s;
         }
-        .wysiwyg-btn:hover {
+        .star-btn:hover {
             background: #e0e0e0;
             border-color: #ccc;
         }
-        .wysiwyg-btn:active {
+        .star-btn:active {
             background: #d0d0d0;
         }
-        .wysiwyg-btn-active {
+        .star-btn-active {
             background: #d0d0d0;
             border-color: #999;
         }
-        .wysiwyg-btn-disabled {
+        .star-btn-disabled {
             opacity: 0.4;
             pointer-events: none;
         }
-        .wysiwyg-separator {
+        .star-separator {
             display: inline-block;
             width: 1px;
             height: 24px;
             margin: 4px 6px;
             background: #ccc;
         }
-        .wysiwyg-editor {
+        .star-editor {
             position: relative;
             padding: 12px;
             min-height: 200px;
@@ -440,50 +440,50 @@ class WYSIWYGEditor {
             background: #fff;
             line-height: 1.6;
         }
-        .wysiwyg-editor:empty:before {
+        .star-editor:empty:before {
             content: attr(data-placeholder);
             color: #999;
             pointer-events: none;
         }
-        .wysiwyg-editor p {
+        .star-editor p {
             margin: 0 0 1em 0;
         }
-        .wysiwyg-editor p:last-child {
+        .star-editor p:last-child {
             margin-bottom: 0;
         }
-        .wysiwyg-editor h1, .wysiwyg-editor h2, .wysiwyg-editor h3 {
+        .star-editor h1, .star-editor h2, .star-editor h3 {
             margin: 0 0 0.5em 0;
             line-height: 1.3;
         }
-        .wysiwyg-editor h1 { font-size: 2em; }
-        .wysiwyg-editor h2 { font-size: 1.5em; }
-        .wysiwyg-editor h3 { font-size: 1.17em; }
-        .wysiwyg-editor ul, .wysiwyg-editor ol {
+        .star-editor h1 { font-size: 2em; }
+        .star-editor h2 { font-size: 1.5em; }
+        .star-editor h3 { font-size: 1.17em; }
+        .star-editor ul, .star-editor ol {
             margin: 0 0 1em 0;
             padding-left: 2em;
         }
-        .wysiwyg-editor a {
+        .star-editor a {
             color: #0066cc;
             text-decoration: underline;
         }
-        .wysiwyg-editor a:hover {
+        .star-editor a:hover {
             color: #004499;
         }
-        .wysiwyg-editor table {
+        .star-editor table {
             border-collapse: collapse;
             width: 100%;
             margin: 1em 0;
         }
-        .wysiwyg-editor td, .wysiwyg-editor th {
+        .star-editor td, .star-editor th {
             border: 1px solid #ccc;
             padding: 8px;
             min-width: 40px;
         }
-        .wysiwyg-table-selected {
+        .star-table-selected {
             outline: 2px solid #007bff;
             outline-offset: 2px;
         }
-        .wysiwyg-table-toolbar {
+        .star-table-toolbar {
             position: absolute;
             z-index: 1000;
             background: #fff;
@@ -496,7 +496,7 @@ class WYSIWYGEditor {
             flex-wrap: wrap;
             max-width: 320px;
         }
-        .wysiwyg-table-toolbar-btn {
+        .star-table-toolbar-btn {
             background: #f5f5f5;
             border: 1px solid #ddd;
             border-radius: 3px;
@@ -505,19 +505,19 @@ class WYSIWYGEditor {
             cursor: pointer;
             white-space: nowrap;
         }
-        .wysiwyg-table-toolbar-btn:hover {
+        .star-table-toolbar-btn:hover {
             background: #e0e0e0;
         }
-        .wysiwyg-table-toolbar-separator {
+        .star-table-toolbar-separator {
             width: 1px;
             background: #ddd;
             margin: 0 4px;
         }
-        .wysiwyg-editor img {
+        .star-editor img {
             max-width: 100%;
             height: auto;
         }
-        .wysiwyg-code-editor {
+        .star-code-editor {
             width: 100%;
             min-height: 200px;
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -530,11 +530,11 @@ class WYSIWYGEditor {
             outline: none;
             background: #fff;
         }
-        .wysiwyg-dropdown-wrapper {
+        .star-dropdown-wrapper {
             position: relative;
             display: inline-block;
         }
-        .wysiwyg-dropdown {
+        .star-dropdown {
             position: absolute;
             top: 100%;
             left: 0;
@@ -548,18 +548,18 @@ class WYSIWYGEditor {
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             display: none;
         }
-        .wysiwyg-dropdown-open {
+        .star-dropdown-open {
             display: block;
         }
-        .wysiwyg-dropdown-item {
+        .star-dropdown-item {
             padding: 8px 12px;
             cursor: pointer;
             white-space: nowrap;
         }
-        .wysiwyg-dropdown-item:hover {
+        .star-dropdown-item:hover {
             background: #f0f0f0;
         }
-        .wysiwyg-color-picker {
+        .star-color-picker {
             position: absolute;
             top: 100%;
             left: 0;
@@ -571,12 +571,12 @@ class WYSIWYGEditor {
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             display: none;
         }
-        .wysiwyg-color-picker-open {
+        .star-color-picker-open {
             display: grid;
             grid-template-columns: repeat(6, 24px);
             gap: 4px;
         }
-        .wysiwyg-color-swatch {
+        .star-color-swatch {
             width: 24px;
             height: 24px;
             border: 1px solid #ccc;
@@ -584,11 +584,11 @@ class WYSIWYGEditor {
             cursor: pointer;
             box-sizing: border-box;
         }
-        .wysiwyg-color-swatch:hover {
+        .star-color-swatch:hover {
             border-color: #333;
             transform: scale(1.1);
         }
-        .wysiwyg-color-remove {
+        .star-color-remove {
             grid-column: span 6;
             text-align: center;
             padding: 4px;
@@ -598,10 +598,10 @@ class WYSIWYGEditor {
             font-size: 12px;
             color: #666;
         }
-        .wysiwyg-color-remove:hover {
+        .star-color-remove:hover {
             background: #f0f0f0;
         }
-        .wysiwyg-modal-overlay {
+        .star-modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -613,7 +613,7 @@ class WYSIWYGEditor {
             justify-content: center;
             z-index: 10000;
         }
-        .wysiwyg-modal {
+        .star-modal {
             position: relative;
             z-index: 10001;
             background: #fff;
@@ -623,29 +623,29 @@ class WYSIWYGEditor {
             max-width: 90vw;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
-        .wysiwyg-modal-header {
+        .star-modal-header {
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 16px;
         }
-        .wysiwyg-modal-body {
+        .star-modal-body {
             margin-bottom: 16px;
         }
-        .wysiwyg-modal-footer {
+        .star-modal-footer {
             display: flex;
             justify-content: flex-end;
             gap: 8px;
         }
-        .wysiwyg-modal-row {
+        .star-modal-row {
             margin-bottom: 12px;
         }
-        .wysiwyg-modal-label {
+        .star-modal-label {
             display: block;
             margin-bottom: 4px;
             font-weight: 500;
             font-size: 14px;
         }
-        .wysiwyg-modal-input {
+        .star-modal-input {
             display: block;
             width: 100%;
             padding: 8px;
@@ -656,84 +656,84 @@ class WYSIWYGEditor {
             position: relative;
             z-index: 1;
         }
-        .wysiwyg-modal-input:focus {
+        .star-modal-input:focus {
             outline: none;
             border-color: #007bff;
         }
-        .wysiwyg-modal-btn {
+        .star-modal-btn {
             padding: 8px 16px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
         }
-        .wysiwyg-modal-btn-primary {
+        .star-modal-btn-primary {
             background: #007bff;
             color: #fff;
         }
-        .wysiwyg-modal-btn-primary:hover {
+        .star-modal-btn-primary:hover {
             background: #0056b3;
         }
-        .wysiwyg-modal-btn-secondary {
+        .star-modal-btn-secondary {
             background: #e0e0e0;
             color: #333;
         }
-        .wysiwyg-modal-btn-secondary:hover {
+        .star-modal-btn-secondary:hover {
             background: #d0d0d0;
         }
-        .wysiwyg-modal-tabs {
+        .star-modal-tabs {
             display: flex;
             border-bottom: 1px solid #ccc;
             margin-bottom: 16px;
         }
-        .wysiwyg-modal-tab {
+        .star-modal-tab {
             padding: 8px 16px;
             cursor: pointer;
             border-bottom: 2px solid transparent;
             margin-bottom: -1px;
         }
-        .wysiwyg-modal-tab:hover {
+        .star-modal-tab:hover {
             background: #f5f5f5;
         }
-        .wysiwyg-modal-tab-active {
+        .star-modal-tab-active {
             border-bottom-color: #007bff;
             color: #007bff;
         }
-        .wysiwyg-modal-tab-content {
+        .star-modal-tab-content {
             display: none;
         }
-        .wysiwyg-modal-tab-content-active {
+        .star-modal-tab-content-active {
             display: block;
         }
-        .wysiwyg-modal-wide {
+        .star-modal-wide {
             width: 80vw;
             max-width: 1100px;
         }
-        .wysiwyg-server-layout {
+        .star-server-layout {
             display: flex;
             gap: 16px;
             min-height: 420px;
         }
-        .wysiwyg-server-sidebar {
+        .star-server-sidebar {
             flex: 0 0 180px;
             border-right: 1px solid #eee;
             padding-right: 12px;
             overflow-y: auto;
             max-height: 460px;
         }
-        .wysiwyg-server-sidebar-label {
+        .star-server-sidebar-label {
             font-weight: 600;
             font-size: 12px;
             color: #666;
             text-transform: uppercase;
             margin-bottom: 6px;
         }
-        .wysiwyg-server-folder-tree {
+        .star-server-folder-tree {
             list-style: none;
             margin: 0;
             padding: 0;
         }
-        .wysiwyg-server-folder-tree li {
+        .star-server-folder-tree li {
             padding: 4px 6px;
             border-radius: 4px;
             cursor: pointer;
@@ -742,44 +742,44 @@ class WYSIWYGEditor {
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .wysiwyg-server-folder-tree li:hover { background: #f5f5f5; }
-        .wysiwyg-server-folder-active {
+        .star-server-folder-tree li:hover { background: #f5f5f5; }
+        .star-server-folder-active {
             background: #eef5ff;
             color: #007bff;
             font-weight: 600;
         }
-        .wysiwyg-server-main {
+        .star-server-main {
             flex: 1 1 auto;
             display: flex;
             flex-direction: column;
             min-width: 0;
         }
-        .wysiwyg-server-toolbar {
+        .star-server-toolbar {
             display: flex;
             gap: 12px;
             align-items: center;
             margin-bottom: 10px;
         }
-        .wysiwyg-server-breadcrumb {
+        .star-server-breadcrumb {
             flex: 1 1 auto;
             font-size: 13px;
             color: #555;
         }
-        .wysiwyg-server-breadcrumb span { cursor: pointer; }
-        .wysiwyg-server-breadcrumb span:hover { text-decoration: underline; }
-        .wysiwyg-server-search {
+        .star-server-breadcrumb span { cursor: pointer; }
+        .star-server-breadcrumb span:hover { text-decoration: underline; }
+        .star-server-search {
             flex: 0 0 220px;
             padding: 6px 8px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 13px;
         }
-        .wysiwyg-server-grid-area {
+        .star-server-grid-area {
             flex: 1 1 auto;
             min-height: 280px;
             overflow-y: auto;
         }
-        .wysiwyg-server-pager {
+        .star-server-pager {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -787,20 +787,20 @@ class WYSIWYGEditor {
             margin-top: 10px;
             font-size: 13px;
         }
-        .wysiwyg-server-pager button {
+        .star-server-pager button {
             padding: 4px 10px;
             cursor: pointer;
         }
-        .wysiwyg-server-pager button:disabled {
+        .star-server-pager button:disabled {
             cursor: not-allowed;
             opacity: 0.5;
         }
-        .wysiwyg-server-images-grid {
+        .star-server-images-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
             gap: 8px;
         }
-        .wysiwyg-server-image {
+        .star-server-image {
             border: 2px solid transparent;
             border-radius: 4px;
             cursor: pointer;
@@ -808,20 +808,20 @@ class WYSIWYGEditor {
             text-align: center;
             overflow: hidden;
         }
-        .wysiwyg-server-image:hover {
+        .star-server-image:hover {
             background: #f5f5f5;
         }
-        .wysiwyg-server-image-selected {
+        .star-server-image-selected {
             border-color: #007bff;
             background: #eef5ff;
         }
-        .wysiwyg-server-image img {
+        .star-server-image img {
             width: 100%;
             height: 80px;
             object-fit: contain;
             display: block;
         }
-        .wysiwyg-server-image-name {
+        .star-server-image-name {
             font-size: 12px;
             color: #333;
             overflow: hidden;
@@ -829,22 +829,22 @@ class WYSIWYGEditor {
             white-space: nowrap;
             margin-top: 4px;
         }
-        .wysiwyg-server-images-message {
+        .star-server-images-message {
             padding: 24px 12px;
             text-align: center;
             color: #666;
         }
-        .wysiwyg-server-images-message button {
+        .star-server-images-message button {
             margin-left: 8px;
             padding: 4px 10px;
             cursor: pointer;
         }
-        .wysiwyg-image-selected {
+        .star-image-selected {
             outline: 2px solid #007bff;
             outline-offset: 2px;
             cursor: pointer;
         }
-        .wysiwyg-image-toolbar {
+        .star-image-toolbar {
             position: absolute;
             z-index: 1000;
             background: #fff;
@@ -855,7 +855,7 @@ class WYSIWYGEditor {
             display: flex;
             gap: 4px;
         }
-        .wysiwyg-image-toolbar-btn {
+        .star-image-toolbar-btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -867,16 +867,16 @@ class WYSIWYGEditor {
             cursor: pointer;
             font-size: 12px;
         }
-        .wysiwyg-image-toolbar-btn:hover {
+        .star-image-toolbar-btn:hover {
             background: #f0f0f0;
         }
-        .wysiwyg-image-resizer {
+        .star-image-resizer {
             position: absolute;
             z-index: 999;
             border: 1px dashed #007bff;
             pointer-events: none;
         }
-        .wysiwyg-image-handle {
+        .star-image-handle {
             position: absolute;
             width: 10px;
             height: 10px;
@@ -884,39 +884,39 @@ class WYSIWYGEditor {
             border: 1px solid #fff;
             pointer-events: all;
         }
-        .wysiwyg-image-handle-se {
+        .star-image-handle-se {
             right: -5px;
             bottom: -5px;
             cursor: se-resize;
         }
-        .wysiwyg-image-handle-sw {
+        .star-image-handle-sw {
             left: -5px;
             bottom: -5px;
             cursor: sw-resize;
         }
-        .wysiwyg-image-handle-ne {
+        .star-image-handle-ne {
             right: -5px;
             top: -5px;
             cursor: ne-resize;
         }
-        .wysiwyg-image-handle-nw {
+        .star-image-handle-nw {
             left: -5px;
             top: -5px;
             cursor: nw-resize;
         }
 
         /* Gallery picker */
-        .wysiwyg-gallery-grid {
+        .star-gallery-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.75rem;
         }
         @media (max-width: 576px) {
-            .wysiwyg-gallery-grid {
+            .star-gallery-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
-        .wysiwyg-gallery-card {
+        .star-gallery-card {
             border: 2px solid #dee2e6;
             border-radius: 6px;
             overflow: hidden;
@@ -925,16 +925,16 @@ class WYSIWYGEditor {
             background: #fff;
             outline: none;
         }
-        .wysiwyg-gallery-card:hover,
-        .wysiwyg-gallery-card:focus {
+        .star-gallery-card:hover,
+        .star-gallery-card:focus {
             border-color: #4b6bfb;
             box-shadow: 0 0 0 3px rgba(75, 107, 251, 0.15);
         }
-        .wysiwyg-gallery-card--selected {
+        .star-gallery-card--selected {
             border-color: #d4a017;
             box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.25);
         }
-        .wysiwyg-gallery-card__thumb {
+        .star-gallery-card__thumb {
             aspect-ratio: 4 / 3;
             background: #f1f3f5;
             display: flex;
@@ -944,15 +944,15 @@ class WYSIWYGEditor {
             color: #adb5bd;
             font-size: 1.5rem;
         }
-        .wysiwyg-gallery-card__thumb img {
+        .star-gallery-card__thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-        .wysiwyg-gallery-card__info {
+        .star-gallery-card__info {
             padding: 0.5rem 0.625rem;
         }
-        .wysiwyg-gallery-card__name {
+        .star-gallery-card__name {
             font-size: 0.8rem;
             font-weight: 600;
             color: #212529;
@@ -960,22 +960,22 @@ class WYSIWYGEditor {
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .wysiwyg-gallery-card__count {
+        .star-gallery-card__count {
             font-size: 0.7rem;
             color: #6c757d;
             margin-top: 0.125rem;
         }
-        .wysiwyg-gallery-message {
+        .star-gallery-message {
             text-align: center;
             padding: 1.5rem 0;
             color: #6c757d;
             font-size: 0.875rem;
         }
-        .wysiwyg-gallery-message button {
+        .star-gallery-message button {
             display: block;
             margin: 0.5rem auto 0;
         }
-        .wysiwyg-gallery-pager {
+        .star-gallery-pager {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1058,7 +1058,7 @@ class WYSIWYGEditor {
     imageResizer = null;
 
     /**
-     * Create a new WYSIWYGEditor instance
+     * Create a new StarEditor instance
      *
      * @param {HTMLTextAreaElement|string} textarea - Textarea element or selector
      * @param {Object} options - Configuration options
@@ -1069,15 +1069,15 @@ class WYSIWYGEditor {
         }
 
         if (!textarea || textarea.tagName !== 'TEXTAREA') {
-            throw new Error('WYSIWYGEditor requires a textarea element');
+            throw new Error('StarEditor requires a textarea element');
         }
 
         this.textarea = textarea;
-        this.config = { ...WYSIWYGEditor.defaults, ...options };
+        this.config = { ...StarEditor.defaults, ...options };
 
         // Resolve 'all' shorthand in toolbar to include all available buttons
         if (this.config.toolbar.includes('all')) {
-            this.config.toolbar = [...WYSIWYGEditor.defaults.toolbar];
+            this.config.toolbar = [...StarEditor.defaults.toolbar];
         }
 
         // Resolve locale: 'auto' detects from browser, defaults to 'en'
@@ -1099,7 +1099,7 @@ class WYSIWYGEditor {
      */
     t(key) {
         const locale = this.config.locale;
-        const translations = WYSIWYGEditor.translations;
+        const translations = StarEditor.translations;
 
         if (translations[locale] && translations[locale][key] !== undefined) {
             return translations[locale][key];
@@ -1113,7 +1113,7 @@ class WYSIWYGEditor {
      * @private
      */
     init() {
-        WYSIWYGEditor.injectStyles(this.config.classPrefix);
+        StarEditor.injectStyles(this.config.classPrefix);
         this.buildWrapper();
         this.buildToolbar();
         this.buildEditor();
@@ -1131,14 +1131,14 @@ class WYSIWYGEditor {
      * @param {string} prefix - CSS class prefix
      * @private
      */
-    static injectStyles(prefix = 'wysiwyg') {
-        if (WYSIWYGEditor.stylesInjected) return;
+    static injectStyles(prefix = 'star') {
+        if (StarEditor.stylesInjected) return;
 
         const style = document.createElement('style');
-        style.id = 'wysiwyg-editor-styles';
-        style.textContent = WYSIWYGEditor.styles.replace(/\.wysiwyg-/g, `.${prefix}-`);
+        style.id = 'star-editor-styles';
+        style.textContent = StarEditor.styles.replace(/\.star-/g, `.${prefix}-`);
         document.head.appendChild(style);
-        WYSIWYGEditor.stylesInjected = true;
+        StarEditor.stylesInjected = true;
     }
 
     /**
@@ -1163,7 +1163,7 @@ class WYSIWYGEditor {
         this.toolbar.className = `${this.config.classPrefix}-toolbar`;
 
         this.config.toolbar.forEach(item => {
-            const def = WYSIWYGEditor.toolbarButtons[item];
+            const def = StarEditor.toolbarButtons[item];
             if (!def) return;
 
             if (item === '|' || def.type === 'separator') {
@@ -3923,6 +3923,9 @@ class WYSIWYGEditor {
                     return;
                 }
 
+                // Skip contenteditable="false" embeds (e.g. gallery placeholders)
+                if (div.getAttribute('contenteditable') === 'false') return;
+
                 // Skip divs that contain nested block elements
                 if (div.querySelector('div, p, ul, ol, h1, h2, h3, h4, h5, h6, blockquote')) {
                     return;
@@ -4148,7 +4151,7 @@ class WYSIWYGEditor {
      *
      * @param {string} selector - CSS selector for textarea(s)
      * @param {Object} options - Configuration options
-     * @returns {WYSIWYGEditor|WYSIWYGEditor[]} Single editor or array of editors
+     * @returns {StarEditor|StarEditor[]} Single editor or array of editors
      */
     static init(selector, options = {}) {
         const elements = document.querySelectorAll(selector);
@@ -4158,14 +4161,14 @@ class WYSIWYGEditor {
         }
 
         if (elements.length === 1) {
-            return new WYSIWYGEditor(elements[0], options);
+            return new StarEditor(elements[0], options);
         }
 
-        return Array.from(elements).map(el => new WYSIWYGEditor(el, options));
+        return Array.from(elements).map(el => new StarEditor(el, options));
     }
 }
 
 // Export for different module systems
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = WYSIWYGEditor;
+    module.exports = StarEditor;
 }

@@ -1,4 +1,4 @@
-# WYSIWYGEditor
+# StarEditor
 
 A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textarea elements, built without external dependencies using native browser APIs.
 
@@ -31,10 +31,10 @@ A lightweight WYSIWYG (What You See Is What You Get) rich text editor for textar
 
 ## Installation
 
-Copy `WYSIWYGEditor.js` to your project and include it:
+Copy `StarEditor.js` to your project and include it:
 
 ```html
-<script src="path/to/WYSIWYGEditor.js"></script>
+<script src="path/to/StarEditor.js"></script>
 ```
 
 ## Quick Start
@@ -45,16 +45,16 @@ Copy `WYSIWYGEditor.js` to your project and include it:
     <button type="submit">Save</button>
 </form>
 
-<script src="WYSIWYGEditor.js"></script>
+<script src="StarEditor.js"></script>
 <script>
-    const editor = new WYSIWYGEditor(document.getElementById('content'));
+    const editor = new StarEditor(document.getElementById('content'));
 </script>
 ```
 
 ## Configuration
 
 ```javascript
-const editor = new WYSIWYGEditor(document.getElementById('content'), {
+const editor = new StarEditor(document.getElementById('content'), {
     toolbar: [
         'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', '|',
         'fontSize', 'fontName', '|',
@@ -73,7 +73,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
     minHeight: '200px',
     maxHeight: '500px',
     shortcuts: true,
-    classPrefix: 'wysiwyg',
+    classPrefix: 'star',
     linkTargetBlank: true,
     fontSizes: ['12px', '14px', '16px', '18px', '20px', '24px', '32px', '48px'],
     fontFamilies: [
@@ -109,7 +109,7 @@ const editor = new WYSIWYGEditor(document.getElementById('content'), {
 | `minHeight` | String | `'200px'` | Minimum editor height |
 | `maxHeight` | String | `null` | Maximum editor height (null for unlimited) |
 | `shortcuts` | Boolean | `true` | Enable keyboard shortcuts |
-| `classPrefix` | String | `'wysiwyg'` | CSS class prefix for styling |
+| `classPrefix` | String | `'star'` | CSS class prefix for styling |
 | `linkTargetBlank` | Boolean | `true` | Add target="_blank" to inserted links |
 | `fontSizes` | Array | `['12px', '14px', ...]` | Available font sizes for dropdown |
 | `fontFamilies` | Array | See below | Available fonts `[{label, value}]` |
@@ -217,7 +217,7 @@ The gallery modal is always wide (~80 vw, max 1100 px) when `serverImages` is co
 ### URL endpoint (string)
 
 ```javascript
-const editor = new WYSIWYGEditor(document.getElementById('content'), {
+const editor = new StarEditor(document.getElementById('content'), {
     serverImages: '/admin/images/list',
     serverImagesPageSize: 20,
 });
@@ -282,7 +282,7 @@ $q        = strtolower(trim($_GET['q']     ?? ''));
 $folder   = trim($_GET['folder'] ?? '', '/');
 
 // Validate folder (reject .. and escapes), then list + paginate + build folderTree
-// See test-images.php in the WYSIWYGEditor source for a complete reference implementation.
+// See test-images.php in the StarEditor source for a complete reference implementation.
 ```
 
 ### Pre-built array (no fetch)
@@ -290,7 +290,7 @@ $folder   = trim($_GET['folder'] ?? '', '/');
 Pass an array directly — useful when the list is already available in the page. The client handles sidebar, search, and pagination entirely in memory. No server changes needed.
 
 ```javascript
-const editor = new WYSIWYGEditor(document.getElementById('content'), {
+const editor = new StarEditor(document.getElementById('content'), {
     serverImages: [
         { url: '/uploads/hero.jpg', name: 'hero.jpg' },
         { url: '/uploads/2026/logo.svg', name: 'logo.svg' },
@@ -312,7 +312,7 @@ rsync -av --delete \
   --exclude=test.html \
   --exclude=test-images.php \
   --exclude=images/ \
-  reusables/WYSIWYGEditor/ project/public/js/WYSIWYGEditor.js
+  reusables/StarEditor/ project/public/js/StarEditor.js
 ```
 
 ### Migration note — breaking JSON contract change
@@ -349,7 +349,7 @@ onImageInsert: function({ url, alt, source, serverItem }) {
 ### Extra attributes (object return)
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverImages: '/admin/media/editor-api',
     onImageInsert: function({ source, serverItem }) {
         if (source === 'server' && serverItem?.id) {
@@ -363,7 +363,7 @@ new WYSIWYGEditor('#content', {
 ### Custom HTML (string return)
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverImages: '/admin/media/editor-api',
     onImageInsert: function({ url, alt, source, serverItem }) {
         if (source === 'server' && serverItem) {
@@ -408,7 +408,7 @@ All fields (`id`, `alt_text`, `caption`, `title`, `description`, or any custom f
 Add `'gallery'` to the `toolbar` array and set `serverGalleries` to enable the built-in gallery picker.
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     locale: 'hu',
     toolbar: ['bold', 'italic', '|', 'image', 'gallery', '|', 'codeView'],
     serverGalleries: '/admin/galleries/api',
@@ -469,7 +469,7 @@ Both hooks fire on **every** call, not just when gallery markup is present — k
 ### UniCMS shortcode round-trip example
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     serverGalleries: '/admin/galeria/api',
     onGalleryInsert: function ({ gallery }) {
         return buildGalleryEmbed(gallery.id, gallery.name, gallery.image_count);
@@ -497,7 +497,7 @@ new WYSIWYGEditor('#content', {
 ### Constructor
 
 ```javascript
-new WYSIWYGEditor(textarea, options)
+new StarEditor(textarea, options)
 ```
 
 | Parameter | Type | Description |
@@ -536,7 +536,7 @@ new WYSIWYGEditor(textarea, options)
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `WYSIWYGEditor.init(selector, options)` | WYSIWYGEditor \| Array | Create editor(s) from CSS selector |
+| `StarEditor.init(selector, options)` | StarEditor \| Array | Create editor(s) from CSS selector |
 
 ## Keyboard Shortcuts
 
@@ -555,7 +555,7 @@ new WYSIWYGEditor(textarea, options)
 ### All Buttons
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     toolbar: ['all']
 });
 ```
@@ -563,7 +563,7 @@ new WYSIWYGEditor('#content', {
 ### Hungarian Locale
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     locale: 'hu'
 });
 ```
@@ -571,7 +571,7 @@ new WYSIWYGEditor('#content', {
 ### Minimal Toolbar
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     toolbar: ['bold', 'italic', '|', 'link']
 });
 ```
@@ -580,7 +580,7 @@ new WYSIWYGEditor('#content', {
 
 ```javascript
 // Using static init method
-const editors = WYSIWYGEditor.init('.wysiwyg-textarea', {
+const editors = StarEditor.init('.star-textarea', {
     minHeight: '150px'
 });
 ```
@@ -588,7 +588,7 @@ const editors = WYSIWYGEditor.init('.wysiwyg-textarea', {
 ### With onChange Callback
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     onChange: function(html) {
         document.getElementById('preview').innerHTML = html;
         document.getElementById('char-count').textContent = html.length;
@@ -599,7 +599,7 @@ new WYSIWYGEditor('#content', {
 ### Plain Text Paste
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     pasteAsPlainText: true
 });
 ```
@@ -607,7 +607,7 @@ new WYSIWYGEditor('#content', {
 ### Custom Height
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     minHeight: '300px',
     maxHeight: '600px'
 });
@@ -616,7 +616,7 @@ new WYSIWYGEditor('#content', {
 ### Destroy and Restore
 
 ```javascript
-const editor = new WYSIWYGEditor('#content');
+const editor = new StarEditor('#content');
 
 // Later, when you need to restore the original textarea
 editor.destroy();
@@ -633,7 +633,7 @@ The editor automatically syncs its HTML content to the hidden textarea. On form 
 </form>
 
 <script>
-    new WYSIWYGEditor('#content');
+    new StarEditor('#content');
     // Form submission will include the HTML content in the "content" field
 </script>
 ```
@@ -645,13 +645,13 @@ The editor automatically injects CSS styles. To customize, either:
 1. Override styles using the class prefix:
 
 ```css
-.wysiwyg-wrapper {
+.star-wrapper {
     border-color: #007bff;
 }
-.wysiwyg-toolbar {
+.star-toolbar {
     background: #f8f9fa;
 }
-.wysiwyg-editor {
+.star-editor {
     font-family: Georgia, serif;
 }
 ```
@@ -659,7 +659,7 @@ The editor automatically injects CSS styles. To customize, either:
 2. Use a custom class prefix:
 
 ```javascript
-new WYSIWYGEditor('#content', {
+new StarEditor('#content', {
     classPrefix: 'my-editor'
 });
 ```
