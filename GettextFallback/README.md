@@ -1,5 +1,8 @@
 # GettextFallback
 
+> **Obsolete — kept for historical reference only.**
+> All host projects have migrated to PHP array-based translations (`locale/{lang}/messages.php`). This module is no longer used or maintained.
+
 A PHP component that provides gettext translation functionality with automatic fallback for servers where system locales are not installed (common on shared hosting).
 
 ## Features
