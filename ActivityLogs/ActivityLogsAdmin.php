@@ -25,7 +25,7 @@ use PDO;
  * pinned to the correct table name before every render/handle cycle.
  *
  * @package ActivityLogs
- * @version 1.2.1
+ * @version 1.2.2
  */
 class ActivityLogsAdmin
 {

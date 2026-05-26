@@ -5,6 +5,19 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-05-26
+
+| Category | Description                                                                              |
+|----------|------------------------------------------------------------------------------------------|
+| Fixed    | Detail modal appeared transparent (no background, no shadow) when embedded in a host layout |
+
+### Fixed
+
+- CSS custom properties (`--al-*`) were defined on `.al-root`, making them unavailable to
+  `.al-modal-overlay`, which is a sibling element rather than a descendant. As a result the
+  modal box had no background, no shadow, and missing border/color styles. Moved the variable
+  definitions to `:root` so all `--al-*` tokens are available to every element on the page.
+
 ## [1.2.1] - 2026-05-26
 
 | Category | Description                                                                                         |
