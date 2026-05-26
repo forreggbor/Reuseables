@@ -19,6 +19,8 @@ cp lib/ActivityLogs/js/activity-logs.js   public/js/activity-logs.js
 
 ## 2. Add asset tags to your admin layout
 
+The activity-log index page renders as a body fragment embedded in this layout, so these tags are what style and activate the admin UI.
+
 In your admin layout template, add:
 
 ```html
@@ -73,10 +75,16 @@ $admin->resolvers()->register('order',    fn(string $id) => Order::findLabel($id
 $admin->resolvers()->registerBatch('user', fn(array $ids) => User::getNameMap(array_map('intval', $ids)));
 
 // 3d. Dispatch
-$action  = $_GET['action'] ?? 'index';
-$envelope = $admin->handle($action, $_GET);
+$action = $_GET['action'] ?? 'index';
 
-// 3e. Emit the envelope
+// 3e. Index returns a body fragment — embed it in your admin layout (which loads the CSS/JS)
+if ($action === 'index') {
+    echo $layout->render('admin', ['content' => $admin->render($_GET)]);
+    exit;
+}
+
+// 3f. Other actions: details (JSON), exportCsv (CSV stream), printView (standalone print window)
+$envelope = $admin->handle($action, $_GET);
 http_response_code($envelope['status']);
 header('Content-Type: ' . $envelope['content_type']);
 if ($envelope['filename'] !== null) {
@@ -105,7 +113,7 @@ exit;
 | `page_size`  | int      | `50`                          | Rows per page (must be >= 1)                         |
 | `logger`        | callable | `error_log` fallback          | `fn(string $level, string $msg, array $ctx): void`      |
 | `print_max_rows` | int     | `5000`                        | Maximum rows fetched for the print view; prevents OOM on large tables |
-| `asset_base_url` | string  | `''`                          | URL base for `activity-logs.css`/`.js` served by the print view; required for auto-print and styled output — see **Print view** below |
+| `asset_base_url` | string  | `''`                          | URL base for `activity-logs.css`/`.js` served by the **print view only**; not needed for the index page (styled by the host layout). Required for auto-print and styled print output — see **Print view** below |
 
 ## Entity resolvers
 
@@ -137,7 +145,7 @@ This is correct behavior; it is not a bug.
 
 ## CSV export streaming
 
-The CSV export response body is a PHP `\Generator`. The emit loop at step 3e streams it without
+The CSV export response body is a PHP `\Generator`. The emit loop at step 3f streams it without
 buffering the entire file in memory, which is important for large audit tables.
 
 **Known limitation:** The offset-based chunking uses `ORDER BY created_at DESC`. If rows are
@@ -148,7 +156,10 @@ chunking with cursor-based paging (cursor on `created_at`/`id`).
 ## Print view
 
 The print view (`?action=printView`) opens as a standalone page via `window.open()`, so it cannot
-inherit your admin layout's CSS or JS. To get a styled printout and automatic print-dialog:
+inherit your admin layout's CSS or JS. This makes `asset_base_url` print-only — the index page
+is styled via the host admin layout (step 2), not this config option.
+
+To get a styled printout and automatic print-dialog:
 
 1. Set `asset_base_url` in your config to the public URL path where you deployed the module assets:
 

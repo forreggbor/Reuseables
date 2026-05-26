@@ -5,6 +5,22 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-05-26
+
+| Category | Description                                                                                         |
+|----------|-----------------------------------------------------------------------------------------------------|
+| Fixed    | Admin index page was missing CSS and JS, rendering the admin UI unstyled and non-functional         |
+
+### Fixed
+
+- Admin index view converted from a full standalone HTML document to a body fragment. The page had
+  no mechanism to load `activity-logs.css` or `activity-logs.js` — the admin UI was unstyled and
+  non-functional when integrated following the guide. The index page now returns inner markup only;
+  the host admin layout wraps it and supplies the CSS and JS via the asset tags added in step 2.
+- Integration guide and README dispatch example updated to reflect the embedded-fragment model:
+  the index action uses `render()` embedded in the host layout; detail, export, and print actions
+  continue to use the `handle()` envelope. `asset_base_url` is now documented as print-only.
+
 ## [1.2.0] - 2026-05-26
 
 | Category | Description                                                                                                                               |

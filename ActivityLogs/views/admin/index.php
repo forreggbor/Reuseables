@@ -2,7 +2,8 @@
 /**
  * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
  *
- * Activity log admin index view — 6 stat cards, source tabs, filters, table, pagination.
+ * Activity log admin index view — body fragment (no DOCTYPE/head/body).
+ * Embed the returned markup in the host admin layout, which supplies the CSS/JS.
  *
  * Variables (passed via extract($data)):
  *   $tr           (callable)              — translator callable: fn(string $key, mixed ...$params): string
@@ -53,14 +54,6 @@ foreach ($filters as $k => $v) {
     $filterQuery .= '&' . urlencode($k) . '=' . urlencode((string)$v);
 }
 ?>
-<!DOCTYPE html>
-<html lang="<?= $e($locale) ?>">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $e($tr('TEXT_ACTIVITY_LOG_TITLE')) ?></title>
-</head>
-<body>
 <div class="al-root"
      data-al-base-url="<?= $e($baseUrl) ?>"
      data-al-detail-url="<?= $e($detailUrl) ?>"
@@ -93,5 +86,3 @@ foreach ($filters as $k => $v) {
         </div>
     </div>
 </div>
-</body>
-</html>

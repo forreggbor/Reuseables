@@ -45,7 +45,7 @@ For the admin interface, also copy the CSS and JS to your webroot and add asset 
 
 ## Admin Interface
 
-`ActivityLogsAdmin` is a ready-to-use admin UI facade. Wire it up in one route handler and get a full activity log viewer with no additional work in the host project.
+`ActivityLogsAdmin` is a ready-to-use admin UI facade. Wire it up in one route handler and get a full activity log viewer. The index page returns a body fragment for embedding in your admin layout; the other actions (detail, export, print) are direct HTTP responses.
 
 ```php
 use ActivityLogs\ActivityLogsAdmin;
@@ -66,8 +66,15 @@ $admin = new ActivityLogsAdmin(
 // Optional: register entity resolvers for human-readable names
 $admin->resolvers()->register('product', fn(string $id) => Product::findName($id));
 
-// Dispatch and emit
-$envelope = $admin->handle($_GET['action'] ?? 'index', $_GET);
+// Index page: returns a body fragment — embed in your admin layout (which loads the CSS/JS)
+$action = $_GET['action'] ?? 'index';
+if ($action === 'index') {
+    echo $layout->render('admin', ['content' => $admin->render($_GET)]);
+    exit;
+}
+
+// details (JSON), exportCsv (CSV stream), printView (standalone print window)
+$envelope = $admin->handle($action, $_GET);
 http_response_code($envelope['status']);
 header('Content-Type: ' . $envelope['content_type']);
 if ($envelope['filename'] !== null) {

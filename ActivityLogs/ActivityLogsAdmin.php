@@ -25,7 +25,7 @@ use PDO;
  * pinned to the correct table name before every render/handle cycle.
  *
  * @package ActivityLogs
- * @version 1.2.0
+ * @version 1.2.1
  */
 class ActivityLogsAdmin
 {
@@ -88,7 +88,7 @@ class ActivityLogsAdmin
     // =========================================================================
 
     /**
-     * Render the admin index page and return the full HTML.
+     * Render the admin index page and return a body fragment for embedding in the host admin layout.
      *
      * Convenience wrapper around handle('index', $request)['body'].
      *
