@@ -1,10 +1,12 @@
-# ActivityLogger
+# ActivityLogs
 
-Framework-agnostic PHP activity logging for tracking any application events with flexible schema and integrity verification.
+Framework-agnostic PHP activity logging with a built-in admin interface. Tracks any application events with flexible schema and integrity verification.
 
 ## Features
 
-- **Fully Flexible**: No predefined actions, entity types, or sources - log anything
+### Logging engine (`ActivityLogger`)
+
+- **Fully Flexible**: No predefined actions, entity types, or sources — log anything
 - **Sensitive Data Masking**: Automatically masks passwords, tokens, API keys
 - **Change Tracking**: Only stores actual changes (filters unchanged values)
 - **Integrity Verification**: SHA-256 checksum for tamper detection
@@ -15,6 +17,18 @@ Framework-agnostic PHP activity logging for tracking any application events with
 - **Statistics**: Activity trends, unique actions, cleanup tools
 - **Self-Contained**: Single file, no dependencies except PDO
 
+### Admin interface (`ActivityLogsAdmin`)
+
+- **Zero external dependencies**: vanilla JS + own CSS — no Bootstrap, no jQuery
+- **Filter-aware stat cards**: Total, Today, This Week, Active Users, Action Types, Entity Types — all recompute against all active filters in the configured timezone
+- **Source tabs + sticky filters**: user, action type, entity type, date range, free-text search
+- **Expandable diff rows**: old values (red/strikethrough) and new values (green) per row
+- **Detail modal**: full log entry on click, including JSON fields
+- **CSV export**: streamed via Generator, UTF-8 BOM, CSV-injection guard
+- **Print view**: auto-triggers the browser print dialog
+- **Entity resolvers**: host registers `fn(string $id): string` callbacks per entity type; unregistered types fall back to `"type #id"`
+- **Locale support**: `en_US` and `hu_HU` built-in; host translator optional
+
 ## Requirements
 
 - PHP 8.3+
@@ -23,9 +37,50 @@ Framework-agnostic PHP activity logging for tracking any application events with
 
 ## Installation
 
-1. Copy the `ActivityLogs` folder to your project
+1. Copy the `ActivityLogs` folder to your project (e.g. `lib/ActivityLogs/`)
 2. Run `schema.sql` to create the database table
 3. Include or autoload `ActivityLogger.php`
+
+For the admin interface, also copy the CSS and JS to your webroot and add asset tags to your admin layout — see `doc/INTEGRATION-GUIDE.md` for the full setup.
+
+## Admin Interface
+
+`ActivityLogsAdmin` is a ready-to-use admin UI facade. Wire it up in one route handler and get a full activity log viewer with no additional work in the host project.
+
+```php
+use ActivityLogs\ActivityLogsAdmin;
+use ActivityLogs\Adapters\Auth\CallableAuthAdapter;
+
+$auth = new CallableAuthAdapter(
+    fn()           => Auth::isSysadmin(),
+    fn()           => Auth::id(),
+    fn(array $ids) => User::getNameMap($ids),
+);
+
+$admin = new ActivityLogsAdmin(
+    pdo:    $pdo,
+    config: ['base_url' => '/admin/activity-log', 'timezone' => 'Europe/Budapest'],
+    auth:   $auth,
+);
+
+// Optional: register entity resolvers for human-readable names
+$admin->resolvers()->register('product', fn(string $id) => Product::findName($id));
+
+// Dispatch and emit
+$envelope = $admin->handle($_GET['action'] ?? 'index', $_GET);
+http_response_code($envelope['status']);
+header('Content-Type: ' . $envelope['content_type']);
+if ($envelope['filename'] !== null) {
+    header('Content-Disposition: attachment; filename="' . addslashes($envelope['filename']) . '"');
+}
+if ($envelope['body'] instanceof \Generator) {
+    foreach ($envelope['body'] as $chunk) { echo $chunk; flush(); }
+} else {
+    echo $envelope['body'];
+}
+```
+
+See `doc/INTEGRATION-GUIDE.md` for the complete setup guide including asset deployment, all config options, batch entity resolvers, timezone behavior, and CSV streaming notes.
 
 ## Quick Start
 

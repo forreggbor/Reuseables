@@ -5,6 +5,61 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-05-26
+
+| Category | Description                                                                                                                               |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Added    | Full-featured admin interface: paginated log viewer, filters, stats, export, detail modal; `print_max_rows` and `asset_base_url` config options |
+| Fixed    | Out-of-memory risk on large print jobs, N+1 queries in CSV export, silent errors on malformed data, and two server-error handling issues   |
+
+### Added
+
+- `ActivityLogsAdmin` facade — single entry point for the admin UI. Wire it up with a PDO
+  connection, a config array, and an auth adapter; call `handle($action, $_GET)` and emit the
+  returned envelope. No host-side rendering logic needed.
+- Six filter-aware stat cards (Total, Today, This Week, Active Users, Action Types, Entity Types)
+  that recompute against all active filters. Boundaries for "Today" and "This Week" are computed
+  in PHP using the configured timezone — never dependent on the MySQL server timezone.
+- Source tabs and sticky filter bar (user, action type, entity type, source, date range, text
+  search) with persistent filter state across pages.
+- Paginated log table with colored action badges, resolved entity names, and expandable
+  old/new-value diff rows (old values in red strikethrough, new values in green).
+- Detail modal: click any row to fetch the full log entry as JSON and display it inline.
+- CSV export with UTF-8 BOM, streamed via a PHP Generator (no full-file buffering), with
+  CSV-injection guard for cells starting with `= + - @`.
+- Print view with auto-triggered `window.print()`.
+- `EntityResolverRegistry` — register per-entity-type callbacks so the viewer can show
+  meaningful names instead of raw IDs. Supports single-item and batch resolvers; falls back to
+  `"type #id"` and logs once per type if a resolver throws.
+- `AuthAdapterInterface` + `CallableAuthAdapter` — wire auth with three closures: authorized?,
+  current user id, and `fn(array $ids): array` id-to-name map.
+- `ActionColorResolver` — maps action names to badge color classes by prefix (`create_*` → green,
+  `update_*` → amber, `delete_*` → red, `*login*` → blue, export/import → purple). Host can add
+  exact-match overrides.
+- Locale support: `en_US` and `hu_HU` built-in; works without a host i18n system.
+  Host can optionally pass a `TranslatorInterface` to use its own translations.
+- `doc/INTEGRATION-GUIDE.md` — copy-paste host setup guide covering asset deployment, config
+  options, entity resolvers, timezone notes, CSV streaming, and CSRF guidance.
+- Self-contained CSS (`activity-logs.css`) and vanilla JS (`activity-logs.js`) with `al-`/`--al-`
+  namespaced selectors — no Bootstrap, no jQuery, no external dependencies.
+- `print_max_rows` config option (default: 5000): the print view caps the number of rows it loads
+  and shows a notice when the result is trimmed; use CSV export for the full data set.
+- `asset_base_url` config option: when set, the print view loads its own CSS and JS from this URL
+  path, enabling styled output and automatic print dialog without an inline script — required for
+  hosts running a strict `script-src` Content Security Policy.
+
+### Fixed
+
+- Admin page crashed with a fatal error when rendered more than once in the same request
+  (PHP fatal on re-declaring view helper functions).
+- Server errors thrown during view rendering caused the response body to be corrupted or empty
+  instead of returning the proper error page.
+- CSV export made one database query per row to look up user names; now uses batched lookups —
+  exports with thousands of distinct users complete in a fraction of the time with no memory growth.
+- Requesting log entry details for a record that contained invalid data returned an empty successful
+  response instead of an error message.
+- Print view loaded the entire result set into memory with no upper bound; see `print_max_rows`.
+
 ## [1.1.1] - 2026-05-21
 
 | Category | Description                                                                       |

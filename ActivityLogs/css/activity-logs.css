@@ -1,0 +1,673 @@
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * Activity log admin interface — self-contained styles.
+ * All selectors use the .al- prefix; all custom properties use --al-.
+ * No dependency on Bootstrap, jQuery, or any external library.
+ */
+
+/* ============================================================
+   Custom properties
+   ============================================================ */
+.al-root {
+    --al-font:           system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --al-font-size:      0.875rem;
+    --al-line-height:    1.5;
+    --al-radius:         0.375rem;
+    --al-radius-sm:      0.25rem;
+    --al-shadow-sm:      0 1px 3px rgba(0,0,0,.08);
+    --al-shadow:         0 2px 8px rgba(0,0,0,.12);
+    --al-transition:     0.15s ease;
+
+    /* Neutrals */
+    --al-bg:             #f9fafb;
+    --al-surface:        #ffffff;
+    --al-border:         #e5e7eb;
+    --al-border-focus:   #6366f1;
+    --al-text:           #111827;
+    --al-text-muted:     #6b7280;
+    --al-text-subtle:    #9ca3af;
+
+    /* Brand */
+    --al-primary:        #4f46e5;
+    --al-primary-hover:  #4338ca;
+    --al-primary-text:   #ffffff;
+
+    /* Semantic */
+    --al-green:          #16a34a;
+    --al-green-bg:       #dcfce7;
+    --al-amber:          #d97706;
+    --al-amber-bg:       #fef3c7;
+    --al-red:            #dc2626;
+    --al-red-bg:         #fee2e2;
+    --al-blue:           #2563eb;
+    --al-blue-bg:        #dbeafe;
+    --al-purple:         #7c3aed;
+    --al-purple-bg:      #ede9fe;
+    --al-grey:           #374151;
+    --al-grey-bg:        #f3f4f6;
+
+    /* Diff */
+    --al-diff-old-bg:    #fef2f2;
+    --al-diff-old-text:  #7f1d1d;
+    --al-diff-new-bg:    #f0fdf4;
+    --al-diff-new-text:  #14532d;
+}
+
+/* ============================================================
+   Layout root
+   ============================================================ */
+.al-root {
+    font-family: var(--al-font);
+    font-size:   var(--al-font-size);
+    line-height: var(--al-line-height);
+    color:       var(--al-text);
+    background:  var(--al-bg);
+    padding:     1.5rem;
+    box-sizing:  border-box;
+}
+
+.al-root *,
+.al-root *::before,
+.al-root *::after {
+    box-sizing: inherit;
+}
+
+/* ============================================================
+   Page header
+   ============================================================ */
+.al-page-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    margin-bottom:   1.25rem;
+    flex-wrap:       wrap;
+    gap:             0.75rem;
+}
+
+.al-page-title {
+    font-size:   1.25rem;
+    font-weight: 600;
+    margin:      0;
+    color:       var(--al-text);
+}
+
+.al-page-actions {
+    display: flex;
+    gap:     0.5rem;
+    flex-wrap: wrap;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.al-btn {
+    display:       inline-flex;
+    align-items:   center;
+    gap:           0.375rem;
+    padding:       0.4rem 0.875rem;
+    font-size:     var(--al-font-size);
+    font-weight:   500;
+    border-radius: var(--al-radius);
+    border:        1px solid transparent;
+    cursor:        pointer;
+    text-decoration: none;
+    transition:    background var(--al-transition), border-color var(--al-transition);
+    white-space:   nowrap;
+}
+
+.al-btn-primary {
+    background: var(--al-primary);
+    color:      var(--al-primary-text);
+    border-color: var(--al-primary);
+}
+.al-btn-primary:hover {
+    background: var(--al-primary-hover);
+    border-color: var(--al-primary-hover);
+}
+
+.al-btn-secondary {
+    background: var(--al-surface);
+    color:      var(--al-text);
+    border-color: var(--al-border);
+}
+.al-btn-secondary:hover {
+    background: var(--al-bg);
+}
+
+.al-btn-sm {
+    padding:   0.25rem 0.625rem;
+    font-size: 0.8125rem;
+}
+
+.al-btn-disabled {
+    opacity:        0.45;
+    pointer-events: none;
+    cursor:         default;
+}
+
+/* ============================================================
+   Stat cards
+   ============================================================ */
+.al-stats-grid {
+    display:               grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap:                   0.875rem;
+    margin-bottom:         1.25rem;
+}
+
+.al-stat-card {
+    background:    var(--al-surface);
+    border:        1px solid var(--al-border);
+    border-radius: var(--al-radius);
+    padding:       1rem 1.25rem;
+    box-shadow:    var(--al-shadow-sm);
+    text-align:    center;
+}
+
+.al-stat-value {
+    font-size:   1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color:       var(--al-primary);
+}
+
+.al-stat-label {
+    font-size: 0.75rem;
+    color:     var(--al-text-muted);
+    margin-top: 0.25rem;
+}
+
+.al-stat-card-today .al-stat-value  { color: var(--al-green); }
+.al-stat-card-week  .al-stat-value  { color: var(--al-blue); }
+.al-stat-card-users .al-stat-value  { color: var(--al-amber); }
+
+/* ============================================================
+   Source tabs
+   ============================================================ */
+.al-tabs {
+    display:       flex;
+    gap:           0;
+    border-bottom: 2px solid var(--al-border);
+    margin-bottom: 1rem;
+    flex-wrap:     wrap;
+}
+
+.al-tab {
+    padding:         0.5rem 1rem;
+    font-size:       var(--al-font-size);
+    font-weight:     500;
+    color:           var(--al-text-muted);
+    text-decoration: none;
+    border-bottom:   2px solid transparent;
+    margin-bottom:  -2px;
+    transition:     color var(--al-transition), border-color var(--al-transition);
+    white-space:    nowrap;
+}
+
+.al-tab:hover {
+    color: var(--al-text);
+}
+
+.al-tab-active {
+    color:        var(--al-primary);
+    border-color: var(--al-primary);
+}
+
+/* ============================================================
+   Filter bar
+   ============================================================ */
+.al-filter-bar {
+    display:       flex;
+    flex-wrap:     wrap;
+    gap:           0.75rem;
+    align-items:   flex-end;
+    background:    var(--al-surface);
+    border:        1px solid var(--al-border);
+    border-radius: var(--al-radius);
+    padding:       0.875rem 1rem;
+    margin-bottom: 1rem;
+    box-shadow:    var(--al-shadow-sm);
+    position:      sticky;
+    top:           0;
+    z-index:       10;
+}
+
+.al-filter-group {
+    display:        flex;
+    flex-direction: column;
+    gap:            0.25rem;
+}
+
+.al-filter-group-search {
+    flex: 1 1 12rem;
+}
+
+.al-filter-label {
+    font-size:   0.75rem;
+    font-weight: 500;
+    color:       var(--al-text-muted);
+}
+
+.al-filter-select,
+.al-filter-input {
+    height:        2.125rem;
+    padding:       0 0.625rem;
+    border:        1px solid var(--al-border);
+    border-radius: var(--al-radius-sm);
+    font-size:     var(--al-font-size);
+    font-family:   var(--al-font);
+    color:         var(--al-text);
+    background:    var(--al-bg);
+    min-width:     8rem;
+    transition:    border-color var(--al-transition);
+}
+
+.al-filter-input {
+    min-width: 100%;
+}
+
+.al-filter-select:focus,
+.al-filter-input:focus {
+    outline:      none;
+    border-color: var(--al-border-focus);
+    box-shadow:   0 0 0 3px rgba(99,102,241,.15);
+}
+
+.al-filter-actions {
+    display:     flex;
+    gap:         0.5rem;
+    align-items: flex-end;
+    flex-wrap:   wrap;
+}
+
+/* ============================================================
+   Table
+   ============================================================ */
+.al-table-wrapper {
+    overflow-x:    auto;
+    background:    var(--al-surface);
+    border:        1px solid var(--al-border);
+    border-radius: var(--al-radius);
+    box-shadow:    var(--al-shadow-sm);
+    margin-bottom: 1rem;
+}
+
+.al-table {
+    width:           100%;
+    border-collapse: collapse;
+    font-size:       var(--al-font-size);
+}
+
+.al-th {
+    padding:        0.625rem 0.875rem;
+    text-align:     left;
+    font-size:      0.75rem;
+    font-weight:    600;
+    color:          var(--al-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom:  2px solid var(--al-border);
+    white-space:    nowrap;
+    background:     var(--al-bg);
+}
+
+.al-th-expand,
+.al-th-details { width: 2.5rem; }
+
+.al-tr:hover > .al-td {
+    background: var(--al-bg);
+}
+
+.al-td {
+    padding:       0.625rem 0.875rem;
+    border-bottom: 1px solid var(--al-border);
+    vertical-align: middle;
+    color:         var(--al-text);
+}
+
+.al-td-time   { white-space: nowrap; color: var(--al-text-muted); font-size: 0.8125rem; }
+.al-td-expand { width: 2.5rem; padding: 0 0.5rem; }
+.al-td-details { width: 2.5rem; padding: 0 0.5rem; text-align: center; }
+.al-td-ip     { color: var(--al-text-subtle); font-size: 0.8125rem; }
+
+/* ============================================================
+   Expand button and diff row
+   ============================================================ */
+.al-expand-btn,
+.al-details-btn {
+    background:    none;
+    border:        none;
+    cursor:        pointer;
+    padding:       0.25rem 0.375rem;
+    border-radius: var(--al-radius-sm);
+    color:         var(--al-text-muted);
+    font-size:     0.875rem;
+    transition:    background var(--al-transition), color var(--al-transition);
+}
+
+.al-expand-btn:hover,
+.al-details-btn:hover {
+    background: var(--al-border);
+    color:      var(--al-text);
+}
+
+.al-chevron {
+    display:    inline-block;
+    transition: transform var(--al-transition);
+}
+
+.al-expand-btn[aria-expanded="true"] .al-chevron {
+    transform: rotate(90deg);
+}
+
+.al-tr-diff .al-td-diff {
+    padding:    0;
+    background: var(--al-bg);
+}
+
+.al-diff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap:     0;
+}
+
+.al-diff-col {
+    padding: 0.75rem 1rem;
+}
+
+.al-diff-old {
+    background:   var(--al-diff-old-bg);
+    border-right: 1px solid var(--al-border);
+}
+
+.al-diff-new {
+    background: var(--al-diff-new-bg);
+}
+
+.al-diff-heading {
+    font-size:     0.75rem;
+    font-weight:   600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5rem;
+}
+
+.al-diff-old .al-diff-heading { color: var(--al-red); }
+.al-diff-new .al-diff-heading { color: var(--al-green); }
+
+/* Key-value list */
+.al-kv {
+    margin:  0;
+    padding: 0;
+}
+
+.al-kv-key {
+    display:     inline;
+    font-weight: 600;
+    font-size:   0.8125rem;
+}
+
+.al-kv-key::after { content: ': '; }
+
+.al-kv-value {
+    display:     inline;
+    margin:      0;
+    font-size:   0.8125rem;
+    word-break:  break-all;
+}
+
+.al-diff-old .al-kv-value {
+    color:           var(--al-diff-old-text);
+    text-decoration: line-through;
+}
+
+.al-diff-new .al-kv-value {
+    color: var(--al-diff-new-text);
+}
+
+.al-kv-key + .al-kv-value::after { content: '\A'; white-space: pre; }
+
+/* ============================================================
+   Badges
+   ============================================================ */
+.al-badge {
+    display:       inline-block;
+    padding:       0.2em 0.55em;
+    font-size:     0.75rem;
+    font-weight:   600;
+    border-radius: 0.25rem;
+    white-space:   nowrap;
+}
+
+.al-badge-green  { background: var(--al-green-bg);  color: var(--al-green); }
+.al-badge-amber  { background: var(--al-amber-bg);  color: var(--al-amber); }
+.al-badge-red    { background: var(--al-red-bg);    color: var(--al-red); }
+.al-badge-blue   { background: var(--al-blue-bg);   color: var(--al-blue); }
+.al-badge-purple { background: var(--al-purple-bg); color: var(--al-purple); }
+.al-badge-grey   { background: var(--al-grey-bg);   color: var(--al-grey); }
+
+.al-source-badge {
+    display:       inline-block;
+    padding:       0.15em 0.5em;
+    font-size:     0.75rem;
+    background:    var(--al-grey-bg);
+    color:         var(--al-grey);
+    border-radius: 0.25rem;
+    border:        1px solid var(--al-border);
+}
+
+/* ============================================================
+   Empty state
+   ============================================================ */
+.al-empty-state {
+    text-align:   center;
+    padding:      3rem 1.5rem;
+    color:        var(--al-text-muted);
+    font-size:    0.9375rem;
+    background:   var(--al-surface);
+    border:       1px solid var(--al-border);
+    border-radius: var(--al-radius);
+    margin-bottom: 1rem;
+}
+
+/* ============================================================
+   Pagination
+   ============================================================ */
+.al-pagination {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    flex-wrap:       wrap;
+    gap:             0.75rem;
+    margin-bottom:   1rem;
+}
+
+.al-pagination-info {
+    color:     var(--al-text-muted);
+    font-size: 0.8125rem;
+}
+
+.al-pagination-nav {
+    display:     flex;
+    align-items: center;
+    gap:         0.5rem;
+}
+
+.al-pagination-pages {
+    font-size: 0.8125rem;
+    color:     var(--al-text-muted);
+    padding:   0 0.25rem;
+}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+.al-modal-overlay {
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+    position:         fixed;
+    inset:            0;
+    background:       rgba(0,0,0,.45);
+    z-index:          1000;
+    padding:          1rem;
+    visibility:       hidden;
+    opacity:          0;
+    transition:       opacity var(--al-transition), visibility var(--al-transition);
+}
+
+.al-modal-overlay.al-modal-open {
+    visibility: visible;
+    opacity:    1;
+}
+
+.al-modal {
+    background:    var(--al-surface);
+    border-radius: var(--al-radius);
+    box-shadow:    var(--al-shadow);
+    width:         100%;
+    max-width:     44rem;
+    max-height:    90vh;
+    overflow-y:    auto;
+    display:       flex;
+    flex-direction: column;
+}
+
+.al-modal-header {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    padding:         1rem 1.25rem;
+    border-bottom:   1px solid var(--al-border);
+    position:        sticky;
+    top:             0;
+    background:      var(--al-surface);
+    z-index:         1;
+}
+
+.al-modal-title {
+    font-size:   1rem;
+    font-weight: 600;
+    margin:      0;
+}
+
+.al-modal-close {
+    background:    none;
+    border:        none;
+    font-size:     1.5rem;
+    cursor:        pointer;
+    color:         var(--al-text-muted);
+    padding:       0 0.25rem;
+    line-height:   1;
+    border-radius: var(--al-radius-sm);
+    transition:    color var(--al-transition);
+}
+
+.al-modal-close:hover { color: var(--al-text); }
+
+.al-modal-body {
+    padding: 1.25rem;
+}
+
+.al-modal-loading {
+    color:      var(--al-text-muted);
+    text-align: center;
+    padding:    1rem 0;
+    margin:     0;
+}
+
+/* Modal detail table */
+.al-detail-table {
+    width:           100%;
+    border-collapse: collapse;
+    font-size:       var(--al-font-size);
+}
+
+.al-detail-table th {
+    padding:    0.4rem 0.75rem 0.4rem 0;
+    font-weight: 600;
+    color:       var(--al-text-muted);
+    white-space: nowrap;
+    width:       9rem;
+    vertical-align: top;
+}
+
+.al-detail-table td {
+    padding:    0.4rem 0.75rem 0.4rem 0;
+    word-break: break-all;
+    vertical-align: top;
+}
+
+.al-detail-pre {
+    background:    var(--al-bg);
+    border:        1px solid var(--al-border);
+    border-radius: var(--al-radius-sm);
+    padding:       0.5rem 0.75rem;
+    font-size:     0.8125rem;
+    overflow-x:    auto;
+    white-space:   pre-wrap;
+    margin:        0;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 48rem) {
+    .al-diff-grid {
+        grid-template-columns: 1fr;
+    }
+    .al-diff-old {
+        border-right: none;
+        border-bottom: 1px solid var(--al-border);
+    }
+    .al-td-ip { display: none; }
+    .al-th:nth-child(7) { display: none; }
+}
+
+/* ============================================================
+   Print view (used in print.php — no .al-root wrapper)
+   ============================================================ */
+.al-print-root {
+    font-family: serif;
+    font-size:   10pt;
+    color:       #000;
+    padding:     1cm;
+}
+
+.al-print-header {
+    margin-bottom: 0.75cm;
+}
+
+.al-print-header h1 {
+    font-size:     14pt;
+    margin-bottom: 0.25cm;
+}
+
+.al-print-meta {
+    font-size: 9pt;
+    color:     #555;
+    margin:    0;
+}
+
+.al-print-table {
+    width:           100%;
+    border-collapse: collapse;
+    font-size:       9pt;
+}
+
+.al-print-table th,
+.al-print-table td {
+    border:  1px solid #aaa;
+    padding: 3pt 6pt;
+    text-align: left;
+}
+
+.al-print-table th {
+    background: #f0f0f0;
+    font-weight: 700;
+}
+
+@media print {
+    .al-print-root { padding: 0; }
+}
