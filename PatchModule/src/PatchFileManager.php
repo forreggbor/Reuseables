@@ -378,7 +378,9 @@ class PatchFileManager
      *
      * Files absent from disk are treated as already removed (idempotent).
      * Each path is validated against the project root to block traversal.
-     * Invalidates OPcache per removed file.
+     * Invalidates OPcache per removed file. After all files are removed,
+     * directories that have become empty are pruned bottom-up; directories
+     * that still contain prod-only content are left untouched.
      *
      * @param array $manifest Parsed manifest.json
      * @return array{success: bool, removed_count: int, error: ?string, error_code: ?string}
@@ -417,7 +419,61 @@ class PatchFileManager
             }
         }
 
+        $this->pruneEmptyDirectories($filesList);
+
         return ['success' => true, 'removed_count' => $removedCount, 'error' => null, 'error_code' => null];
+    }
+
+    /**
+     * Remove directories that became empty after patch files were deleted
+     *
+     * Walks the ancestor directories of every removed path, deepest-first,
+     * and calls rmdir() on each. rmdir() is a no-op on non-empty directories,
+     * so prod-only content (logs, uploads, caches) is never touched. The
+     * project root itself is never removed.
+     *
+     * @param array $removedPaths Relative file paths that were targeted for removal
+     * @return void
+     */
+    private function pruneEmptyDirectories(array $removedPaths): void
+    {
+        $resolvedRoot = realpath($this->rootPath);
+        if ($resolvedRoot === false) {
+            return;
+        }
+
+        $dirs = [];
+        foreach ($removedPaths as $relativePath) {
+            if (!is_string($relativePath)) {
+                continue;
+            }
+            $dir = dirname($relativePath);
+            while ($dir !== '.' && $dir !== '' && $dir !== '/') {
+                $dirs[$dir] = true;
+                $dir        = dirname($dir);
+            }
+        }
+
+        if (empty($dirs)) {
+            return;
+        }
+
+        $dirList = array_keys($dirs);
+        usort($dirList, static fn(string $a, string $b): int => substr_count($b, '/') <=> substr_count($a, '/'));
+
+        foreach ($dirList as $relDir) {
+            try {
+                $absDir = $this->safeJoin($resolvedRoot, $relDir);
+            } catch (\InvalidArgumentException $e) {
+                continue;
+            }
+            if (!is_dir($absDir)) {
+                continue;
+            }
+            if (@rmdir($absDir)) {
+                $this->log("Patch remove: pruned empty directory: {$relDir}", 'INFO');
+            }
+        }
     }
 
     /**

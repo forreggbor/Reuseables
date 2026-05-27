@@ -57,7 +57,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 2.4.0
+ * @version 2.5.0
  * @license MIT
  */
 class PatchModule

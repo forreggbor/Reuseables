@@ -523,6 +523,7 @@ patch-X.Y.Z.tgz
 - `has_migration` (boolean) is **removed** — `count(migrations) > 0` is the signal.
 - `removed_files` is omitted when empty (unchanged behaviour).
 - Deletions of files under `database/migrations/` are **not** added to `removed_files` — removing a migration from the source tree is a no-op in the wire format.
+- After all listed files are removed, PatchModule prunes any directories that became empty (bottom-up). Directories that still contain prod-only content are left untouched.
 
 ### Authority rule
 

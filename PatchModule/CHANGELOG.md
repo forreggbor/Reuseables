@@ -5,6 +5,18 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-05-27
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Folders deleted in development are now removed on the production server after patch installation |
+
+### Fixed
+
+- **Empty directory cleanup after file removal** — when a patch removes the last tracked file from a directory, PatchModule now also removes the empty directory on the production server. Directories that still contain files not managed by the patch (logs, uploads, caches) are left untouched. Rollback correctly recreates pruned directories when restoring deleted files (closes #2).
+
+---
+
 ## [2.4.0] - 2026-05-19
 
 | Category | Description |

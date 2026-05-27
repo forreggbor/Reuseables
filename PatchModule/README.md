@@ -376,7 +376,7 @@ files/             # Optional: files to copy to project root
 
 `migrations` is **always present** (empty array when the patch has no SQL migrations). SQL files in the archive's `migrations/` directory are executed in lexicographic (chronological) order by PatchInstaller. Each filename is tracked in `patch_migrations` by filename — re-installing the same patch is a no-op for SQL (already-applied filenames are skipped).
 
-`removed_files` is optional — absent or empty means no deletions. Each listed file is deleted from the project root after new files are copied, with path-traversal protection and pre-deletion backup for rollback.
+`removed_files` is optional — absent or empty means no deletions. Each listed file is deleted from the project root after new files are copied, with path-traversal protection and pre-deletion backup for rollback. After all listed files are removed, any directories that became empty are pruned bottom-up; directories containing prod-only content are left untouched.
 
 > **Filesystem note:** PatchInstaller does **not** copy migration files into the project's `database/migrations/` directory. The archive's `migrations/` directory is executed in place and the filenames are tracked in `patch_migrations`. The project's `database/migrations/` is only read during bootstrap (to backfill `patch_migrations` on first use) and is otherwise untouched.
 
