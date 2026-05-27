@@ -13,6 +13,7 @@ Framework-agnostic patch management module for PHP applications. Handles checkin
 - **Maintenance mode** via flag file (no DB dependency)
 - **OPcache invalidation** per-file and full reset
 - **Manual patch upload** — install patches offline without an internet connection
+- **Dual-language release notes** — when a patch archive contains `# English` / `# Magyar` sections (PatchCreator v1.09.00+), only the section matching the logged-in admin's language is rendered; single-language notes pass through unchanged
 - **Optional backup integration** (graceful skip if not available)
 - **Optional logging** (app log + 6 activity audit events, including rollback outcomes)
 - **Optional CSRF rotation** (`CsrfRotatableInterface`) — module returns fresh token on every mutating response

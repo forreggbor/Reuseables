@@ -246,7 +246,7 @@ class PatchFileManager
         $releaseNotesPath = $extractDir . '/release_notes.md';
         if (is_file($releaseNotesPath) && is_readable($releaseNotesPath)) {
             $size = filesize($releaseNotesPath);
-            if ($size !== false && $size > 0 && $size <= 60000) {
+            if ($size !== false && $size > 0) {
                 $contents = file_get_contents($releaseNotesPath);
                 if ($contents !== false) {
                     $trimmed = trim($contents);
@@ -254,8 +254,6 @@ class PatchFileManager
                         $releaseNotesMd = $trimmed;
                     }
                 }
-            } elseif ($size > 60000) {
-                $this->log("Patch release_notes.md oversized ({$size} bytes); skipping capture", 'WARNING');
             }
         }
 

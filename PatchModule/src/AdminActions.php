@@ -82,7 +82,9 @@ class AdminActions
 
         $remotePatches   = $this->module->getAvailablePatches();
         $uploadedPatches = $this->module->getDatabase()->findUploadedAvailablePatches();
-        $patches         = $this->enrichPatchesWithLocalIds($this->mergePatches($remotePatches, $uploadedPatches));
+        $patches         = $this->applyLanguageToPatches(
+            $this->enrichPatchesWithLocalIds($this->mergePatches($remotePatches, $uploadedPatches))
+        );
         $history         = $this->module->getHistory();
 
         // Oldest-first among available patches; this determines which row gets the Install button.
@@ -135,7 +137,7 @@ class AdminActions
                 'success'    => true,
                 'available'  => $result['available'] ?? false,
                 'count'      => $result['count'] ?? 0,
-                'patches'    => $result['patches'] ?? [],
+                'patches'    => $this->applyLanguageToPatches($result['patches'] ?? []),
                 'csrf_token' => $this->csrfToken(),
             ],
         ];
@@ -174,8 +176,10 @@ class AdminActions
 
         $files = $this->buildFilesManifest($manifest, (string) ($record['status'] ?? ''));
 
+        $lang     = $this->module->getCurrentLanguage();
+        $rawNotes = isset($record['release_notes']) ? (string) $record['release_notes'] : null;
         $releaseNotesHtml = SimpleMarkdownRenderer::render(
-            isset($record['release_notes']) ? (string) $record['release_notes'] : null
+            $rawNotes !== null ? SimpleMarkdownRenderer::selectLanguageSection($rawNotes, $lang) : null
         );
         $isManualUpload = ($record['patch_server_id'] ?? null) === null;
 
@@ -1006,6 +1010,31 @@ class AdminActions
             }
         }
         return null;
+    }
+
+    /**
+     * Apply language section selection to the release_notes field of each patch
+     *
+     * Replaces each non-empty release_notes string with the section matching the
+     * current UI language (read from $this->module->getCurrentLanguage()). Patches
+     * without release_notes are left unchanged.
+     *
+     * @param array $patches List of patch objects
+     * @return array Patch list with release_notes filtered to the current UI language
+     */
+    private function applyLanguageToPatches(array $patches): array
+    {
+        $lang = $this->module->getCurrentLanguage();
+        foreach ($patches as &$patch) {
+            if (isset($patch['release_notes']) && $patch['release_notes'] !== '') {
+                $patch['release_notes'] = SimpleMarkdownRenderer::selectLanguageSection(
+                    (string) $patch['release_notes'],
+                    $lang
+                );
+            }
+        }
+        unset($patch);
+        return $patches;
     }
 
     /**

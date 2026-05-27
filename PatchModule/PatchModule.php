@@ -57,7 +57,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 2.5.0
+ * @version 2.6.0
  * @license MIT
  */
 class PatchModule
@@ -94,6 +94,9 @@ class PatchModule
 
     /** @var AdminActions|null */
     private ?AdminActions $adminActions = null;
+
+    /** @var string|null Language code set by the host for release-notes section selection */
+    private ?string $currentLanguage = null;
 
     /** @var string Normalized admin UI base URL (empty when admin UI is not configured) */
     private readonly string $baseUrl;
@@ -566,6 +569,32 @@ class PatchModule
         }
 
         return $this->adminActions;
+    }
+
+    /**
+     * Set the logged-in admin's UI language for release-notes section selection
+     *
+     * Call this once per request after initializing PatchModule, passing the
+     * logged-in user's language code (e.g. 'hu', 'hu_HU', 'en', 'en_US').
+     * AdminActions reads this value fresh on each method call. When null or not
+     * set, English is used as the default.
+     *
+     * @param string|null $lang Language code or null for default (English)
+     * @return void
+     */
+    public function setCurrentLanguage(?string $lang): void
+    {
+        $this->currentLanguage = $lang;
+    }
+
+    /**
+     * Return the logged-in admin's UI language set via setCurrentLanguage()
+     *
+     * @return string|null Language code, or null when not set
+     */
+    public function getCurrentLanguage(): ?string
+    {
+        return $this->currentLanguage;
     }
 
     /**

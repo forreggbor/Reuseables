@@ -203,6 +203,62 @@ class SimpleMarkdownRenderer
     }
 
     /**
+     * Extract a single-language section from a dual-language release notes string
+     *
+     * When the markdown contains '# English' and '# Magyar' H1 section markers
+     * (written by PatchCreator v1.09.00+), the section matching the requested
+     * language is returned with the marker line stripped and the body trimmed.
+     *
+     * Locale normalisation: any code beginning with 'hu' (case-insensitive) maps to
+     * the Magyar section; everything else (including null) maps to English.
+     *
+     * Fallback chain: target section → English section → whole input unchanged.
+     * The unchanged branch preserves byte-identity for single-language and
+     * pre-1.09.00 notes (no markers present).
+     *
+     * @param string      $markdown Raw release-notes markdown
+     * @param string|null $language Language code (e.g. 'hu', 'hu_HU', 'en_US') or null for default
+     * @return string The selected section body, or the whole input when no markers are found
+     */
+    public static function selectLanguageSection(string $markdown, ?string $language): string
+    {
+        $wantHungarian = str_starts_with(strtolower($language ?? ''), 'hu');
+
+        $sections = [];
+        $current  = null;
+        $buffer   = [];
+
+        foreach (explode("\n", str_replace("\r\n", "\n", $markdown)) as $line) {
+            if ($line === '# English' || $line === '# Magyar') {
+                if ($current !== null) {
+                    $sections[$current] = trim(implode("\n", $buffer));
+                }
+                $current = ($line === '# English') ? 'English' : 'Magyar';
+                $buffer  = [];
+            } else {
+                $buffer[] = $line;
+            }
+        }
+        if ($current !== null) {
+            $sections[$current] = trim(implode("\n", $buffer));
+        }
+
+        if ($sections === []) {
+            return $markdown;
+        }
+
+        if ($wantHungarian && isset($sections['Magyar']) && $sections['Magyar'] !== '') {
+            return $sections['Magyar'];
+        }
+
+        if (isset($sections['English']) && $sections['English'] !== '') {
+            return $sections['English'];
+        }
+
+        return $markdown;
+    }
+
+    /**
      * Apply inline transformations to an already-HTML-escaped text fragment.
      *
      * Order: inline-code placeholders → links → bold → italic → reinsert code.

@@ -5,6 +5,31 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-05-27
+
+| Category | Description |
+|----------|-------------|
+| Added    | Per-language rendering of dual-language release notes (`# English` / `# Magyar` sections from PatchCreator v1.09.00+) |
+| Added    | `setCurrentLanguage()` / `getCurrentLanguage()` on `PatchModule` for the host to pass the logged-in admin's UI language |
+| Changed  | `patch_history.release_notes` column widened from `TEXT` to `MEDIUMTEXT`; migration provided |
+| Fixed    | Install-time 60 KB cap on `release_notes.md` removed — notes of any practical size are now captured |
+
+### Added
+
+- **Per-language release notes** — when `release_notes.md` inside a patch archive contains `# English` and `# Magyar` H1 section markers (produced by PatchCreator v1.09.00+), PatchModule now selects and renders only the section matching the logged-in admin's UI language. English-only notes (no markers) pass through unchanged — byte-identical to the previous behaviour.
+- **`PatchModule::setCurrentLanguage(?string $lang)`** — call this once per request after constructing the module, passing the logged-in admin's language code (`'hu'`, `'hu_HU'`, `'en'`, `'en_US'`, etc.). Language normalisation (prefix match) is handled internally; null defaults to English.
+- **`SimpleMarkdownRenderer::selectLanguageSection(string $markdown, ?string $language): string`** — static helper that extracts the target-language body from a dual-section notes string. Fallback chain: target language → English → whole input unchanged.
+
+### Changed
+
+- `patch_history.release_notes` is now `MEDIUMTEXT` (16 MB ceiling) in the schema. A non-destructive `ALTER TABLE` migration is provided at `schema/migrations/2026_05_27_150920_patch_history_release_notes_mediumtext.sql`.
+
+### Fixed
+
+- The 60 KB cap that silently skipped oversized `release_notes.md` files at install time is removed. The boundary existed because the `TEXT` column could not hold more than 65,535 bytes; with `MEDIUMTEXT` that constraint is lifted.
+
+---
+
 ## [2.5.0] - 2026-05-27
 
 | Category | Description |

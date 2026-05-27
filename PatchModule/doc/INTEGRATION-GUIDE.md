@@ -551,6 +551,10 @@ no patches are available or when the module is not configured.
 <?php
 // At the top of your admin layout (or just before .main-content):
 if (isset($isSysadmin) && $isSysadmin) {
+    // Pass the logged-in admin's UI language so release notes render in the correct section.
+    // Any prefix-matched code works: 'hu', 'hu_HU', 'en', 'en_US'. Null defaults to English.
+    $module->setCurrentLanguage($currentAdmin->getLanguage() ?? 'en');
+
     $availability = $module->isAvailable();
     $patches      = $availability['enabled'] ? $module->getAvailablePatches() : [];
     $actions      = $module->getAdminActions();
