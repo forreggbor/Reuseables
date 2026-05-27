@@ -17,6 +17,14 @@
 | Virtualjog      | 1.0.0   | 1.0.0      | —              | —         | —              | —             |
 | StarEditor      | 2.7.0   | 2.7.0      | —              | 2.7.0     | —              | —             |
 
+## Standalone applications
+
+| Module       | Current | JupitERP   | TrafficJournal | UniCMS    | LicenseManager | patrikmol.com |
+|--------------|---------|------------|----------------|-----------|----------------|---------------|
+| CodeWarden   | 1.05.01 | —          | —              | —         | —              | —             |
+| PatchCreator | 1.09.00 | —          | —              | —         | —              | —             |
+
+
 ## Obsolote modules
 
 | Module                           | Current | JupitERP | TrafficJournal | UniCMS | LicenseManager | patrikmol.com |

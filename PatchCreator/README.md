@@ -8,6 +8,7 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 - **Auto-detected SQL migrations** — `database/migrations/*.sql` files in the diff are shipped in a `migrations/` directory automatically; no flag needed
 - **Version auto-detection** — Reads the current version from project source files
 - **CHANGELOG.md extraction** — Parses Keep a Changelog format; cumulative patches covering multiple versions produce a consolidated `| Version | Category | Description |` summary table followed by the per-version detail sections
+- **Dual-language release notes** — If `CHANGELOG.hu.md` is present alongside `CHANGELOG.md`, `release_notes.md` embeds `# English` and `# Magyar` sections; projects without a HU changelog get the same single-language output as before
 - **SHA-256 verification** — Generates a `.sha256` hash file alongside the archive
 - **Configurable excludes** — Default exclude patterns with additional user-defined patterns
 - **Dry run mode** — Preview what would be packaged without creating the archive
@@ -128,6 +129,46 @@ PatchCreator.sh -e "public/uploads/*" -e "*.tmp"
 PatchCreator.sh -v 2.33.0 -b v2.32.0 -y
 ```
 
+### Dual-language release notes
+
+Commit a `CHANGELOG.hu.md` file at the project root alongside `CHANGELOG.md`. It uses the
+same Keep a Changelog structure with identical `## [X.Y.Z] - date` version headers; only the
+section headings and table labels are in Hungarian (`### Hozzáadva`, `| Kategória | Leírás |`).
+
+```bash
+PatchCreator.sh -y
+```
+
+When `CHANGELOG.hu.md` is present and contains an entry for the version range, `release_notes.md`
+inside the archive is structured as:
+
+```
+# English
+
+| Version | Category | Description |
+...
+
+## [X.Y.Z] - date
+### Added
+...
+
+# Magyar
+
+| Version | Category | Description |
+...
+
+## [X.Y.Z] - date
+### Hozzáadva
+...
+```
+
+If `CHANGELOG.hu.md` is absent, `release_notes.md` is bare English — byte-identical to the
+pre-1.09.00 output. No flags needed; the dual-section format is auto-detected.
+
+> **Note:** Displaying the correct language to the logged-in user requires PatchModule round 2
+> (not yet released). Until then, both sections are shown stacked. The build and install steps
+> are unaffected regardless of PatchModule version.
+
 ### Specify a different project directory
 
 ```bash
@@ -184,7 +225,7 @@ patch-2.33.0.tgz
 │   ├── app/
 │   ├── public/
 │   └── ...
-└── release_notes.md    # Release notes: consolidated summary table + per-version details
+└── release_notes.md    # Release notes (EN-only, or # English / # Magyar when CHANGELOG.hu.md exists)
 ```
 
 ### manifest.json Format
@@ -281,3 +322,8 @@ The `removed_files` manifest field requires **PatchModule v1.3.0 or later** to t
 By default, PatchCreator validates the generated manifest against the same rules that PatchModule v1.8.0 enforces (JSON schema, semver format, `migrations[]` array with safe filenames, path safety, no symlinks). This catches incompatible output at build time rather than at customer install time. Disable with `--no-validate` if needed.
 
 **Breaking change in v1.03.00:** The `-m <file>` flag is removed. The manifest no longer emits `has_migration`. Requires PatchModule v1.8.0 for migration execution.
+
+**v1.09.00 — dual-language release notes:** When `CHANGELOG.hu.md` is present, `release_notes.md`
+contains `# English` and `# Magyar` H1 sections. Older PatchModule versions render both sections
+concatenated (visible but functional). A future PatchModule update will display only the section
+matching the logged-in user's language.

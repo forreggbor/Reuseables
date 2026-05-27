@@ -5,6 +5,28 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.09.00] - 2026-05-27
+
+| Category | Description |
+|----------|-------------|
+| Added    | Dual-language release notes: `# English` and `# Magyar` sections in `release_notes.md` when `CHANGELOG.hu.md` is committed alongside `CHANGELOG.md` |
+| Changed  | Release-notes size warning removed; the boundary now lives in PatchModule's database column |
+| Fixed    | Changelog summary table parser was English-specific; now works with any language's table headers |
+
+### Added
+
+- When a project commits `CHANGELOG.hu.md` alongside `CHANGELOG.md` (same Keep a Changelog format, identical `## [X.Y.Z] - date` version headers, section headings and table labels in Hungarian), PatchCreator extracts both and writes a single `release_notes.md` with `# English` and `# Magyar` H1 sections. Projects without `CHANGELOG.hu.md` produce the same bare English notes as before, byte-for-byte identical to the previous output.
+
+### Changed
+
+- The 60 KB release-notes warning (introduced in v1.08.01) is removed. The limit originated from PatchModule's `TEXT` database column; a future PatchModule update will widen the column to `MEDIUMTEXT`, making the boundary effectively zero.
+
+### Fixed
+
+- The changelog summary table parser skipped the header row by checking for the English string `Category`. Any language whose header differs (e.g. Hungarian `Kategória`) would leak into the consolidated table as a data row. The check is now separator-anchored: rows before the `|---|` separator row are always skipped regardless of their content.
+
+---
+
 ## [1.08.01] - 2026-05-27
 
 | Category | Description |

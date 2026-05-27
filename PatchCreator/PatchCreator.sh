@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.08.01"
+VERSION="v1.09.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -659,6 +659,7 @@ build_consolidated_table() {
     local body="$1"
     local current_ver=""
     local in_summary=false
+    local seen_separator=false
     local rows=""
     local line stripped col1 col2
     local -a _cells
@@ -667,6 +668,7 @@ build_consolidated_table() {
         if [[ "$line" =~ ^##[[:space:]]+\[([^]]+)\] ]]; then
             current_ver="${BASH_REMATCH[1]}"
             in_summary=true
+            seen_separator=false
             continue
         fi
         if [[ "$line" =~ ^###[[:space:]] ]]; then
@@ -674,15 +676,16 @@ build_consolidated_table() {
             continue
         fi
         if $in_summary && [[ "$line" =~ ^\| ]]; then
-            # Skip separator rows (|---|---|)
-            [[ "$line" =~ ^\|[[:space:]]*[-:] ]] && continue
+            if [[ "$line" =~ ^\|[[:space:]]*[-:] ]]; then
+                seen_separator=true
+                continue
+            fi
+            $seen_separator || continue
             stripped="${line#|}"
             stripped="${stripped%|}"
             IFS='|' read -ra _cells <<< "$stripped"
             col1="$(echo "${_cells[0]:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
             col2="$(echo "${_cells[1]:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-            # Skip header row
-            [[ "$col1" == "Category" ]] && continue
             rows+="| ${current_ver} | ${col1} | ${col2} |"$'\n'
         fi
     done <<< "$body"
@@ -729,6 +732,37 @@ strip_version_tables() {
     done <<< "$body"
 
     echo "$result" | sed -e 's/[[:space:]]*$//'
+}
+
+##
+# Assemble consolidated release notes for a single changelog file.
+#
+# Extracts the version range, builds the consolidated summary table, and strips
+# per-version summary tables from the detail sections. Returns nothing if the target
+# version has no entry in the changelog.
+#
+# @param string $1 Path to changelog file
+# @param string $2 Target version
+# @param string $3 Base version (exclusive lower bound)
+# @return Consolidated notes: summary table followed by per-version detail sections
+##
+assemble_consolidated_notes() {
+    local changelog_path="$1"
+    local target="$2"
+    local base="$3"
+    local body table details
+
+    body=$(extract_changelog "$changelog_path" "$target" "$base")
+    [[ -z "$body" ]] && return 0
+
+    table=$(build_consolidated_table "$body")
+    details=$(strip_version_tables "$body")
+
+    if [[ -n "$table" ]]; then
+        printf '%s\n\n%s' "$table" "$details"
+    else
+        printf '%s' "$details"
+    fi
 }
 
 ##
@@ -1440,27 +1474,29 @@ if [[ -n "$RELEASE_NOTES_FILE" ]]; then
     RELEASE_NOTES_SOURCE="provided file"
     success "Using release notes from: ${RELEASE_NOTES_FILE}"
 elif ! $NO_CHANGELOG; then
-    CHANGELOG_PATH="${PROJECT_DIR}/CHANGELOG.md"
+    CHANGELOG_EN_PATH="${PROJECT_DIR}/CHANGELOG.md"
+    CHANGELOG_HU_PATH="${PROJECT_DIR}/CHANGELOG.hu.md"
 
-    if [[ -f "$CHANGELOG_PATH" ]]; then
-        CHANGELOG_BODY=$(extract_changelog "$CHANGELOG_PATH" "$TARGET_VERSION" "$BASE_VERSION")
+    if [[ -f "$CHANGELOG_EN_PATH" ]]; then
+        CHANGELOG_EN=$(assemble_consolidated_notes "$CHANGELOG_EN_PATH" "$TARGET_VERSION" "$BASE_VERSION")
 
-        if [[ -n "$CHANGELOG_BODY" ]]; then
-            CHANGELOG_TABLE=$(build_consolidated_table "$CHANGELOG_BODY")
-            CHANGELOG_DETAILS=$(strip_version_tables "$CHANGELOG_BODY")
-
-            if [[ -n "$CHANGELOG_TABLE" ]]; then
-                RELEASE_NOTES_CONTENT="${CHANGELOG_TABLE}"$'\n\n'"${CHANGELOG_DETAILS}"
+        if [[ -n "$CHANGELOG_EN" ]]; then
+            if [[ -f "$CHANGELOG_HU_PATH" ]]; then
+                CHANGELOG_HU=$(assemble_consolidated_notes "$CHANGELOG_HU_PATH" "$TARGET_VERSION" "$BASE_VERSION")
+                if [[ -n "$CHANGELOG_HU" ]]; then
+                    RELEASE_NOTES_CONTENT="$(printf '# English\n\n%s\n\n# Magyar\n\n%s' "$CHANGELOG_EN" "$CHANGELOG_HU")"
+                    RELEASE_NOTES_SOURCE="CHANGELOG.md + CHANGELOG.hu.md"
+                    success "Extracted dual-language release notes (EN + HU) for v${TARGET_VERSION}"
+                else
+                    warn "CHANGELOG.hu.md found but has no entry for v${TARGET_VERSION} — using English only."
+                    RELEASE_NOTES_CONTENT="$CHANGELOG_EN"
+                    RELEASE_NOTES_SOURCE="CHANGELOG.md"
+                    success "Extracted release notes from CHANGELOG.md for v${TARGET_VERSION}"
+                fi
             else
-                RELEASE_NOTES_CONTENT="${CHANGELOG_DETAILS}"
-            fi
-
-            RELEASE_NOTES_SOURCE="CHANGELOG.md"
-            success "Extracted release notes from CHANGELOG.md for v${TARGET_VERSION}"
-
-            CHANGELOG_SIZE=$(printf '%s' "$RELEASE_NOTES_CONTENT" | wc -c)
-            if (( CHANGELOG_SIZE > 60000 )); then
-                warn "Release notes exceed 60 KB (${CHANGELOG_SIZE} bytes) — PatchModule will discard them. Consider --no-changelog or splitting the patch into smaller version increments."
+                RELEASE_NOTES_CONTENT="$CHANGELOG_EN"
+                RELEASE_NOTES_SOURCE="CHANGELOG.md"
+                success "Extracted release notes from CHANGELOG.md for v${TARGET_VERSION}"
             fi
         else
             warn "No entry found in CHANGELOG.md for version ${TARGET_VERSION}."
