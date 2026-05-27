@@ -19,7 +19,6 @@
 | [PatchModule](PatchModule/)         | Framework-agnostic patch management with update checking, installation, and rollback          |
 | [SzamlazzHuAgent](SzamlazzHuAgent/) | Framework-agnostic PHP module for Szamlazz.hu invoice integration                             |
 | [Virtualjog](Virtualjog/)           | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent)            |
-| [StarEditor](StarEditor/)           | Vanilla JS WYSIWYG rich text editor with tables, images, server galleries, and gallery picker |
 
 ## Standalone applications
 
