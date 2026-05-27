@@ -5,6 +5,18 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.08.00] - 2026-05-27
+
+| Category | Description |
+|----------|-------------|
+| Added    | Warning when tracked autoload files have uncommitted changes that would be absent from the patch |
+
+### Added
+
+- When `vendor/autoload.php` or any file under `vendor/composer/` is tracked in git but has uncommitted working-tree changes, PatchCreator now prints a warning listing the affected files and prompts running `composer dump-autoload` and committing the result before building the patch. The patch ships the committed state of those files; without this warning, a freshly regenerated but uncommitted autoload map would silently be missing from the package.
+
+---
+
 ## [1.07.01] - 2026-05-20
 
 | Category | Description |

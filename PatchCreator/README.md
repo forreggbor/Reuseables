@@ -228,6 +228,10 @@ The following paths are excluded from git diff results by default. Use `-f` with
 | `doc/` | Documentation folder |
 | `tests/`, `phpunit.xml` | Test files |
 
+### Composer autoload files
+
+`vendor/autoload.php` and files directly under `vendor/composer/` are re-admitted past the `vendor/` exclude when they appear in the git diff — they ship in the patch like any other changed file. To ensure the patch carries fresh autoload maps, run `composer dump-autoload` and **commit** the result before building the patch. PatchCreator warns if tracked autoload files have uncommitted changes.
+
 ## Version Auto-Detection
 
 The script searches for `define('APP_VERSION', 'X.Y.Z')` across the following candidate files, in order, stopping at the first match:

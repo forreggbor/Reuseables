@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.07.01"
+VERSION="v1.08.00"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -1265,6 +1265,18 @@ else
         fi
         classify_file "$df" "delete"
     done
+
+    # Warn when tracked autoload files have uncommitted working-tree changes.
+    # The patch ships the committed state of these files; a regenerated but
+    # uncommitted autoload map would be absent from the package.
+    mapfile -t AUTOLOAD_DIRTY < <(git -C "$PROJECT_DIR" diff --name-only HEAD -- vendor/autoload.php vendor/composer/ 2>/dev/null)
+    if [[ ${#AUTOLOAD_DIRTY[@]} -gt 0 ]]; then
+        warn "Uncommitted autoload changes detected — patch will ship the committed versions:"
+        for al_file in "${AUTOLOAD_DIRTY[@]}"; do
+            warn "  ${al_file}"
+        done
+        warn "Run 'composer dump-autoload' and commit the result to include fresh maps."
+    fi
 fi
 
 # Check if we have any files, migrations, or deletions
