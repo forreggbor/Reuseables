@@ -20,14 +20,6 @@
 | [SzamlazzHuAgent](SzamlazzHuAgent/) | Framework-agnostic PHP module for Szamlazz.hu invoice integration                             |
 | [Virtualjog](Virtualjog/)           | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent)            |
 
-## Standalone applications
-
-| Component                           | Description                                                                                   |
-|-------------------------------------|-----------------------------------------------------------------------------------------------|
-| [CodeWarden](CodeWarden/)           | Bash utility for project maintenance (PO/MO localization, ownership, permissions)             |
-| [PatchCreator](PatchCreator/)       | Bash patch package builder for PatchModule with git diff and SHA-256 verification             |
-
-
 ## Obsolote components
 
 | Component                           | Description                                                                                   |
