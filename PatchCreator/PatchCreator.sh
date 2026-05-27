@@ -19,7 +19,7 @@ set -euo pipefail
 # Constants
 # ==============================================================================
 
-VERSION="v1.08.00"
+VERSION="v1.08.01"
 SCRIPT_NAME="$(basename "$0")"
 START_TIME=$(date +%s)
 
@@ -355,15 +355,19 @@ extract_manifest_sha() {
 #     Use it if it exists in the repo and is an ancestor of HEAD.
 #  2. Fall back to a git tag matching the archive's version (tries vX.Y.Z, then X.Y.Z).
 #     If no matching tag is reachable from HEAD, error out — the caller must pass -b explicitly.
-#  3. If OUTPUT_DIR has no patch archives, return empty (caller falls back to latest tag).
+#  3. If OUTPUT_DIR has no patch archives, return 1 (caller falls back to latest tag).
 #
 # Archives whose version is >= target_version are excluded so that a prior failed/partial
 # build of the same version does not cause the resolver to diff against HEAD itself.
 #
+# On success (return 0) sets globals:
+#   RESOLVED_BASE_REF     — the base git reference (SHA or tag name)
+#   RESOLVED_BASE_VERSION — the version string of the last patch archive (e.g. "1.07.01")
+#
 # @param string $1 Project directory
 # @param string $2 Output directory to scan for patch archives
 # @param string $3 Target version being built (archives >= this version are skipped)
-# @return Base git reference (SHA or tag name), or empty string if no previous patch found
+# @return 0 if a previous patch archive was found and resolved; 1 if no archive exists
 ##
 resolve_cumulative_base() {
     local project_dir="$1"
@@ -374,7 +378,7 @@ resolve_cumulative_base() {
     last_tgz=$(find_last_patch_archive "$output_dir" "$target_version")
 
     if [[ -z "$last_tgz" ]]; then
-        return 0
+        return 1
     fi
 
     local last_basename
@@ -391,7 +395,8 @@ resolve_cumulative_base() {
            git -C "$project_dir" rev-parse "$sha^{commit}" &>/dev/null &&
            git -C "$project_dir" merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
             info "Cumulative patch since last package (${last_basename}, commit ${sha:0:7})"
-            echo "$sha"
+            RESOLVED_BASE_REF="$sha"
+            RESOLVED_BASE_VERSION="$last_ver"
             return 0
         else
             warn "Last patch's commit SHA is not an ancestor of HEAD (rebased or wrong branch); trying tag lookup."
@@ -404,7 +409,8 @@ resolve_cumulative_base() {
         if git_ref_exists "$project_dir" "$candidate" &&
            git -C "$project_dir" merge-base --is-ancestor "$candidate" HEAD 2>/dev/null; then
             info "Cumulative patch since last package (${candidate})"
-            echo "$candidate"
+            RESOLVED_BASE_REF="$candidate"
+            RESOLVED_BASE_VERSION="$last_ver"
             return 0
         fi
     done
@@ -593,15 +599,21 @@ validate_manifest() {
 }
 
 ##
-# Extract release notes for a specific version from CHANGELOG.md.
+# Extract release notes covering all versions between base and target from CHANGELOG.md.
+#
+# Collects every version block from ## [target_version] down to (but not including)
+# ## [base_version]. CHANGELOG is assumed newest-first (Keep a Changelog). When
+# base_version is empty or not found, collects through EOF.
 #
 # @param string $1 Path to CHANGELOG.md
-# @param string $2 Target version
-# @return Extracted release notes text
+# @param string $2 Target version (newest version to include)
+# @param string $3 Base version (exclusive lower bound; empty = no lower bound)
+# @return Collected release notes body (may span multiple version blocks)
 ##
 extract_changelog() {
     local changelog_file="$1"
     local target_version="$2"
+    local base_version="${3:-}"
 
     if [[ ! -f "$changelog_file" ]]; then
         return 0
@@ -611,26 +623,112 @@ extract_changelog() {
     local content=""
 
     while IFS= read -r line; do
-        # Check for target version header: ## [X.Y.Z] or ## [X.Y.Z] - date
-        if [[ "$line" =~ ^##[[:space:]]+\[${target_version}\] ]]; then
+        # Start collecting at the target version header
+        if ! $in_section && [[ "$line" =~ ^##[[:space:]]+\[${target_version}\] ]]; then
             in_section=true
             content="${line}"$'\n'
             continue
         fi
 
-        # If we're in the section and hit the next version header, stop
-        if $in_section && [[ "$line" =~ ^##[[:space:]]+\[ ]]; then
+        # Stop (exclusive) when reaching the base version header
+        if $in_section && [[ -n "$base_version" ]] && [[ "$line" =~ ^##[[:space:]]+\[${base_version}\] ]]; then
             break
         fi
 
-        # Accumulate lines while in section
+        # Accumulate lines while in section (including intermediate version headers)
         if $in_section; then
             content+="${line}"$'\n'
         fi
     done < "$changelog_file"
 
-    # Trim trailing whitespace
     echo "$content" | sed -e 's/[[:space:]]*$//'
+}
+
+##
+# Build a consolidated | Version | Category | Description | summary table from a
+# multi-version release notes body produced by extract_changelog.
+#
+# Reads the per-version summary tables (pipe-rows appearing before the first ###
+# section in each version block) and emits a single table with a Version column.
+# Header and separator rows are excluded; pipe-rows after a ### heading are ignored.
+#
+# @param string $1 Multi-version release notes body
+# @return Markdown table string, or empty if no data rows were found
+##
+build_consolidated_table() {
+    local body="$1"
+    local current_ver=""
+    local in_summary=false
+    local rows=""
+    local line stripped col1 col2
+    local -a _cells
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^##[[:space:]]+\[([^]]+)\] ]]; then
+            current_ver="${BASH_REMATCH[1]}"
+            in_summary=true
+            continue
+        fi
+        if [[ "$line" =~ ^###[[:space:]] ]]; then
+            in_summary=false
+            continue
+        fi
+        if $in_summary && [[ "$line" =~ ^\| ]]; then
+            # Skip separator rows (|---|---|)
+            [[ "$line" =~ ^\|[[:space:]]*[-:] ]] && continue
+            stripped="${line#|}"
+            stripped="${stripped%|}"
+            IFS='|' read -ra _cells <<< "$stripped"
+            col1="$(echo "${_cells[0]:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            col2="$(echo "${_cells[1]:-}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            # Skip header row
+            [[ "$col1" == "Category" ]] && continue
+            rows+="| ${current_ver} | ${col1} | ${col2} |"$'\n'
+        fi
+    done <<< "$body"
+
+    [[ -z "$rows" ]] && return 0
+
+    printf '| Version | Category | Description |\n'
+    printf '|---------|----------|-------------|\n'
+    printf '%s' "$rows"
+}
+
+##
+# Strip per-version summary tables from a release notes body.
+#
+# Removes pipe-rows that appear before the first ### section in each version block
+# (the per-version summary tables), since they are merged into the consolidated table
+# by build_consolidated_table. Version headers, ### sections, bullet lists, and ---
+# separators are preserved intact.
+#
+# @param string $1 Multi-version release notes body
+# @return Body with per-version summary tables removed
+##
+strip_version_tables() {
+    local body="$1"
+    local in_summary=false
+    local result=""
+    local line
+
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^##[[:space:]]+\[ ]]; then
+            in_summary=true
+            result+="${line}"$'\n'
+            continue
+        fi
+        if [[ "$line" =~ ^###[[:space:]] ]]; then
+            in_summary=false
+            result+="${line}"$'\n'
+            continue
+        fi
+        if $in_summary && [[ "$line" =~ ^\| ]]; then
+            continue
+        fi
+        result+="${line}"$'\n'
+    done <<< "$body"
+
+    echo "$result" | sed -e 's/[[:space:]]*$//'
 }
 
 ##
@@ -891,6 +989,9 @@ resolve_upload_config() {
 PROJECT_DIR="$(pwd)"
 TARGET_VERSION=""
 BASE_REF=""
+RESOLVED_BASE_REF=""
+RESOLVED_BASE_VERSION=""
+BASE_VERSION=""
 OUTPUT_DIR=""
 RELEASE_NOTES_FILE=""
 FILE_LIST=""
@@ -1103,18 +1204,26 @@ HASH_PATH="${ARCHIVE_PATH}.sha256"
 header "Resolving base reference"
 
 if [[ -z "$BASE_REF" ]]; then
-    BASE_REF=$(resolve_cumulative_base "$PROJECT_DIR" "$OUTPUT_DIR" "$TARGET_VERSION")
+    RESOLVED_BASE_REF=""
+    RESOLVED_BASE_VERSION=""
 
-    if [[ -z "$BASE_REF" ]]; then
+    if resolve_cumulative_base "$PROJECT_DIR" "$OUTPUT_DIR" "$TARGET_VERSION"; then
+        BASE_REF="$RESOLVED_BASE_REF"
+        BASE_VERSION="$RESOLVED_BASE_VERSION"
+    else
         BASE_REF=$(get_latest_tag "$PROJECT_DIR")
 
         if [[ -z "$BASE_REF" ]]; then
             error "No git tags found and no previous patch archive in ${OUTPUT_DIR}. Use -b to specify a base reference explicitly." $EXIT_GIT_ERROR
         fi
 
+        BASE_VERSION="${BASE_REF#v}"
         info "Using latest tag: ${BOLD}${BASE_REF}${NC} (no previous patch package found)"
     fi
 else
+    if [[ "$BASE_REF" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)*)$ ]]; then
+        BASE_VERSION="${BASH_REMATCH[1]}"
+    fi
     info "Using specified reference: ${BOLD}${BASE_REF}${NC}"
 fi
 
@@ -1334,11 +1443,25 @@ elif ! $NO_CHANGELOG; then
     CHANGELOG_PATH="${PROJECT_DIR}/CHANGELOG.md"
 
     if [[ -f "$CHANGELOG_PATH" ]]; then
-        RELEASE_NOTES_CONTENT=$(extract_changelog "$CHANGELOG_PATH" "$TARGET_VERSION")
+        CHANGELOG_BODY=$(extract_changelog "$CHANGELOG_PATH" "$TARGET_VERSION" "$BASE_VERSION")
 
-        if [[ -n "$RELEASE_NOTES_CONTENT" ]]; then
+        if [[ -n "$CHANGELOG_BODY" ]]; then
+            CHANGELOG_TABLE=$(build_consolidated_table "$CHANGELOG_BODY")
+            CHANGELOG_DETAILS=$(strip_version_tables "$CHANGELOG_BODY")
+
+            if [[ -n "$CHANGELOG_TABLE" ]]; then
+                RELEASE_NOTES_CONTENT="${CHANGELOG_TABLE}"$'\n\n'"${CHANGELOG_DETAILS}"
+            else
+                RELEASE_NOTES_CONTENT="${CHANGELOG_DETAILS}"
+            fi
+
             RELEASE_NOTES_SOURCE="CHANGELOG.md"
             success "Extracted release notes from CHANGELOG.md for v${TARGET_VERSION}"
+
+            CHANGELOG_SIZE=$(printf '%s' "$RELEASE_NOTES_CONTENT" | wc -c)
+            if (( CHANGELOG_SIZE > 60000 )); then
+                warn "Release notes exceed 60 KB (${CHANGELOG_SIZE} bytes) — PatchModule will discard them. Consider --no-changelog or splitting the patch into smaller version increments."
+            fi
         else
             warn "No entry found in CHANGELOG.md for version ${TARGET_VERSION}."
         fi

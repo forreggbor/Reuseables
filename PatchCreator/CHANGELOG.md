@@ -5,6 +5,20 @@ All notable changes to PatchCreator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.08.01] - 2026-05-27
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Multi-version patches only included the top version's changelog; all covered versions are now collected (closes #3) |
+
+### Fixed
+
+- When a cumulative patch spans multiple released versions, `release_notes.md` previously contained only the changelog block for the highest (target) version. All version blocks between the base version and the target are now collected.
+- The generated `release_notes.md` starts with a consolidated `| Version | Category | Description |` summary table combining the summary rows from every covered version. The per-version detail sections (`### Added`, `### Fixed`, etc.) follow below without duplicating the table rows.
+- A warning is emitted if the assembled release notes exceed 60 KB, since PatchModule silently discards oversized notes at install time.
+
+---
+
 ## [1.08.00] - 2026-05-27
 
 | Category | Description |

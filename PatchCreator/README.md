@@ -7,7 +7,7 @@ Patch Package Builder for PatchModule. Creates `.tgz` patch archives compatible 
 - **Git-based file detection** — Automatically finds added, modified, and deleted files between a base reference and HEAD
 - **Auto-detected SQL migrations** — `database/migrations/*.sql` files in the diff are shipped in a `migrations/` directory automatically; no flag needed
 - **Version auto-detection** — Reads the current version from project source files
-- **CHANGELOG.md extraction** — Parses Keep a Changelog format to include release notes
+- **CHANGELOG.md extraction** — Parses Keep a Changelog format; cumulative patches covering multiple versions produce a consolidated `| Version | Category | Description |` summary table followed by the per-version detail sections
 - **SHA-256 verification** — Generates a `.sha256` hash file alongside the archive
 - **Configurable excludes** — Default exclude patterns with additional user-defined patterns
 - **Dry run mode** — Preview what would be packaged without creating the archive
@@ -184,7 +184,7 @@ patch-2.33.0.tgz
 │   ├── app/
 │   ├── public/
 │   └── ...
-└── release_notes.md    # Release notes (if available)
+└── release_notes.md    # Release notes: consolidated summary table + per-version details
 ```
 
 ### manifest.json Format
