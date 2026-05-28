@@ -35,16 +35,17 @@ class Dispatcher
     private const MTIME_MARKER = '.manifest_mtime';
 
     /**
-     * @param DatabaseAdapterInterface           $db
+     * @param DatabaseAdapterInterface             $db
      * @param DispatcherKillSwitchAdapterInterface $killSwitch
-     * @param ManifestReader                     $manifestReader
-     * @param ManifestSyncService                $syncService
-     * @param Scheduler                          $scheduler
-     * @param JobRunner                          $jobRunner
-     * @param LockManager                        $lockManager
-     * @param LoggerInterface                    $logger
-     * @param string                             $manifestPath
-     * @param string                             $lockDir
+     * @param ManifestReader                       $manifestReader
+     * @param ManifestSyncService                  $syncService
+     * @param Scheduler                            $scheduler
+     * @param JobRunner                            $jobRunner
+     * @param LockManager                          $lockManager
+     * @param LoggerInterface                      $logger
+     * @param string                               $manifestPath
+     * @param string                               $lockDir
+     * @param TimeZoneHelper                       $tz
      */
     public function __construct(
         private readonly DatabaseAdapterInterface            $db,
@@ -57,6 +58,7 @@ class Dispatcher
         private readonly LoggerInterface                     $logger,
         private readonly string                              $manifestPath,
         private readonly string                              $lockDir,
+        private readonly TimeZoneHelper                      $tz,
     ) {}
 
     /**
@@ -81,7 +83,7 @@ class Dispatcher
             return;
         }
 
-        $now = new \DateTimeImmutable();
+        $now = new \DateTimeImmutable('now', $this->tz->displayTimezone());
 
         try {
             $jobs = $this->db->fetchAll(
@@ -284,7 +286,7 @@ class Dispatcher
             try {
                 $this->db->execute(
                     "UPDATE cron_jobs
-                     SET last_status = 'failure', last_error = 'lock_dir_unavailable', last_run_at = NOW()
+                     SET last_status = 'failure', last_error = 'lock_dir_unavailable', last_run_at = UTC_TIMESTAMP()
                      WHERE active = 1 AND (enabled = 1 OR trigger_pending = 1)"
                 );
             } catch (\Throwable) {}

@@ -6,6 +6,37 @@ Formátum: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + Szemantiku
 
 ---
 
+## 1.3.0 — 2026-05-28
+
+| Kategória | Leírás |
+|-----------|--------|
+| Hozzáadva | Új `display_timezone` konfigurációs kulcs; az admin felületen megjelenített időpontok ettől a verziótól a beállított időzónában jelennek meg az UTC helyett |
+| Módosítva | Az összes DATETIME írás mostantól `UTC_TIMESTAMP()` függvényt használ — az adatbázis munkamenet-időzónája már nem meghatározó |
+| Javítva   | Az ütemező nyári/téli időszámítás visszaálláskor az alapértelmezett PHP-időzónában hasonlította össze a dátumokat a megjelenítési időzóna helyett, ami éjfél körül kettős futáshoz vezethetett |
+
+### Hozzáadva
+
+- Új, opcionális `display_timezone` konfigurációs kulcs (IANA azonosító, pl. `'Europe/Budapest'`); alapértelmezés szerint `date_default_timezone_get()` értékét veszi fel. Ajánlott explicit megadni, ha az FPM és a CLI `php.ini` fájlokban eltérő `date.timezone` értékek szerepelnek
+- Új `TimeZoneHelper` belső osztály kezeli az összes UTC → megjelenítési időzóna konverziót egy helyen
+- Az admin táblázat és a „Futtatás most" lekérdezési ciklus mostantól a beállított megjelenítési időzónában mutatja az időpontokat (utolsó futás oszlop, sorban állás tooltip, AJAX-válasz)
+
+### Módosítva
+
+- Az összes DATETIME írási hely (`last_run_at`, `trigger_pending_at`, `updated_at`, `created_at`) mostantól `UTC_TIMESTAMP()` függvényt használ `NOW()` helyett — az értékek explicit UTC-ben tárolódnak, az adatbázis munkamenet-időzónájától függetlenül
+- A Dispatcher mostantól a megjelenítési időzónában hozza létre a `$now` változót, így az ütemezési mezők (`hour`, `minute`) abban az időzónában értékelődnek ki, amelyet az adminisztrátor a feladat konfigurálásakor használt
+- `doc/INTEGRATION-GUIDE.md`: Az időzóna-illesztési előfeltétel helyett az új UTC-tárolás és `display_timezone` szerződés szerepel
+- `doc/MANIFEST-FORMAT.md`: A `default_hour` és `default_minute` értékek értelmezési időzónája dokumentálva
+
+### Javítva
+
+- Az ütemező nyári/téli időszámítás visszaállás elleni védelme a `last_run_at` értékét az alapértelmezett PHP-időzónában elemezte; az UTC-tárolással most UTC-ként olvassa, majd megjelenítési időzónává alakítja a dátum összehasonlítás előtt — ez megakadályozza az azonos napon való kettős futást az óra visszaállításakor
+
+### Megjegyzés
+
+- **Frissítési figyelmeztetés:** azokon a hosztgépeken, ahol a MariaDB munkamenet-időzóna a frissítés előtt nem UTC volt, a régi `last_run_at` értékek ideiglenesen eltolt időpontként jelenhetnek meg az adminfelületen. Az új írások helyesen UTC-ben kerülnek mentésre. Az eltérés megjelenési jellegű, és a következő feladatfutásnál automatikusan megszűnik.
+
+---
+
 ## 1.2.0 — 2026-05-28
 
 | Kategória | Leírás |

@@ -97,7 +97,7 @@ class ManifestSyncService
             foreach ($activeByKey as $key => $row) {
                 if (!in_array($key, $manifestKeys, true)) {
                     $this->db->execute(
-                        'UPDATE cron_jobs SET active = 0, updated_at = NOW(), updated_by = ? WHERE id = ?',
+                        'UPDATE cron_jobs SET active = 0, updated_at = UTC_TIMESTAMP(), updated_by = ? WHERE id = ?',
                         [$userId, (int) $row['id']]
                     );
                     $removed[] = $key;
@@ -126,7 +126,7 @@ class ManifestSyncService
                  hour, minute, days_of_week, days_of_month,
                  email_report, log_to_db, enabled, active, lock_timeout_seconds,
                  updated_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, NOW(), NOW())',
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())',
             [
                 $entry['key'],
                 $entry['name'],
@@ -162,7 +162,7 @@ class ManifestSyncService
                  description_key   = ?,
                  lock_timeout_seconds = ?,
                  active            = 1,
-                 updated_at        = NOW(),
+                 updated_at        = UTC_TIMESTAMP(),
                  updated_by        = ?
              WHERE id = ?',
             [

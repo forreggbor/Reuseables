@@ -6,6 +6,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + Semantic Vers
 
 ---
 
+## 1.3.0 — 2026-05-28
+
+| Category | Description |
+|----------|-------------|
+| Added    | New `display_timezone` config key; all timestamps in the admin UI now display in the host's configured timezone instead of UTC |
+| Changed  | All DATETIME writes now use `UTC_TIMESTAMP()` explicitly — DB session timezone is no longer load-bearing |
+| Fixed    | Scheduler DST fall-back guard compared dates in PHP's default timezone instead of the display timezone, risking double-fire near midnight during DST transitions |
+
+### Added
+
+- New optional `display_timezone` config key (IANA identifier, e.g. `'Europe/Budapest'`); defaults to `date_default_timezone_get()`. Set it explicitly when PHP-FPM and CLI `php.ini` files may carry different `date.timezone` values
+- New `TimeZoneHelper` internal class handles all UTC-to-display-timezone conversion in one place
+- Admin table and Run-Now polling now show timestamps in the configured display timezone (Last run column, queued-indicator tooltip, AJAX poll response)
+
+### Changed
+
+- All DATETIME write sites (`last_run_at`, `trigger_pending_at`, `updated_at`, `created_at`) now use `UTC_TIMESTAMP()` instead of `NOW()` — values are explicitly UTC regardless of the MariaDB session timezone
+- Dispatcher constructs `$now` in the display timezone so schedule fields (`hour`, `minute`) are evaluated in the same timezone the admin used when configuring the job
+- `doc/INTEGRATION-GUIDE.md`: Timezone alignment prerequisite replaced with the new UTC-storage + `display_timezone` contract
+- `doc/MANIFEST-FORMAT.md`: `default_hour` / `default_minute` documented as being interpreted in `display_timezone`
+
+### Fixed
+
+- Scheduler DST fall-back guard parsed `last_run_at` as a bare string in PHP's default timezone; with UTC storage it now parses as UTC and converts to display TZ before the date comparison — prevents same-day double-fire during DST fall-back
+
+### Notes
+
+- **Upgrade note:** hosts whose MariaDB session timezone was non-UTC before this upgrade may briefly see old `last_run_at` rows displayed with a shifted time in the UI. New writes will be correctly UTC. The shift is cosmetic and self-heals on the next job run.
+
+---
+
 ## 1.2.0 — 2026-05-28
 
 | Category | Description |

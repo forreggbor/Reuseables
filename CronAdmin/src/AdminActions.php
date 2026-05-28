@@ -40,18 +40,18 @@ class AdminActions
     private const VALID_EVERY_N = [1, 5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 720, 1440];
 
     /**
-     * @param DatabaseAdapterInterface            $db
-     * @param AuthAdapterInterface                $auth
-     * @param CsrfAdapterInterface                $csrf
-     * @param DispatcherKillSwitchAdapterInterface $killSwitch
-     * @param ManifestReader                      $manifestReader
-     * @param ManifestSyncService                 $syncService
-     * @param ScheduleFormatter                   $scheduleFormatter  (unused directly; available for subclasses)
-     * @param LoggerInterface                     $logger
-     * @param string                              $manifestPath
-     * @param string                              $baseUrl
-     * @param string                              $assetBaseUrl
-     * @param bool                                $useBootstrap
+     * @param DatabaseAdapterInterface             $db
+     * @param AuthAdapterInterface                 $auth
+     * @param CsrfAdapterInterface                 $csrf
+     * @param DispatcherKillSwitchAdapterInterface  $killSwitch
+     * @param ManifestReader                       $manifestReader
+     * @param ManifestSyncService                  $syncService
+     * @param LoggerInterface                      $logger
+     * @param string                               $manifestPath
+     * @param string                               $baseUrl
+     * @param string                               $assetBaseUrl
+     * @param bool                                 $useBootstrap
+     * @param TimeZoneHelper                       $tz
      */
     public function __construct(
         private readonly DatabaseAdapterInterface            $db,
@@ -65,6 +65,7 @@ class AdminActions
         private readonly string                              $baseUrl,
         private readonly string                              $assetBaseUrl,
         private readonly bool                                $useBootstrap,
+        private readonly TimeZoneHelper                      $tz,
     ) {}
 
     // =========================================================================
@@ -99,7 +100,15 @@ class AdminActions
             $manifestError = [$e->getMessage()];
         }
 
-        $jobs              = $this->db->fetchAll('SELECT * FROM cron_jobs WHERE active = 1 ORDER BY id');
+        $jobs = $this->db->fetchAll('SELECT * FROM cron_jobs WHERE active = 1 ORDER BY id');
+
+        // Add display-TZ companions; raw UTC values are preserved for JS data attributes.
+        foreach ($jobs as &$job) {
+            $job['last_run_at_display']        = $this->tz->utcToDisplay($job['last_run_at']        ?? null);
+            $job['trigger_pending_at_display'] = $this->tz->utcToDisplay($job['trigger_pending_at'] ?? null);
+        }
+        unset($job);
+
         $dispatcherEnabled = $this->killSwitch->get();
         $csrfToken         = $this->csrf->generate();
         $userIds           = $this->collectUserIds($jobs);
@@ -223,7 +232,7 @@ class AdminActions
         $this->db->execute(
             'UPDATE cron_jobs
              SET frequency=?, every_n_minutes=?, days_of_week=?, days_of_month=?,
-                 hour=?, minute=?, log_to_db=?, email_report=?, updated_by=?, updated_at=NOW()
+                 hour=?, minute=?, log_to_db=?, email_report=?, updated_by=?, updated_at=UTC_TIMESTAMP()
              WHERE id=? AND active=1',
             [$freq, $everyN, $dow, $dom, $hour, $minute, $logToDB, $emailReport, $userId, $id]
         );
@@ -278,7 +287,7 @@ class AdminActions
         $userId     = $this->auth->getCurrentUserId();
 
         $this->db->execute(
-            'UPDATE cron_jobs SET enabled = ?, updated_by = ?, updated_at = NOW() WHERE id = ?',
+            'UPDATE cron_jobs SET enabled = ?, updated_by = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
             [$newEnabled, $userId, $id]
         );
 
@@ -331,7 +340,7 @@ class AdminActions
 
         $userId  = $this->auth->getCurrentUserId();
         $claimed = $this->db->execute(
-            'UPDATE cron_jobs SET trigger_pending = 1, trigger_pending_at = NOW(), trigger_pending_by = ?
+            'UPDATE cron_jobs SET trigger_pending = 1, trigger_pending_at = UTC_TIMESTAMP(), trigger_pending_by = ?
              WHERE id = ? AND trigger_pending = 0',
             [$userId, $id]
         );
@@ -381,13 +390,15 @@ class AdminActions
             return;
         }
 
+        $lastRunAtRaw = $row['last_run_at']; // UTC string from DB
+
         $completed = (int) $row['trigger_pending'] === 0
-            && $row['last_run_at'] !== null
-            && strtotime((string) $row['last_run_at']) > strtotime($sinceTs);
+            && $lastRunAtRaw !== null
+            && strtotime((string) $lastRunAtRaw) > strtotime($sinceTs); // both UTC — comparison is consistent
 
         $this->json([
             'trigger_pending'  => (bool) $row['trigger_pending'],
-            'last_run_at'      => $row['last_run_at'],
+            'last_run_at'      => $this->tz->utcToDisplay($lastRunAtRaw), // display TZ for DOM update
             'last_status'      => $row['last_status'],
             'last_duration_ms' => $row['last_duration_ms'] !== null ? (int) $row['last_duration_ms'] : null,
             'output_excerpt'   => $row['last_output_excerpt'],

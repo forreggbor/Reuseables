@@ -112,17 +112,29 @@ class ConfigValidator
             throw new InvalidConfigException('recipient_resolver', 'Must be an instance of MailRecipientResolverInterface when provided.');
         }
 
+        if (isset($config['display_timezone'])) {
+            if (!is_string($config['display_timezone'])) {
+                throw new InvalidConfigException('display_timezone', 'Must be a string when provided (IANA timezone identifier, e.g. "Europe/Budapest").');
+            }
+            try {
+                new \DateTimeZone($config['display_timezone']);
+            } catch (\Throwable) {
+                throw new InvalidConfigException('display_timezone', 'Must be a valid IANA timezone identifier. Got: ' . $config['display_timezone']);
+            }
+        }
+
         // ── Defaults ──────────────────────────────────────────────────────────
 
         return array_merge([
-            'asset_base_url' => '/lib/CronAdmin',
-            'use_bootstrap'  => false,
-            'logger'         => null,
-            'mail_adapter'   => null,
+            'asset_base_url'   => '/lib/CronAdmin',
+            'use_bootstrap'    => false,
+            'logger'           => null,
+            'mail_adapter'     => null,
             'recipient_resolver' => null,
-            'auth_adapter'   => null,
-            'csrf_adapter'   => null,
-            'base_url'       => null,
+            'auth_adapter'     => null,
+            'csrf_adapter'     => null,
+            'base_url'         => null,
+            'display_timezone' => date_default_timezone_get(),
         ], $config);
     }
 

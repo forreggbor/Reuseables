@@ -28,7 +28,8 @@ Framework-agnostic PHP 8.3+ cron job administration module. Provides a manifest-
 - DB user needs `SELECT` on `INFORMATION_SCHEMA` — required by the bundled migration's idempotency guards
 - **ActivityLogs reusable** vendored at `lib/ActivityLogs/`; host MUST call `ActivityLogs\ActivityLogger::init($pdo)` in **both** the HTTP bootstrap and the CLI bootstrap — CLI processes have separate static state
 - Global `__(string $key): string` translation function MUST exist in the host and MUST return the **unmodified key** when the key is absent from the merged translation array
-- PHP's `date.timezone` MUST be set correctly (in `php.ini` or via `date_default_timezone_set()`) **before** `CronAdmin` is instantiated
+- All DATETIME storage is UTC-explicit (`UTC_TIMESTAMP()`) — DB session timezone is not load-bearing
+- Display timezone is controlled by the optional `display_timezone` config key (defaults to `date_default_timezone_get()`); set it explicitly when PHP-FPM and CLI `php.ini` files may have different `date.timezone` values
 - **Crontab cadence MUST be `* * * * *`** — Scheduler assumes 1-minute granularity; `*/5` cadences silently miss between-tick triggers
 - Bootstrap 5 is **optional** — module ships its own vanilla CSS; Bootstrap-flavoured stylesheet available when host already loads BS5
 

@@ -62,8 +62,8 @@ if (!empty($job['updated_by'])) {
         <span class="cra-schedule-summary"><?= htmlspecialchars($scheduleSummary, ENT_QUOTES, 'UTF-8') ?></span>
     </td>
     <td class="cra-job-run-cell">
-        <?php if ($job['last_run_at']): ?>
-        <span class="cra-last-run" data-job-id="<?= $jId ?>"><?= htmlspecialchars((string) $job['last_run_at'], ENT_QUOTES, 'UTF-8') ?></span>
+        <?php if ($job['last_run_at_display']): ?>
+        <span class="cra-last-run" data-job-id="<?= $jId ?>"><?= htmlspecialchars((string) $job['last_run_at_display'], ENT_QUOTES, 'UTF-8') ?></span>
         <?php else: ?>
         <span class="cra-last-run cra-muted" data-job-id="<?= $jId ?>">—</span>
         <?php endif; ?>
@@ -79,8 +79,8 @@ if (!empty($job['updated_by'])) {
                 ? ($userMap[(int) $job['trigger_pending_by']] ?? "#{$job['trigger_pending_by']}")
                 : null;
             $tooltip = $queuerName
-                ? sprintf(__('TEXT_CRON_QUEUED_TOOLTIP'), $queuerName, (string) ($job['trigger_pending_at'] ?? ''))
-                : sprintf(__('TEXT_CRON_QUEUED_TOOLTIP_NO_USER'), (string) ($job['trigger_pending_at'] ?? ''));
+                ? sprintf(__('TEXT_CRON_QUEUED_TOOLTIP'), $queuerName, (string) ($job['trigger_pending_at_display'] ?? ''))
+                : sprintf(__('TEXT_CRON_QUEUED_TOOLTIP_NO_USER'), (string) ($job['trigger_pending_at_display'] ?? ''));
         ?>
         <span class="cra-queued-icon" title="<?= htmlspecialchars($tooltip, ENT_QUOTES, 'UTF-8') ?>">&#x231b;</span>
         <?php else: ?>&mdash;<?php endif; ?>

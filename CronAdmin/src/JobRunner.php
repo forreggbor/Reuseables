@@ -175,7 +175,7 @@ class JobRunner
 
             $this->db->execute(
                 'UPDATE cron_jobs
-                 SET last_run_at         = NOW(),
+                 SET last_run_at         = UTC_TIMESTAMP(),
                      last_status         = ?,
                      last_duration_ms    = ?,
                      last_output_excerpt = ?,

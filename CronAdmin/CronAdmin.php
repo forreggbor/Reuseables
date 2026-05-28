@@ -26,10 +26,12 @@ use CronAdmin\Exceptions\InvalidConfigException;
  */
 class CronAdmin
 {
-    public const VERSION = '1.2.0';
+    public const VERSION = '1.3.0';
 
     /** @var array<string, mixed> Normalised, validated config. */
     private array $config;
+
+    private TimeZoneHelper $tz;
 
     private ?Dispatcher   $dispatcher   = null;
     private ?AdminActions $adminActions = null;
@@ -42,6 +44,7 @@ class CronAdmin
     public function __construct(array $config)
     {
         $this->config = (new ConfigValidator())->validate($config);
+        $this->tz     = new TimeZoneHelper($this->config['display_timezone']);
     }
 
     // =========================================================================
@@ -106,6 +109,7 @@ class CronAdmin
                 $this->config['base_url'],
                 $this->config['asset_base_url'],
                 $this->config['use_bootstrap'],
+                $this->tz,
             );
         }
 
@@ -169,12 +173,13 @@ class CronAdmin
                 $killSwitch,
                 $reader,
                 $sync,
-                new Scheduler(),
+                new Scheduler($this->tz),
                 $jobRunner,
                 $lockManager,
                 $logger,
                 $this->config['manifest_path'],
                 $lockDir,
+                $this->tz,
             );
         }
 

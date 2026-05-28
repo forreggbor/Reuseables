@@ -81,11 +81,19 @@ Both paths reach identical end state. The migration is idempotent — safe to re
 
 ---
 
-## Prerequisite — Timezone alignment
+## Timezone behaviour (v1.3.0+)
 
-The `Scheduler` compares job schedules against `new \DateTimeImmutable()` (in PHP's default timezone) and parses `last_run_at` DATETIME strings (stored by MariaDB in the DB session timezone) using PHP's default timezone. If the two timezones differ, the DST fall-back guard may fire twice or not at all during the one-hour DST overlap.
+CronAdmin writes all DATETIME columns explicitly in UTC (`UTC_TIMESTAMP()`), independent of the MariaDB session timezone. The admin UI and AJAX responses convert UTC → display TZ on output. The Scheduler also runs in this display TZ for schedule matching — `hour`/`minute` fields in `cron_jobs` and in the manifest's `default_hour`/`default_minute` are interpreted in `display_timezone`.
 
-**Requirement:** the MariaDB session timezone must match the PHP `date.timezone` setting. You can enforce this by running `SET time_zone = '...'` immediately after opening the PDO connection, or by setting `default-time-zone` in `my.cnf` to match `date.timezone` in `php.ini`.
+Default display TZ is `date_default_timezone_get()`. Override explicitly:
+
+```php
+'display_timezone' => 'Europe/Budapest',
+```
+
+**Recommended:** set `display_timezone` explicitly in the CronAdmin constructor config — the same value in both the HTTP bootstrap and the CLI bootstrap. PHP-FPM and the CLI commonly have separate `php.ini` files with different `date.timezone` values; relying on the default causes admin display and dispatcher schedule matching to diverge.
+
+System cron's own timezone does not need to match `display_timezone`. Only the `* * * * *` cadence matters; the tick fires at the same wall-clock minute regardless of cron's TZ. PHP boot then reads the configured `display_timezone` for all schedule matching and display.
 
 ---
 

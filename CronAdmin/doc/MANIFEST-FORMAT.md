@@ -45,8 +45,8 @@ return [
 | `description` | Required. Non-empty string. Same translation-key treatment as `name`. |
 | `default_frequency` | Required. One of: `every_n_minutes`, `hourly`, `daily`, `weekly`, `monthly`. |
 | `default_every_n_minutes` | Required when `default_frequency='every_n_minutes'`. Must be ∈ `{1,5,10,15,20,30,60,120,180,240,360,720,1440}`. |
-| `default_minute` | Required when `default_frequency ∈ {hourly,daily,weekly,monthly}`. Integer 0–59. |
-| `default_hour` | Required when `default_frequency ∈ {daily,weekly,monthly}`. Integer 0–23. |
+| `default_minute` | Required when `default_frequency ∈ {hourly,daily,weekly,monthly}`. Integer 0–59. Interpreted in `display_timezone`. |
+| `default_hour` | Required when `default_frequency ∈ {daily,weekly,monthly}`. Integer 0–23. Interpreted in `display_timezone`. |
 | `default_days_of_week` | Required when `default_frequency='weekly'`. CSV of digits 0–6 matching `/^[0-6](,[0-6])*$/`. |
 | `default_days_of_month` | Required when `default_frequency='monthly'`. CSV of 1–31 matching `/^([1-9]\|[12]\d\|3[01])(,([1-9]\|[12]\d\|3[01]))*$/`. |
 | `default_enabled` | Optional. 0 or 1. Default: 1. |
