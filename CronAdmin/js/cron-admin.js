@@ -21,11 +21,14 @@
     const MANIFEST_BROKEN = root.dataset.craManifestBroken === '1';
 
     const I18N = {
-        runConfirm  : root.dataset.craI18nRunConfirm   || 'Run this job now?',
-        queued      : root.dataset.craI18nQueued        || 'Queued…',
-        running     : root.dataset.craI18nRunning       || 'Still running — refresh later',
-        saveSuccess : root.dataset.craI18nSaveSuccess   || 'Saved',
-        errorGeneric: root.dataset.craI18nErrorGeneric  || 'An error occurred',
+        runConfirm    : root.dataset.craI18nRunConfirm    || 'Run this job now?',
+        queued        : root.dataset.craI18nQueued         || 'Queued…',
+        running       : root.dataset.craI18nRunning        || 'Still running — refresh later',
+        saveSuccess   : root.dataset.craI18nSaveSuccess    || 'Saved',
+        errorGeneric  : root.dataset.craI18nErrorGeneric   || 'An error occurred',
+        logToDb       : root.dataset.craI18nLogToDb        || 'Log to DB',
+        emailOnFailure: root.dataset.craI18nEmailOnFailure || 'On failure only',
+        emailEveryRun : root.dataset.craI18nEmailEveryRun  || 'Every run',
     };
 
     const POLL_INTERVAL_MS = 5000;
@@ -199,17 +202,7 @@
             btn.disabled = true;
 
             const statusEl = root.querySelector('.cra-run-status[data-job-id="' + jobId + '"]');
-            if (statusEl) {
-                statusEl.textContent = '';
-                const spinner = document.createElement('span');
-                spinner.className = 'cra-spinner';
-                const msg = document.createElement('span');
-                msg.className = 'cra-run-msg';
-                msg.textContent = ' ' + I18N.queued;
-                statusEl.appendChild(spinner);
-                statusEl.appendChild(msg);
-                statusEl.style.display = '';
-            }
+            renderQueuedSpinner(statusEl);
 
             postJson(BASE_URL + '/' + jobId + '/run-now', { csrf_token: csrf })
                 .then(function (data) {
@@ -258,8 +251,11 @@
     }
 
     function updateJobRowStatus(jobId, data) {
-        const badge   = root.querySelector('.cra-status-badge[data-job-id="' + jobId + '"]');
-        const lastRun = root.querySelector('.cra-last-run[data-job-id="' + jobId + '"]');
+        const badge      = root.querySelector('.cra-status-badge[data-job-id="' + jobId + '"]');
+        const lastRun    = root.querySelector('.cra-last-run[data-job-id="' + jobId + '"]');
+        const tr         = root.querySelector('.cra-job-row[data-job-id="' + jobId + '"]');
+        const queuedCell = tr ? tr.querySelector('.cra-job-queued-cell') : null;
+        const runBtn     = tr ? tr.querySelector('.cra-run-now') : null;
 
         if (badge && data.last_status) {
             badge.className = 'cra-badge cra-status-badge ' + statusBadgeClass(data.last_status);
@@ -268,6 +264,29 @@
         if (lastRun && data.last_run_at) {
             lastRun.textContent = data.last_run_at;
         }
+        if (queuedCell) {
+            queuedCell.textContent = '—';
+        }
+        if (tr) {
+            tr.dataset.triggerPending = '0';
+        }
+        if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.removeAttribute('title');
+        }
+    }
+
+    function renderQueuedSpinner(statusEl) {
+        if (!statusEl) return;
+        statusEl.textContent = '';
+        const spinner = document.createElement('span');
+        spinner.className = 'cra-spinner';
+        const msg = document.createElement('span');
+        msg.className = 'cra-run-msg';
+        msg.textContent = ' ' + I18N.queued;
+        statusEl.appendChild(spinner);
+        statusEl.appendChild(msg);
+        statusEl.style.display = '';
     }
 
     function statusBadgeClass(status) {
@@ -387,12 +406,43 @@
     function updateRowDataAttrs(jobId, data) {
         const row = root.querySelector('.cra-job-row[data-job-id="' + jobId + '"]');
         if (!row) return;
-        if (data.frequency)       row.dataset.frequency   = data.frequency;
-        if (data.every_n_minutes) row.dataset.everyN      = data.every_n_minutes;
-        if (data.hour !== undefined)   row.dataset.hour   = data.hour;
-        if (data.minute !== undefined) row.dataset.minute = data.minute;
-        if (data.email_report)    row.dataset.emailReport = data.email_report;
+        if (data.frequency)            row.dataset.frequency   = data.frequency;
+        if (data.every_n_minutes)      row.dataset.everyN      = data.every_n_minutes;
+        if (data.hour !== undefined)   row.dataset.hour        = data.hour;
+        if (data.minute !== undefined) row.dataset.minute      = data.minute;
+        if (data.email_report)         row.dataset.emailReport = data.email_report;
         row.dataset.logToDb = data.log_to_db ? '1' : '0';
+
+        const logCell = row.querySelector('.cra-job-log-to-db-cell');
+        if (logCell) {
+            if (data.log_to_db === '1') {
+                logCell.textContent = '';
+                const span = document.createElement('span');
+                span.className = 'cra-icon-tip';
+                span.title = I18N.logToDb;
+                span.textContent = '💾';
+                logCell.appendChild(span);
+            } else {
+                logCell.textContent = '—';
+            }
+        }
+
+        const emailCell = row.querySelector('.cra-job-email-report-cell');
+        if (emailCell) {
+            const emailIcons = { on_failure: '⚠', every_run: '✉' };
+            const emailLabels = { on_failure: I18N.emailOnFailure, every_run: I18N.emailEveryRun };
+            const report = data.email_report || 'off';
+            if (emailIcons[report]) {
+                emailCell.textContent = '';
+                const span = document.createElement('span');
+                span.className = 'cra-icon-tip';
+                span.title = emailLabels[report];
+                span.textContent = emailIcons[report];
+                emailCell.appendChild(span);
+            } else {
+                emailCell.textContent = '—';
+            }
+        }
     }
 
     // =========================================================================
@@ -451,5 +501,19 @@
         const el = editForm.querySelector(selector);
         if (el) el.value = value;
     }
+
+    // =========================================================================
+    // Baseline poll — resume watching jobs already queued when the page loaded
+    // =========================================================================
+
+    root.querySelectorAll('.cra-job-row[data-trigger-pending="1"]').forEach(function (tr) {
+        var jobId   = tr.dataset.jobId;
+        var sinceTs = tr.dataset.triggerPendingAt;
+        var statusEl = root.querySelector('.cra-run-status[data-job-id="' + jobId + '"]');
+        var btn      = root.querySelector('.cra-run-now[data-job-id="' + jobId + '"]');
+        if (!jobId || !sinceTs || !statusEl) return;
+        renderQueuedSpinner(statusEl);
+        pollRunStatus(jobId, sinceTs, statusEl, btn, Date.now());
+    });
 
 })();

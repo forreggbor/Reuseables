@@ -40,7 +40,9 @@ if (!empty($job['updated_by'])) {
     data-days-of-week="<?= htmlspecialchars((string) ($job['days_of_week'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
     data-days-of-month="<?= htmlspecialchars((string) ($job['days_of_month'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
     data-log-to-db="<?= (int) $job['log_to_db'] ?>"
-    data-email-report="<?= htmlspecialchars((string) ($job['email_report'] ?? 'off'), ENT_QUOTES, 'UTF-8') ?>">
+    data-email-report="<?= htmlspecialchars((string) ($job['email_report'] ?? 'off'), ENT_QUOTES, 'UTF-8') ?>"
+    data-trigger-pending="<?= (int) $job['trigger_pending'] ?>"
+    data-trigger-pending-at="<?= htmlspecialchars((string) ($job['trigger_pending_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
     <td class="cra-job-toggle-cell">
         <label class="cra-toggle <?= $manifestBroken ? 'cra-toggle--disabled' : '' ?>">
             <input type="checkbox" class="cra-toggle-input cra-job-toggle"
@@ -71,6 +73,31 @@ if (!empty($job['updated_by'])) {
             <?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?>
         </span>
     </td>
+    <td class="cra-job-queued-cell">
+        <?php if ((int) $job['trigger_pending'] === 1):
+            $queuerName = !empty($job['trigger_pending_by'])
+                ? ($userMap[(int) $job['trigger_pending_by']] ?? "#{$job['trigger_pending_by']}")
+                : null;
+            $tooltip = $queuerName
+                ? sprintf(__('TEXT_CRON_QUEUED_TOOLTIP'), $queuerName, (string) ($job['trigger_pending_at'] ?? ''))
+                : sprintf(__('TEXT_CRON_QUEUED_TOOLTIP_NO_USER'), (string) ($job['trigger_pending_at'] ?? ''));
+        ?>
+        <span class="cra-queued-icon" title="<?= htmlspecialchars($tooltip, ENT_QUOTES, 'UTF-8') ?>">&#x231b;</span>
+        <?php else: ?>&mdash;<?php endif; ?>
+    </td>
+    <td class="cra-job-log-to-db-cell">
+        <?php if ((int) $job['log_to_db'] === 1): ?>
+        <span class="cra-icon-tip" title="<?= htmlspecialchars(__('TEXT_CRON_LOG_TO_DB'), ENT_QUOTES, 'UTF-8') ?>">&#x1F4BE;</span>
+        <?php else: ?>&mdash;<?php endif; ?>
+    </td>
+    <td class="cra-job-email-report-cell">
+        <?php $emailReport = (string) ($job['email_report'] ?? 'off'); ?>
+        <?php if ($emailReport === 'on_failure'): ?>
+        <span class="cra-icon-tip" title="<?= htmlspecialchars(__('TEXT_CRON_EMAIL_REPORT_ON_FAILURE'), ENT_QUOTES, 'UTF-8') ?>">&#x26A0;</span>
+        <?php elseif ($emailReport === 'every_run'): ?>
+        <span class="cra-icon-tip" title="<?= htmlspecialchars(__('TEXT_CRON_EMAIL_REPORT_EVERY_RUN'), ENT_QUOTES, 'UTF-8') ?>">&#x2709;</span>
+        <?php else: ?>&mdash;<?php endif; ?>
+    </td>
     <td class="cra-job-actions-cell">
         <?php if ($job['last_output_excerpt']): ?>
         <button type="button" class="cra-btn cra-btn--sm cra-btn--outline cra-show-output"
@@ -85,10 +112,12 @@ if (!empty($job['updated_by'])) {
                 <?= $manifestBroken ? 'disabled' : '' ?>>
             <?= htmlspecialchars(__('TEXT_BUTTON_EDIT'), ENT_QUOTES, 'UTF-8') ?>
         </button>
+        <?php $isPending = (int) $job['trigger_pending'] === 1; ?>
         <button type="button" class="cra-btn cra-btn--sm cra-btn--primary cra-run-now"
                 data-job-id="<?= $jId ?>"
                 data-csrf="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>"
-                <?= $manifestBroken ? 'disabled' : '' ?>>
+                <?= ($manifestBroken || $isPending) ? 'disabled' : '' ?>
+                <?= $isPending ? 'title="' . htmlspecialchars(__('TEXT_CRON_RUN_NOW_ALREADY_PENDING'), ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
             ▶ <?= htmlspecialchars(__('TEXT_CRON_RUN_NOW'), ENT_QUOTES, 'UTF-8') ?>
         </button>
         <span class="cra-run-status" data-job-id="<?= $jId ?>" style="display:none;"></span>

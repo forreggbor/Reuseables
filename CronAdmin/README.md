@@ -9,7 +9,8 @@ Framework-agnostic PHP 8.3+ cron job administration module. Provides a manifest-
 - **Five frequency modes** — `every_n_minutes`, `hourly`, `daily`, `weekly`, `monthly`
 - **POSIX flock per job** — non-blocking exclusive lock; PID-based stale-lock detection with mtime fallback; non-POSIX hosts fall back to mtime-only
 - **DST fall-back guard** — prevents double-firing of daily/weekly/monthly jobs during clock-back hours
-- **Run-Now** — atomic claim via `UPDATE … WHERE trigger_pending=0`; async poll for completion; 409 on race-condition double-click
+- **Run-Now** — atomic claim via `UPDATE … WHERE trigger_pending=0`; async poll for completion; button is disabled while a job is queued; baseline poll resumes watching pre-queued jobs on page load
+- **At-a-glance table** — dedicated columns show the queued-for-manual-run indicator (⌛ with queuer name and timestamp), DB logging flag (💾), and email report mode (⚠/✉) without opening the edit modal
 - **Dispatcher kill switch** — admin can suspend all execution (scheduled + Run-Now) with one toggle; manifest sync continues so the UI stays current
 - **Email reporting** — per-job opt-in; `off` / `on_failure` / `every_run`; HTML body with 2 KB output excerpt
 - **Activity audit logging** — every sync, save, toggle, run-now, and dispatcher toggle is logged via `ActivityLogs\ActivityLogger`

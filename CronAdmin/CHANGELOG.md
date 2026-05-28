@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + Semantic Vers
 
 ---
 
+## 1.2.0 — 2026-05-28
+
+| Category | Description |
+|----------|-------------|
+| Added    | Three new at-a-glance table columns: manually-queued indicator, DB-logging flag, and email-report mode |
+| Changed  | Run now button is disabled while a job is queued; page load starts a polling loop for any already-queued jobs |
+| Changed  | Integration guide clarified: `index()` outputs a view fragment — host controller must wrap it in the admin layout |
+
+### Added
+
+- Three new read-only columns in the cron job table: a ⌛ hourglass (with queuer name and timestamp in a tooltip) when a job is manually queued; a 💾 icon when DB logging is active; ⚠ or ✉ for the email-report mode — all previously visible only in the edit modal
+- Baseline poll on page load: jobs that were already queued before the page was opened now show the indicator and auto-clear when the dispatcher picks them up, without requiring a page refresh
+
+### Changed
+
+- Run now button renders as `disabled` with a tooltip while `trigger_pending = 1`, preventing the 409 "already queued" error on a repeat click
+- `INTEGRATION-GUIDE.md` Step 10 now clearly separates response ownership: `index()` outputs a view fragment the host must wrap in its layout; AJAX endpoints write complete responses and must not be buffered
+
+---
+
 ## 1.1.0 — 2026-05-21
 
 | Category | Description |

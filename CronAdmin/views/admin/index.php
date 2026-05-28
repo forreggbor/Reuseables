@@ -21,6 +21,9 @@
      data-cra-i18n-running="<?= htmlspecialchars(__('TEXT_CRON_RUN_NOW_STILL_RUNNING'), ENT_QUOTES, 'UTF-8') ?>"
      data-cra-i18n-save-success="<?= htmlspecialchars(__('TEXT_CRON_SAVE_SUCCESS'), ENT_QUOTES, 'UTF-8') ?>"
      data-cra-i18n-error-generic="<?= htmlspecialchars(__('TEXT_ERROR_GENERIC'), ENT_QUOTES, 'UTF-8') ?>"
+     data-cra-i18n-log-to-db="<?= htmlspecialchars(__('TEXT_CRON_LOG_TO_DB'), ENT_QUOTES, 'UTF-8') ?>"
+     data-cra-i18n-email-on-failure="<?= htmlspecialchars(__('TEXT_CRON_EMAIL_REPORT_ON_FAILURE'), ENT_QUOTES, 'UTF-8') ?>"
+     data-cra-i18n-email-every-run="<?= htmlspecialchars(__('TEXT_CRON_EMAIL_REPORT_EVERY_RUN'), ENT_QUOTES, 'UTF-8') ?>"
      data-cra-manifest-broken="<?= $manifestBroken ? '1' : '0' ?>">
 
     <?php if ($manifestBroken): ?>
@@ -73,6 +76,9 @@
                             <th><?= htmlspecialchars(__('TEXT_CRON_FREQUENCY'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th><?= htmlspecialchars(__('TEXT_CRON_LAST_RUN_AT'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th><?= htmlspecialchars(__('TEXT_CRON_LAST_STATUS'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="cra-th-queued"><?= htmlspecialchars(__('TEXT_CRON_QUEUED'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="cra-th-log-to-db"><?= htmlspecialchars(__('TEXT_CRON_LOG_TO_DB'), ENT_QUOTES, 'UTF-8') ?></th>
+                            <th class="cra-th-email-report"><?= htmlspecialchars(__('TEXT_CRON_EMAIL_REPORT'), ENT_QUOTES, 'UTF-8') ?></th>
                             <th></th>
                         </tr>
                     </thead>

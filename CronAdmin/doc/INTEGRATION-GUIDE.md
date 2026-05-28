@@ -177,7 +177,18 @@ $router->get('/admin/cron/{id}/run-status', fn(int $id) => $actions->pollRunStat
 
 `$actions = $cron->getAdminActions();` — returns `null` when admin UI adapters are not configured.
 
-AdminActions methods write the HTTP response themselves (echo HTML for `index`, `echo json_encode(...)` for AJAX). Do NOT wrap the return value.
+**Response ownership differs by route:**
+
+- **AJAX routes** (`toggleDispatcher`, `saveOne`, `toggle`, `runNow`, `pollRunStatus`) — these call `echo json_encode(...)` and own the full response. Do **not** wrap or buffer their output.
+- **`index()`** — outputs a **view fragment** only (no surrounding layout). Your controller must wrap it in the admin layout. The standard pattern is output buffering:
+
+```php
+// In your CronController::index():
+ob_start();
+$actions->index();
+$content = ob_get_clean();
+// Then render your admin layout with $content embedded.
+```
 
 ---
 

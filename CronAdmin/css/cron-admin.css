@@ -220,6 +220,17 @@ input:checked + .cra-toggle-slider::after { transform: translateX(1.125rem); }
 .cra-schedule-summary  { font-size: 0.875rem; }
 
 /* ============================================================================
+   Icon columns: Queued / Log to DB / Email report
+   ============================================================================ */
+
+.cra-job-queued-cell,
+.cra-job-log-to-db-cell,
+.cra-job-email-report-cell { text-align: center; width: 1%; white-space: nowrap; color: #6c757d; }
+
+.cra-queued-icon,
+.cra-icon-tip { font-size: 1.1em; cursor: help; }
+
+/* ============================================================================
    Run-now spinner
    ============================================================================ */
 
