@@ -5,6 +5,18 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2026-05-30
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Install patch modal displayed release notes for all languages; only the admin's current language is now shown |
+
+### Fixed
+
+- **Install modal release notes language filter** — the "Install patch" button on the available updates table and the manual upload flow were rendering the raw dual-language release notes (both `# English` and `# Magyar` sections) in the modal. The `release_notes_html` field (already language-filtered and rendered by the server) is now used instead. This aligns the install modal with the existing "Show changelog" button, which already filtered correctly.
+
+---
+
 ## [2.6.0] - 2026-05-27
 
 | Category | Description |

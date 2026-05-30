@@ -78,6 +78,8 @@ Returns the file manifest and metadata for a specific `patch_history` record.
   "installed_at": "2026-04-02T14:30:00Z",
   "installed_by": 5,
   "release_notes": "Bug fixes and performance improvements.",
+  "release_notes_html": "<p>Bug fixes and performance improvements.</p>",
+  "is_manual_upload": false,
   "files": [
     { "path": "app/controllers/FooController.php", "action": "modified" },
     { "path": "app/views/bar.php", "action": "added" },
@@ -413,6 +415,7 @@ existing `POST {base}/install` endpoint. Trust gate: sysadmin auth + CSRF.
   "patch_history_id": 42,
   "version": "1.7.0",
   "release_notes": "Bug fixes",
+  "release_notes_html": "<p>Bug fixes</p>",
   "file_size": 2456789,
   "sha256": "ab12cd34...",
   "warning": null,

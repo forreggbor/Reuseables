@@ -175,11 +175,11 @@ const PatchUpdate = {
 
                 var record = result.data;
                 PatchUpdate.patches = [{
-                    id:            record.id,
-                    version:       record.version       || '',
-                    release_notes: record.release_notes || null,
-                    file_size:     record.file_size     || 0,
-                    released_at:   record.released_at   || null
+                    id:                 record.id,
+                    version:            record.version            || '',
+                    release_notes_html: record.release_notes_html || null,
+                    file_size:          record.file_size          || 0,
+                    released_at:        record.released_at        || null
                 }];
                 PatchUpdate.totalPatches      = 1;
                 PatchUpdate.currentPatchIndex = 0;
@@ -225,7 +225,9 @@ const PatchUpdate = {
 
         // Release notes
         var notesEl = document.getElementById('patchReleaseNotes');
-        if (patch.release_notes) {
+        if (patch.release_notes_html) {
+            notesEl.innerHTML = patch.release_notes_html;
+        } else if (patch.release_notes) {
             notesEl.textContent = patch.release_notes;
         } else {
             notesEl.innerHTML = '<p class="text-muted">' + escapeHtml(PatchUpdate.i18n.noReleaseNotes || 'No release notes available') + '</p>';
@@ -1021,11 +1023,11 @@ const PatchUpload = {
         var currentVersion = mount ? (mount.dataset.currentVersion || null) : null;
 
         PatchUpdate.patches           = [{
-            id:            data.patch_history_id,
-            version:       data.version       || '',
-            release_notes: data.release_notes || null,
-            file_size:     data.file_size     || 0,
-            released_at:   data.released_at   || null
+            id:                 data.patch_history_id,
+            version:            data.version            || '',
+            release_notes_html: data.release_notes_html || null,
+            file_size:          data.file_size          || 0,
+            released_at:        data.released_at        || null
         }];
         PatchUpdate.totalPatches      = 1;
         PatchUpdate.currentPatchIndex = 0;

@@ -656,19 +656,27 @@ class AdminActions
                 return $lockResult;
             }
 
+            $lang             = $this->module->getCurrentLanguage();
+            $releaseNotesHtml = SimpleMarkdownRenderer::render(
+                $releaseNotes !== null
+                    ? SimpleMarkdownRenderer::selectLanguageSection($releaseNotes, $lang)
+                    : null
+            );
+
             return [
                 'status' => 200,
                 'data'   => [
-                    'success'          => true,
-                    'patch_history_id' => $patchHistoryId,
-                    'version'          => $uploadedVersion,
-                    'release_notes'    => $releaseNotes,
-                    'file_size'        => $fileSize,
-                    'released_at'      => $releasedAt,
-                    'sha256'           => $sha256,
-                    'warning'          => $warning,
-                    'warning_message'  => $warningMessage,
-                    'csrf_token'       => $this->csrfToken(),
+                    'success'              => true,
+                    'patch_history_id'     => $patchHistoryId,
+                    'version'              => $uploadedVersion,
+                    'release_notes'        => $releaseNotes,
+                    'release_notes_html'   => $releaseNotesHtml,
+                    'file_size'            => $fileSize,
+                    'released_at'          => $releasedAt,
+                    'sha256'               => $sha256,
+                    'warning'              => $warning,
+                    'warning_message'      => $warningMessage,
+                    'csrf_token'           => $this->csrfToken(),
                 ],
             ];
         } finally {
