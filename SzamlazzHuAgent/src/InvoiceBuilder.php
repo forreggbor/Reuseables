@@ -217,6 +217,11 @@ class InvoiceBuilder
         $invoiceItem->setVatAmount($vatAmount);
         $invoiceItem->setGrossAmount($grossTotal);
 
+        // Per-line comment (e.g. SKU): emitted as <megjegyzes> in the XML
+        if (!empty($item['comment'])) {
+            $invoiceItem->setComment((string) $item['comment']);
+        }
+
         $invoice->addItem($invoiceItem);
     }
 

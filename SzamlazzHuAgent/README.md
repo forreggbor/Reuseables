@@ -392,6 +392,7 @@ $items = [
         'unit' => 'db',                         // Default: 'db'
         'unit_price_gross' => 12700,            // Required (gross price)
         'vat_rate' => 27,                       // Default: config vat_rate
+        'comment' => 'SKU: ABC-123',            // Optional per-line note on invoice
     ],
     // Discounts as negative items
     [

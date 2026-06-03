@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.3.0   | 2026-06-03 | Add per-line item comment field                                   |
 | 1.2.0   | 2026-02-10 | Add payment_method_label, validate keys, deprecate config mapping |
 | 1.1.8   | 2026-02-09 | Fix legacy cURL fallback consistency with InvoiceBuilder |
 | 1.1.7   | 2026-02-06 | Fix payment due date calculation base date               |
@@ -21,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.3.0] - 2026-06-03
+
+| Category | Description |
+|----------|-------------|
+| Added    | Per-line item comment field |
+
+### Added
+
+- `comment` field on invoice items — displayed as a per-line note on the invoice (`<megjegyzes>` XML tag); supported in both the SDK path (`InvoiceBuilder`) and the cURL fallback
 
 ## [1.2.0] - 2026-02-10
 

@@ -849,6 +849,9 @@ class SzamlazzHuAgent
             $xml .= '<mennyisegiEgyseg>' . htmlspecialchars($item['unit'] ?? 'db') . '</mennyisegiEgyseg>';
             $xml .= '<nettoEgysegar>' . $netPrice . '</nettoEgysegar>';
             $xml .= '<afakulcs>' . ($item['vat_rate'] ?? $vatRate) . '</afakulcs>';
+            if (!empty($item['comment'])) {
+                $xml .= '<megjegyzes>' . htmlspecialchars($item['comment']) . '</megjegyzes>';
+            }
             $xml .= '</tetel>';
         }
 
