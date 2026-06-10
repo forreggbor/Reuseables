@@ -51,7 +51,7 @@ interface DatabaseAdapterInterface
      * Fetch validation history rows for a given license in reverse chronological order
      *
      * @param int $licenseId License ID to retrieve history for
-     * @param int $limit Maximum number of rows to return
+     * @param int $limit Maximum number of rows to return; must be a positive integer (returns [] immediately if <= 0)
      * @return array Array of history rows (empty array if none found)
      */
     public function getValidationHistory(int $licenseId, int $limit): array;

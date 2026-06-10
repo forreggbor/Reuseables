@@ -127,10 +127,14 @@ class PdoAdapter implements DatabaseAdapterInterface
      */
     public function getValidationHistory(int $licenseId, int $limit): array
     {
+        if ($limit <= 0) {
+            return [];
+        }
+
         $sql  = "SELECT validation_time, status, response_data, error_message
                  FROM license_validation_history
                  WHERE license_id = :id
-                 ORDER BY validation_time DESC
+                 ORDER BY validation_time DESC, id DESC
                  LIMIT :limit";
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':id', $licenseId, PDO::PARAM_INT);
