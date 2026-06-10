@@ -76,4 +76,20 @@ class CallableAdapter implements DatabaseAdapterInterface
     {
         return $this->getAdapter()->logValidation($licenseId, $status, $responseData, $errorMessage);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getLatestLicenseInfo(): ?array
+    {
+        return $this->getAdapter()->getLatestLicenseInfo();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getValidationHistory(int $licenseId, int $limit): array
+    {
+        return $this->getAdapter()->getValidationHistory($licenseId, $limit);
+    }
 }

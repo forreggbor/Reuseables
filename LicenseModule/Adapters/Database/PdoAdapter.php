@@ -107,4 +107,36 @@ class PdoAdapter implements DatabaseAdapterInterface
             ':error_message' => !empty($errorMessage) ? $errorMessage : null,
         ]);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getLatestLicenseInfo(): ?array
+    {
+        $sql  = "SELECT * FROM license_info ORDER BY id DESC LIMIT 1";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute();
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $result !== false ? $result : null;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function getValidationHistory(int $licenseId, int $limit): array
+    {
+        $sql  = "SELECT validation_time, status, response_data, error_message
+                 FROM license_validation_history
+                 WHERE license_id = :id
+                 ORDER BY validation_time DESC
+                 LIMIT :limit";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':id', $licenseId, PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

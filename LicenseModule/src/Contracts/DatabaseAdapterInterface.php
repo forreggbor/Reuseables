@@ -36,4 +36,23 @@ interface DatabaseAdapterInterface
      * @return bool Success status
      */
     public function logValidation(int $licenseId, string $status, array $responseData = [], string $errorMessage = ''): bool;
+
+    /**
+     * Fetch the most recently inserted license_info row regardless of status
+     *
+     * Unlike getLicenseInfo(), this method applies no status filter, making
+     * suspended and invalid rows visible. Intended for admin pages.
+     *
+     * @return array|null License data array or null if the table is empty
+     */
+    public function getLatestLicenseInfo(): ?array;
+
+    /**
+     * Fetch validation history rows for a given license in reverse chronological order
+     *
+     * @param int $licenseId License ID to retrieve history for
+     * @param int $limit Maximum number of rows to return
+     * @return array Array of history rows (empty array if none found)
+     */
+    public function getValidationHistory(int $licenseId, int $limit): array;
 }
