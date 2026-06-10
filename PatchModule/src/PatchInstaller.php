@@ -744,18 +744,22 @@ class PatchInstaller
             $this->log("Patch rollback: database restored from backup ID {$record['backup_id']}", 'INFO');
         }
 
-        $filesResult = $this->fileManager->rollbackFiles($patchHistoryId);
-        if (!$filesResult['success']) {
-            $this->log("Patch rollback: file restore failed - " . $filesResult['error'], 'ERROR');
-            $this->logActivity(
-                'rollback_patch_failed',
-                'patch',
-                $patchHistoryId,
-                null,
-                ['version' => $record['version'] ?? null, 'error' => 'File restore failed: ' . ($filesResult['error'] ?? 'unknown')],
-                $userId
-            );
-            return ['success' => false, 'error' => 'File restore failed: ' . $filesResult['error']];
+        if ($this->fileManager->hasSnapshot($patchHistoryId)) {
+            $filesResult = $this->fileManager->rollbackFiles($patchHistoryId);
+            if (!$filesResult['success']) {
+                $this->log("Patch rollback: file restore failed - " . $filesResult['error'], 'ERROR');
+                $this->logActivity(
+                    'rollback_patch_failed',
+                    'patch',
+                    $patchHistoryId,
+                    null,
+                    ['version' => $record['version'] ?? null, 'error' => 'File restore failed: ' . ($filesResult['error'] ?? 'unknown')],
+                    $userId
+                );
+                return ['success' => false, 'error' => 'File restore failed: ' . $filesResult['error']];
+            }
+        } else {
+            $this->log("Patch rollback: no file snapshot found for patch {$patchHistoryId} — skipping file restore", 'INFO');
         }
 
         try {
