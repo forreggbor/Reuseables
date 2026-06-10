@@ -9,6 +9,8 @@ A framework-agnostic PHP module for license validation and tier-based feature ga
 - Offline grace period (7 days default) with cached status
 - Hierarchical tier system (higher tiers inherit lower tier modules)
 - Addon-based feature unlocking
+- Self-contained admin page with tier, addon badges, and validation history
+- Module-owned translations (en_US/hu_HU) with optional host translator bridge
 - Translatable error views (gettext support)
 - Framework-agnostic adapters for database, session, and HTTP
 
@@ -156,7 +158,7 @@ if ($license->hasModule('reports')) {
 $modules = $license->getEnabledModules();
 
 // Get tier information
-$tier = $license->getTier();  // ['slug' => 'pro', 'name' => 'Pro', 'level' => 4]
+$tier = $license->getTier();  // ['slug' => 'pro', 'name' => 'Pro', 'level' => 4, 'description' => '...']
 $level = $license->getTierLevel();  // 4
 
 // Check addons
@@ -164,6 +166,18 @@ if ($license->hasAddon('analytics')) {
     // Show analytics features
 }
 $addons = $license->getEnabledAddons();  // ['analytics', 'mailchimp']
+
+// Full addon rows (feature_key, name, slug, description)
+$addonRows = $license->getAddons();
+
+// Tier-only module slugs (excludes addon modules)
+$tierModules = $license->getTierModules();
+
+// Newest license row regardless of status (null if no row exists)
+$latestInfo = $license->getLatestLicenseInfo();
+
+// Validation history rows, newest first
+$history = $license->getValidationHistory(limit: 20);
 ```
 
 ### Middleware Integration
@@ -198,6 +212,79 @@ $days = $license->getDaysUntilExpiration();  // null if no expiry, negative if e
 // Grace period information
 $graceEnd = $license->getGraceExpiresAt();            // "2026-03-15 00:00:00" or null
 $graceDays = $license->getDaysUntilGraceExpiration();  // Days remaining in grace or null
+```
+
+## Admin Page
+
+### Overview
+
+The module ships a self-contained admin page that any consuming project can embed in its own admin layout. Call `$licenseModule->renderAdminPage($options)` to get an HTML fragment — no template engine required on the host side.
+
+### Asset Publishing
+
+The admin page requires two asset files to be web-accessible. Copy them from the module's `public/` directory:
+
+```bash
+cp lib/LicenseModule/public/license-admin.css public/css/license-admin.css
+cp lib/LicenseModule/public/license-admin.js  public/js/license-admin.js
+```
+
+Then pass the directory URL as `asset_base_url` when calling `renderAdminPage()`. The module appends `/license-admin.css` and `/license-admin.js` to this prefix automatically.
+
+### Basic Usage
+
+```php
+$html = $licenseModule->renderAdminPage([
+    'asset_base_url' => '/assets/license',
+    'validate_url'   => '/admin/license/validate',
+    'csrf_token'     => $csrfToken,
+    'locale'         => 'hu_HU',
+]);
+```
+
+Insert `$html` anywhere inside your admin layout's `<body>`.
+
+### Options Reference
+
+| Option           | Type                 | Default                    | Description                                                                 |
+|------------------|----------------------|----------------------------|-----------------------------------------------------------------------------|
+| asset_base_url   | string               | `''`                       | URL prefix for CSS/JS assets. Required for assets to load.                  |
+| validate_url     | string\|null         | `null`                     | POST endpoint for validation. If null, the Validate button is hidden.       |
+| csrf_token       | string\|null         | `null`                     | CSRF token posted by the Validate button AJAX call.                         |
+| renew_url        | string               | `https://lm.patrikmol.com` | Renew button link target.                                                   |
+| locale           | string               | `en_US`                    | Locale override for this render (`en_US` or `hu_HU`).                      |
+| translator       | TranslatorInterface  | `null`                     | Inject a host translator; host strings win over the module's built-ins.     |
+| module_names     | array                | `[]`                       | Map of slug → display name for the tier module list.                        |
+| date_format      | string               | `Y-m-d`                    | PHP `date()` format for date fields.                                        |
+| datetime_format  | string               | `Y-m-d H:i:s`              | PHP `date()` format for datetime fields.                                    |
+| history_limit    | int                  | `20`                       | Max validation history rows to show.                                        |
+
+### Security Boundary
+
+> `renderAdminPage()` does **not** enforce authentication, authorization, or CSRF verification — it has no knowledge of the host application's auth system. The host application is solely responsible for protecting the route that calls this method (require login, verify role, validate CSRF before calling `$licenseModule->validate()`).
+
+### Translations
+
+**Built-in:** The module ships `locale/en_US/messages.php` and `locale/hu_HU/messages.php`. Pass the `locale` option to select a language.
+
+**Host bridge:** If the host application manages its own translation system, implement `LicenseModule\Contracts\TranslatorInterface` and pass the instance as the `translator` option. Host-supplied strings take priority over the module's built-ins.
+
+```php
+use LicenseModule\Contracts\TranslatorInterface;
+
+class MyTranslator implements TranslatorInterface
+{
+    public function translate(string $key, string $locale): ?string
+    {
+        // Return the translated string, or null to fall back to the module's own translation.
+        return __($key) ?: null;
+    }
+}
+
+$html = $licenseModule->renderAdminPage([
+    'translator' => new MyTranslator(),
+    // ...other options
+]);
 ```
 
 ## Default Tier Configuration
@@ -258,6 +345,8 @@ The module uses gettext's `_()` function if available. To use translations:
 
 ### Custom Database Adapter
 
+> **Breaking change:** `DatabaseAdapterInterface` now requires five methods. Custom adapters written against the original three-method interface must be updated to add `getLatestLicenseInfo()` and `getValidationHistory()`.
+
 ```php
 use LicenseModule\Contracts\DatabaseAdapterInterface;
 
@@ -266,6 +355,12 @@ class MyDatabaseAdapter implements DatabaseAdapterInterface
     public function getLicenseInfo(): ?array { /* ... */ }
     public function saveLicenseInfo(array $data): bool { /* ... */ }
     public function logValidation(int $licenseId, string $status, array $responseData = [], string $errorMessage = ''): bool { /* ... */ }
+
+    /** Return the newest license row regardless of status, or null if the table is empty. */
+    public function getLatestLicenseInfo(): ?array { /* ... */ }
+
+    /** Return validation history rows (newest first), limited to $limit entries. */
+    public function getValidationHistory(int $limit = 20): array { /* ... */ }
 }
 
 $license = new LicenseModule([
