@@ -1,4 +1,10 @@
 <?php
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * Framework-agnostic error and exception logging library with configurable
+ * severity levels, file logging, and optional PHP handler registration.
+ */
 
 declare(strict_types=1);
 
@@ -55,7 +61,7 @@ class ErrorHandler
         'log_level' => 'ERROR',
         'date_format' => 'Y-m-d H:i:s',
         'include_trace' => false,
-        'permissions' => 0755,
+        'permissions' => 0750,
     ];
 
     /**
@@ -97,7 +103,7 @@ class ErrorHandler
      *   - log_level: Minimum level to log: ERROR, WARNING, INFO, DEBUG (default: ERROR)
      *   - date_format: Timestamp format (default: Y-m-d H:i:s)
      *   - include_trace: Include stack trace for errors (default: false)
-     *   - permissions: Directory permissions on creation (default: 0755)
+     *   - permissions: Directory permissions on creation (default: 0750)
      * @return void
      */
     public static function init(array $config = []): void
@@ -374,6 +380,48 @@ class ErrorHandler
     }
 
     /**
+     * Neutralize log-injection and credential leakage in a log message.
+     *
+     * Replaces ASCII control characters (including CR/LF) with spaces so a
+     * single logical message can never span multiple log lines, and redacts
+     * the value of password-like key/value fragments that may appear in
+     * exception text while preserving the key name.
+     *
+     * @param string $message Raw message
+     * @return string Sanitized single-line message
+     */
+    private static function sanitizeMessage(string $message): string
+    {
+        $message = preg_replace('/[\x00-\x1F\x7F]/', ' ', $message) ?? $message;
+        $message = preg_replace('/\b(password|passwd|pwd)\b\s*([=:])\s*[^\s;,&]+/i', '$1$2***', $message) ?? $message;
+
+        return $message;
+    }
+
+    /**
+     * Recursively mask credential-like values in a context array.
+     *
+     * Any key matching password/passwd/pwd/secret/token/api_key/apikey
+     * (case-insensitive, substring match) has its value replaced with '***'
+     * so secrets passed as structured context never reach the log file.
+     *
+     * @param array $context Raw context data
+     * @return array Context with sensitive values masked
+     */
+    private static function sanitizeContext(array $context): array
+    {
+        foreach ($context as $key => $value) {
+            if (is_array($value)) {
+                $context[$key] = self::sanitizeContext($value);
+            } elseif (is_string($key) && preg_match('/password|passwd|pwd|secret|token|api[_-]?key/i', $key) === 1) {
+                $context[$key] = '***';
+            }
+        }
+
+        return $context;
+    }
+
+    /**
      * Core logging implementation
      *
      * @param array $config Configuration to use
@@ -395,11 +443,14 @@ class ErrorHandler
             return false;
         }
 
+        // Neutralize log injection / credential leakage before formatting
+        $message = self::sanitizeMessage($message);
+
         // Format timestamp
         $timestamp = date($config['date_format']);
 
-        // Format context as JSON if present
-        $contextStr = !empty($context) ? ' ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '';
+        // Format context as JSON if present (with credential-like values masked)
+        $contextStr = !empty($context) ? ' ' . json_encode(self::sanitizeContext($context), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '';
 
         // Build log entry
         $formattedMessage = "[{$timestamp}] [{$level}] {$message}{$contextStr}" . PHP_EOL;
@@ -408,9 +459,12 @@ class ErrorHandler
         $logPath = rtrim($config['log_path'], '/');
         $logFile = $logPath . '/' . $config['log_file'];
 
-        // Ensure directory exists
+        // Ensure directory exists (restrictive perms regardless of process umask)
         if (!is_dir($logPath)) {
-            if (!@mkdir($logPath, $config['permissions'], true)) {
+            $oldUmask = umask(0027);
+            $created = @mkdir($logPath, $config['permissions'], true);
+            umask($oldUmask);
+            if (!$created) {
                 // Fallback to PHP's error_log if directory creation fails
                 error_log($message);
                 return false;
