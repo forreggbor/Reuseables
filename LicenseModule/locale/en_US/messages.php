@@ -38,6 +38,8 @@ return [
     'TEXT_MESSAGE_GRACE_EXPIRES_IN_DAYS'   => 'Grace period expires in %d days',
     'TEXT_MESSAGE_LICENSE_EXPIRED'         => 'This license has expired. Please renew to restore write access.',
     'TEXT_MESSAGE_LICENSE_EXPIRES_SOON'    => 'License expires in %d days.',
+    'TEXT_MESSAGE_LICENSE_INVALID'         => 'Invalid license. Please check your license key configuration.',
+    'TEXT_MESSAGE_LICENSE_SUSPENDED'       => 'This license has been suspended. Please contact support.',
     'TEXT_MESSAGE_LICENSE_VALID_FOR_DAYS'  => 'License valid for %d more days.',
     'TEXT_MESSAGE_NEVER'                   => 'Never',
     'TEXT_MESSAGE_NO_ADDONS'               => 'No add-ons enabled',

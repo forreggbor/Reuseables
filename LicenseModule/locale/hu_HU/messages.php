@@ -38,6 +38,8 @@ return [
     'TEXT_MESSAGE_GRACE_EXPIRES_IN_DAYS'   => 'A türelmi idő %d napon belül lejár',
     'TEXT_MESSAGE_LICENSE_EXPIRED'         => 'A licensz lejárt. Az írási hozzáférés visszaállításához újítsd meg a licenszt.',
     'TEXT_MESSAGE_LICENSE_EXPIRES_SOON'    => 'A licensz %d napon belül lejár.',
+    'TEXT_MESSAGE_LICENSE_INVALID'         => 'Érvénytelen licensz. Kérlek ellenőrizd a licenszkulcs beállítást.',
+    'TEXT_MESSAGE_LICENSE_SUSPENDED'       => 'Ez a licensz fel lett függesztve. Kérlek vedd fel a kapcsolatot a támogatással.',
     'TEXT_MESSAGE_LICENSE_VALID_FOR_DAYS'  => 'A licensz még %d napig érvényes.',
     'TEXT_MESSAGE_NEVER'                   => 'Soha',
     'TEXT_MESSAGE_NO_ADDONS'               => 'Nincs aktív bővítmény',

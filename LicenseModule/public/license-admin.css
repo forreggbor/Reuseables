@@ -1,0 +1,417 @@
+/* Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved. */
+
+:root {
+    --lm-primary: #4f46e5;
+    --lm-success: #16a34a;
+    --lm-warning: #d97706;
+    --lm-danger: #dc2626;
+    --lm-info: #0891b2;
+    --lm-muted: #6b7280;
+    --lm-border: #e5e7eb;
+    --lm-bg: #f9fafb;
+    --lm-white: #ffffff;
+    --lm-radius: 8px;
+    --lm-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* ─── Page layout ─────────────────────────────────────────────────────────── */
+
+.lm-admin-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-size: 1rem;
+    color: #111827;
+    box-sizing: border-box;
+}
+
+.lm-admin-page *,
+.lm-admin-page *::before,
+.lm-admin-page *::after {
+    box-sizing: inherit;
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
+
+.lm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.lm-header h2 {
+    font-weight: 700;
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.lm-header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* ─── Card ────────────────────────────────────────────────────────────────── */
+
+.lm-card {
+    background: var(--lm-white);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    box-shadow: var(--lm-shadow);
+    margin-bottom: 24px;
+}
+
+.lm-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--lm-border);
+    font-weight: 700;
+    font-size: .875rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--lm-muted);
+}
+
+.lm-card-body {
+    padding: 20px;
+}
+
+/* ─── Two-column row ──────────────────────────────────────────────────────── */
+
+.lm-row {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.lm-col {
+    flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    .lm-row {
+        flex-direction: column;
+    }
+
+    .lm-col {
+        width: 100%;
+    }
+}
+
+/* ─── Table ───────────────────────────────────────────────────────────────── */
+
+.lm-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.lm-table td,
+.lm-table th {
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.lm-table thead th {
+    font-weight: 600;
+    font-size: .8125rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--lm-muted);
+    border-bottom: 2px solid var(--lm-border);
+    padding-bottom: 10px;
+}
+
+.lm-table tbody tr:not(:last-child) td {
+    border-bottom: 1px solid var(--lm-border);
+}
+
+.lm-table td:first-child {
+    color: var(--lm-muted);
+    width: 40%;
+    white-space: nowrap;
+    font-size: .875rem;
+}
+
+.lm-table-hover tbody tr:hover td {
+    background: var(--lm-bg);
+}
+
+/* ─── Badge ───────────────────────────────────────────────────────────────── */
+
+.lm-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    line-height: 1.5;
+}
+
+.lm-badge-active,
+.lm-badge-success {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.lm-badge-grace,
+.lm-badge-throttled {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.lm-badge-expired,
+.lm-badge-error {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.lm-badge-suspended {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.lm-badge-invalid,
+.lm-badge-unknown {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+/* ─── Status card ─────────────────────────────────────────────────────────── */
+
+.lm-status-card .lm-card-body {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.lm-status-card {
+    border-left: 4px solid var(--lm-border);
+}
+
+.lm-status-active  { border-left-color: var(--lm-success); }
+.lm-status-grace   { border-left-color: var(--lm-info); }
+.lm-status-expired { border-left-color: var(--lm-danger); }
+.lm-status-suspended { border-left-color: var(--lm-warning); }
+.lm-status-invalid { border-left-color: var(--lm-muted); }
+.lm-status-throttled { border-left-color: var(--lm-success); }
+
+.lm-status-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lm-status-active  .lm-status-icon { background: #dcfce7; color: var(--lm-success); }
+.lm-status-grace   .lm-status-icon { background: #e0f2fe; color: var(--lm-info); }
+.lm-status-expired .lm-status-icon { background: #fee2e2; color: var(--lm-danger); }
+.lm-status-suspended .lm-status-icon { background: #fef3c7; color: var(--lm-warning); }
+.lm-status-invalid .lm-status-icon { background: #f3f4f6; color: var(--lm-muted); }
+.lm-status-throttled .lm-status-icon { background: #dcfce7; color: var(--lm-success); }
+
+.lm-status-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.lm-status-body {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lm-status-body p {
+    margin: 0;
+    font-size: .9rem;
+    color: var(--lm-muted);
+}
+
+/* ─── Alert ───────────────────────────────────────────────────────────────── */
+
+.lm-alert {
+    padding: 12px 16px;
+    border-radius: var(--lm-radius);
+    margin-bottom: 16px;
+    font-size: .9rem;
+}
+
+.lm-alert-warning {
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    color: #92400e;
+}
+
+.lm-alert-success {
+    background: #dcfce7;
+    border: 1px solid #86efac;
+    color: #15803d;
+}
+
+.lm-alert-danger {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+}
+
+.lm-alert-info {
+    background: #e0f2fe;
+    border: 1px solid #7dd3fc;
+    color: #0369a1;
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
+
+.lm-btn {
+    cursor: pointer;
+    border-radius: var(--lm-radius);
+    padding: 8px 16px;
+    font-size: .875rem;
+    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: opacity .15s ease, background-color .15s ease;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    background: none;
+}
+
+.lm-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.lm-btn-primary {
+    background: var(--lm-primary);
+    color: var(--lm-white);
+    border-color: var(--lm-primary);
+}
+
+.lm-btn-primary:hover:not(:disabled) {
+    background: #4338ca;
+    border-color: #4338ca;
+}
+
+.lm-btn-warning {
+    background: var(--lm-warning);
+    color: var(--lm-white);
+    border-color: var(--lm-warning);
+}
+
+.lm-btn-warning:hover:not(:disabled) {
+    background: #b45309;
+    border-color: #b45309;
+}
+
+.lm-btn-sm {
+    padding: 5px 12px;
+    font-size: .8125rem;
+}
+
+.lm-btn-loading {
+    opacity: .7;
+}
+
+/* ─── Misc utilities ──────────────────────────────────────────────────────── */
+
+.lm-text-muted {
+    color: var(--lm-muted);
+}
+
+.lm-truncate {
+    display: inline-block;
+    max-width: 200px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+}
+
+.lm-divider {
+    border: none;
+    border-top: 1px solid var(--lm-border);
+    margin: 16px 0;
+}
+
+.lm-module-list {
+    margin: 8px 0 0 20px;
+    padding: 0;
+    font-size: .9rem;
+    line-height: 1.8;
+}
+
+/* ─── Addon badges ────────────────────────────────────────────────────────── */
+
+.lm-addon-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+.lm-addon-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: .8125rem;
+    font-weight: 500;
+    padding: 3px 12px;
+    border-radius: 20px;
+    background: #ede9fe;
+    color: #5b21b6;
+    white-space: nowrap;
+}
+
+button.lm-addon-badge {
+    border: none;
+    cursor: pointer;
+    background: #ede9fe;
+    color: #5b21b6;
+    transition: background-color .15s ease;
+}
+
+button.lm-addon-badge:hover {
+    background: #ddd6fe;
+}
+
+.lm-addon-has-desc {
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-style: dotted;
+}
+
+button.lm-addon-badge[aria-expanded="true"] {
+    background: #c4b5fd;
+    color: #3b0764;
+}
+
+.lm-addon-descriptions {
+    margin-top: 4px;
+}
+
+.lm-addon-desc {
+    border-left: 3px solid var(--lm-primary);
+    padding: 8px 12px;
+    margin-top: 4px;
+    background: var(--lm-bg);
+    border-radius: 0 4px 4px 0;
+    font-size: .875rem;
+    color: #374151;
+    line-height: 1.5;
+}
