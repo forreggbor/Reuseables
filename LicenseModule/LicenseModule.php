@@ -611,16 +611,15 @@ class LicenseModule
         $daysRemaining    = $this->getDaysUntilExpiration();
         $graceDaysRemaining = $this->getDaysUntilGraceExpiration();
 
-        ob_start();
-        include $viewPath;
-
-        $result = ob_get_clean() ?: '';
-
-        if (isset($savedLocale)) {
-            $this->locale = $savedLocale;
+        try {
+            ob_start();
+            include $viewPath;
+            return ob_get_clean() ?: '';
+        } finally {
+            if (isset($savedLocale)) {
+                $this->locale = $savedLocale;
+            }
         }
-
-        return $result;
     }
 
     // =========================================================================

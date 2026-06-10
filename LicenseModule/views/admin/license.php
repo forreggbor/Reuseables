@@ -171,7 +171,7 @@ $statusText = match ($status) {
                             </tr>
                             <tr>
                                 <td><?= $te('TEXT_LABEL_LICENSED_DOMAIN') ?></td>
-                                <td><?= htmlspecialchars($license['domain'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars($license['licensed_domain'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                             </tr>
                             <tr>
                                 <td><?= $te('TEXT_LABEL_STATUS') ?></td>
@@ -204,11 +204,11 @@ $statusText = match ($status) {
                                     <?php endif ?>
                                 </td>
                             </tr>
-                            <?php if ($status === 'grace' && !empty($license['grace_until'])): ?>
+                            <?php if ($status === 'grace' && !empty($license['grace_expires_at'])): ?>
                                 <tr>
                                     <td><?= $te('TEXT_LABEL_GRACE_EXPIRES_AT') ?></td>
                                     <td>
-                                        <?= htmlspecialchars(date($dateFormat, strtotime($license['grace_until'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                        <?= htmlspecialchars(date($dateFormat, strtotime($license['grace_expires_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                         <?php if ($graceDaysRemaining !== null): ?>
                                             <span class="lm-text-muted">(<?= $te('TEXT_MESSAGE_DAYS_REMAINING', $graceDaysRemaining) ?>)</span>
                                         <?php endif ?>
@@ -218,8 +218,8 @@ $statusText = match ($status) {
                             <tr>
                                 <td><?= $te('TEXT_LABEL_LAST_CHECK') ?></td>
                                 <td>
-                                    <?php if (!empty($license['last_checked_at'])): ?>
-                                        <?= htmlspecialchars(date($datetimeFormat, strtotime($license['last_checked_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    <?php if (!empty($license['last_check_at'])): ?>
+                                        <?= htmlspecialchars(date($datetimeFormat, strtotime($license['last_check_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                     <?php else: ?>
                                         <?= $te('TEXT_MESSAGE_NEVER') ?>
                                     <?php endif ?>
@@ -229,7 +229,7 @@ $statusText = match ($status) {
                                 <td><?= $te('TEXT_LABEL_VALIDATION_FREQUENCY') ?></td>
                                 <td>
                                     <?php
-                                    $freq = $options['validation_interval_hours'] ?? null;
+                                    $freq = $license['validation_frequency'] ?? null;
                                     if ($freq !== null):
                                     ?>
                                         <?= htmlspecialchars((string)$freq, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= $te('TEXT_MISC_HOURS') ?>
@@ -242,7 +242,7 @@ $statusText = match ($status) {
                                 <td><?= $te('TEXT_LABEL_GRACE_PERIOD') ?></td>
                                 <td>
                                     <?php
-                                    $grace = $options['grace_period_days'] ?? null;
+                                    $grace = $license['grace_period_days'] ?? null;
                                     if ($grace !== null):
                                     ?>
                                         <?= htmlspecialchars((string)$grace, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= $te('TEXT_MISC_DAYS') ?>
@@ -303,7 +303,7 @@ $statusText = match ($status) {
                             <?php
                             $addonIndex = 0;
                             foreach ($addons as $addon):
-                                $addonName = htmlspecialchars($addon['name'] ?? $addon['feature_key'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                                $addonName = htmlspecialchars($addon['name'] ?? $addon['feature_key'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                                 if (!empty($addon['description'])):
                             ?>
                                     <button class="lm-addon-badge lm-addon-has-desc"

@@ -274,10 +274,10 @@ use LicenseModule\Contracts\TranslatorInterface;
 
 class MyTranslator implements TranslatorInterface
 {
-    public function translate(string $key, string $locale): ?string
+    public function t(string $key, array $params = []): string
     {
-        // Return the translated string, or null to fall back to the module's own translation.
-        return __($key) ?: null;
+        // Return the translated string, or the raw key to fall back to module's own translation.
+        return __($key) ?: $key;
     }
 }
 
