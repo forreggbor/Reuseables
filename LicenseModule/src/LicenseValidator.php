@@ -386,6 +386,28 @@ class LicenseValidator
     }
 
     /**
+     * Get validation history for the current license.
+     *
+     * Returns rows in reverse chronological order (most recent first).
+     * Returns an empty array if no license row exists.
+     *
+     * @param int $limit Maximum number of history rows to return (default 20)
+     * @return array
+     */
+    public function getValidationHistory(int $limit = 20): array
+    {
+        $licenseInfo = $this->database->getLatestLicenseInfo();
+
+        if ($licenseInfo === null) {
+            return [];
+        }
+
+        $id = (int) $licenseInfo['id'];
+
+        return $this->database->getValidationHistory($id, $limit);
+    }
+
+    /**
      * Update license information
      *
      * @param array $data Data to update
