@@ -5,6 +5,23 @@ All notable changes to ErrorHandler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-10
+
+| Category | Description                                                           |
+|----------|-----------------------------------------------------------------------|
+| Added    | Log injection prevention and automatic credential redaction in logs   |
+| Fixed    | Credential keys matching `api_key` / `api-key` were not redacted      |
+
+### Added
+
+- Log messages are sanitized before writing: ASCII control characters (including newlines) are replaced with spaces so a single message can never span multiple log lines
+- Password-like patterns in message text (e.g. `password=secret`) are automatically redacted
+- Context array values are masked when the key matches common credential names: `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`, `apikey` — masking is applied recursively to nested arrays
+
+### Fixed
+
+- Credential redaction for `api_key` and `api-key` context keys did not work due to an invalid character class range in the masking regex
+
 ## [1.0.1] - 2026-01-20
 
 ### Fixed

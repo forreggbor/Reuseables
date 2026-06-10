@@ -5,6 +5,19 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-06-10
+
+| Category | Description                                                        |
+|----------|--------------------------------------------------------------------|
+| Fixed    | Suspended licenses displayed as "Invalid" on the admin page        |
+
+### Fixed
+
+- Admin page showed "Invalid" status badge and styling for suspended licenses; status is now read directly from the stored license row so all statuses (including suspended and invalid) display correctly
+- Output buffer could remain open when the admin view raised a PHP exception, potentially leaking partial HTML into the host page
+- Date fields on the admin page showed `1970-01-01` instead of "Never" for rows where the database stored a zero date value
+- License save operation crashed in strict PDO error mode due to an unchecked database call
+
 ## [1.6.0] - 2026-06-10
 
 | Category | Description                                                                               |
