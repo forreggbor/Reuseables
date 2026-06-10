@@ -1,4 +1,9 @@
 <?php
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * Main facade for framework-agnostic license validation and feature gating.
+ */
 
 declare(strict_types=1);
 
@@ -11,6 +16,7 @@ use LicenseModule\Adapters\Session\NativeSessionAdapter;
 use LicenseModule\Contracts\DatabaseAdapterInterface;
 use LicenseModule\Contracts\HttpClientInterface;
 use LicenseModule\Contracts\SessionAdapterInterface;
+use LicenseModule\Contracts\TranslatorInterface;
 use PDO;
 
 /**
@@ -53,6 +59,8 @@ class LicenseModule
     private SessionAdapterInterface $session;
     private DatabaseAdapterInterface $database;
     private array $config;
+    private string $locale;
+    private ?TranslatorInterface $translator = null;
 
     /**
      * Initialize the license module
@@ -65,10 +73,16 @@ class LicenseModule
      *   - session_adapter: SessionAdapterInterface - Custom session adapter (optional)
      *   - http_client: HttpClientInterface - Custom HTTP client (optional)
      *   - log_callback: callable - Logging callback fn(string $message, string $level)
+     *   - locale: string - Locale code for built-in translations (default 'en_US')
+     *   - translator: TranslatorInterface - Optional host-side translator bridge
      */
     public function __construct(array $config)
     {
         $this->config = $config;
+        $this->locale = $config['locale'] ?? 'en_US';
+        if (isset($config['translator']) && $config['translator'] instanceof TranslatorInterface) {
+            $this->translator = $config['translator'];
+        }
         $this->initializeAdapters($config);
         $this->initializeValidator($config);
         $this->initializeFeatureGate($config);
@@ -268,7 +282,7 @@ class LicenseModule
     /**
      * Get current tier information
      *
-     * @return array|null Tier object {slug, name, level} or null for legacy license
+     * @return array|null Tier object {slug, name, level, description} or null for legacy license
      */
     public function getTier(): ?array
     {
@@ -304,6 +318,27 @@ class LicenseModule
     public function getEnabledAddons(): array
     {
         return $this->featureGate->getEnabledAddons();
+    }
+
+    /**
+     * Get full addon rows enabled by this license.
+     * Each row: feature_key, name, slug, description.
+     *
+     * @return array<int, array{feature_key: string, name: string, slug: string, description: string|null}>
+     */
+    public function getAddons(): array
+    {
+        return $this->featureGate->getAddons();
+    }
+
+    /**
+     * Get module slugs enabled by the current tier level only (excluding addon modules).
+     *
+     * @return string[]
+     */
+    public function getTierModules(): array
+    {
+        return $this->featureGate->getTierModules();
     }
 
     // =========================================================================
@@ -429,6 +464,163 @@ class LicenseModule
         $daysRemaining = ($graceExpiryTime - time()) / 86400;
 
         return (int) ceil($daysRemaining);
+    }
+
+    /**
+     * Get the most recent license_info row regardless of status.
+     * Unlike getLicenseInfo(), this includes suspended and invalid licenses.
+     *
+     * @return array|null
+     */
+    public function getLatestLicenseInfo(): ?array
+    {
+        return $this->database->getLatestLicenseInfo();
+    }
+
+    /**
+     * Get validation history rows in reverse chronological order.
+     *
+     * @param int $limit Maximum number of rows to return
+     * @return array
+     */
+    public function getValidationHistory(int $limit = 20): array
+    {
+        return $this->validator->getValidationHistory($limit);
+    }
+
+    // =========================================================================
+    // Locale & Translation
+    // =========================================================================
+
+    /**
+     * Get the configured locale code.
+     *
+     * @return string Locale code, e.g. 'en_US' or 'hu_HU'
+     */
+    public function getLocale(): string
+    {
+        return $this->locale;
+    }
+
+    /**
+     * Translate a TEXT_* key with optional positional parameters.
+     *
+     * Delegates to the injected TranslatorInterface when available; otherwise loads
+     * the module's own locale PHP-array. Falls back to en_US if the configured locale
+     * file is missing a key.
+     *
+     * @param string $key       Translation key
+     * @param mixed  ...$params Positional values for %s/%d placeholders
+     * @return string
+     */
+    private function t(string $key, mixed ...$params): string
+    {
+        if ($this->translator !== null) {
+            return $this->translator->t($key, $params);
+        }
+
+        static $cache = [];
+        static $fallbackCache = null;
+
+        $locale = $this->locale;
+
+        if (!isset($cache[$locale])) {
+            $path = __DIR__ . '/locale/' . $locale . '/messages.php';
+            if (file_exists($path)) {
+                $loaded = require $path;
+                $cache[$locale] = is_array($loaded) ? $loaded : [];
+            } else {
+                $cache[$locale] = [];
+            }
+        }
+
+        if ($fallbackCache === null) {
+            $path = __DIR__ . '/locale/en_US/messages.php';
+            if (file_exists($path)) {
+                $loaded = require $path;
+                $fallbackCache = is_array($loaded) ? $loaded : [];
+            } else {
+                $fallbackCache = [];
+            }
+        }
+
+        $string = $cache[$locale][$key] ?? $fallbackCache[$key] ?? $key;
+
+        if ($params !== [] && (str_contains($string, '%s') || str_contains($string, '%d'))) {
+            return vsprintf($string, $params);
+        }
+
+        return $string;
+    }
+
+    // =========================================================================
+    // Admin Page
+    // =========================================================================
+
+    /**
+     * Render the license administration page as an HTML fragment.
+     * The host application embeds this inside its own admin layout.
+     *
+     * Security note: this method does NOT enforce authentication, ACL, or CSRF —
+     * the host is responsible for protecting the route that calls this.
+     *
+     * @param array $options {
+     *   @type string               $locale          Per-call locale override
+     *   @type TranslatorInterface  $translator      Per-call translator override
+     *   @type string               $asset_base_url  URL prefix for CSS/JS assets (required for assets to load)
+     *   @type string|null          $validate_url    POST endpoint; if null Validate button is hidden
+     *   @type string|null          $csrf_token      Token for AJAX validation call
+     *   @type string               $renew_url       Renew link (default https://lm.patrikmol.com)
+     *   @type array                $module_names    slug→display-name map for tier module list
+     *   @type string               $date_format     PHP date() format (default 'Y-m-d')
+     *   @type string               $datetime_format PHP date() format (default 'Y-m-d H:i:s')
+     *   @type int                  $history_limit   Max history rows (default 20)
+     * }
+     * @return string Rendered HTML fragment, or empty string if the view file is not yet present
+     */
+    public function renderAdminPage(array $options = []): string
+    {
+        $viewPath = __DIR__ . '/views/admin/license.php';
+
+        if (!file_exists($viewPath)) {
+            return '';
+        }
+
+        // Resolve per-call locale
+        $callLocale = $options['locale'] ?? $this->locale;
+
+        // Build $t closure
+        if (isset($options['translator']) && $options['translator'] instanceof TranslatorInterface) {
+            $callTranslator = $options['translator'];
+            $t = static function (string $key, mixed ...$params) use ($callTranslator): string {
+                return $callTranslator->t($key, $params);
+            };
+        } else {
+            $savedLocale = $this->locale;
+            $this->locale = $callLocale;
+            $t = fn(string $key, mixed ...$params): string => $this->t($key, ...$params);
+        }
+
+        // Gather view data
+        $license          = $this->getLatestLicenseInfo();
+        $status           = $this->getStatus();
+        $tier             = $this->getTier();
+        $addons           = $this->getAddons();
+        $tierModules      = $this->getTierModules();
+        $history          = $this->getValidationHistory((int) ($options['history_limit'] ?? 20));
+        $daysRemaining    = $this->getDaysUntilExpiration();
+        $graceDaysRemaining = $this->getDaysUntilGraceExpiration();
+
+        ob_start();
+        include $viewPath;
+
+        $result = ob_get_clean() ?: '';
+
+        if (isset($savedLocale)) {
+            $this->locale = $savedLocale;
+        }
+
+        return $result;
     }
 
     // =========================================================================
