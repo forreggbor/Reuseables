@@ -5,6 +5,31 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-06-10
+
+| Category | Description                                                                               |
+|----------|-------------------------------------------------------------------------------------------|
+| Added    | Self-contained admin page with tier, addon, and validation history display                |
+| Changed  | ⚠️ `DatabaseAdapterInterface` gained two new required methods (breaking for custom adapters) |
+
+### Added
+
+- `LicenseModule::renderAdminPage()` — renders a complete, framework-agnostic license admin page as an HTML fragment; the host embeds it in its own layout and provides routing, CSRF, and asset context via an options array
+- Addon display with click-to-reveal descriptions: each addon renders as a badge; clicking it opens a description panel below (accordion behaviour, works on all browsers including Safari and iOS touch)
+- `LicenseModule::getAddons()` — returns full addon rows (key, name, slug, description) from the active license
+- `LicenseModule::getTierModules()` — returns modules enabled by the current tier, excluding addon modules
+- `LicenseModule::getLatestLicenseInfo()` — returns the most recent license row regardless of status, so suspended and invalid licenses are visible on the admin page
+- `LicenseModule::getValidationHistory()` — returns recent validation log rows for display
+- `DatabaseAdapterInterface::getLatestLicenseInfo()` and `::getValidationHistory()` — new database methods implemented by `PdoAdapter` and `CallableAdapter`
+- `TranslatorInterface` — optional host bridge; if injected, host translations take priority over the module's built-ins
+- Admin page locale strings in `locale/en_US/messages.php` and `locale/hu_HU/messages.php`
+- Shipped assets: `public/license-admin.css` and `public/license-admin.js` (vanilla CSS/JS, no external dependencies)
+
+### Changed
+
+- `getTier()` now includes a `description` field in its return array
+- ⚠️ BREAKING: `DatabaseAdapterInterface` has two new required methods; projects supplying a custom adapter must add `getLatestLicenseInfo()` and `getValidationHistory()`. Projects using the bundled `PdoAdapter` or `CallableAdapter` are unaffected.
+
 ## [1.5.0] - 2026-04-27
 
 | Category | Description                                                                                                         |
