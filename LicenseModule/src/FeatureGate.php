@@ -34,8 +34,9 @@ class FeatureGate
      */
     private const DEFAULT_ADDONS = [
         'analytics' => ['tracking'],
-        'messageboard' => ['messageboard'],
         'mailchimp' => ['mailchimp'],
+        'messageboard' => ['messageboard'],
+        'woocommerce_import' => ['woocommerce_import'],
     ];
 
     /** @var array<int, array{name: string, modules: string[]}> Tier configuration */
@@ -160,9 +161,59 @@ class FeatureGate
     }
 
     /**
+     * Get full addon rows from the license data
+     *
+     * Returns each addon as an associative array with feature_key, name, slug, and description.
+     * Returns an empty array for legacy or null licenses.
+     *
+     * @return array<int, array{feature_key: string, name: string, slug: string, description: string|null}>
+     */
+    public function getAddons(): array
+    {
+        $license = $this->getLicenseData();
+
+        if ($license === null || !isset($license['tier'])) {
+            return [];
+        }
+
+        return $license['addons'] ?? [];
+    }
+
+    /**
+     * Get the list of module slugs enabled by the current tier level only
+     *
+     * Excludes addon modules. For tier level N, includes modules from all tiers
+     * with level <= N. Returns an empty array for legacy or no-tier licenses.
+     *
+     * Note: module slugs are expected to be unique across all tier levels by contract;
+     * duplicate slugs in the tier configuration are a configuration error.
+     *
+     * @return string[] List of module slugs enabled by the current tier
+     */
+    public function getTierModules(): array
+    {
+        $license = $this->getLicenseData();
+
+        if ($license === null || !isset($license['tier'])) {
+            return [];
+        }
+
+        $tierLevel = $this->extractTierLevel($license['tier']);
+        $modules = [];
+
+        foreach ($this->tiers as $level => $tierConfig) {
+            if ($level <= $tierLevel) {
+                $modules = array_merge($modules, $tierConfig['modules']);
+            }
+        }
+
+        return $modules;
+    }
+
+    /**
      * Get current tier information
      *
-     * @return array|null Tier object {slug, name, level} or null for legacy license
+     * @return array|null Tier object {slug, name, level, description} or null for legacy license
      */
     public function getTier(): ?array
     {
@@ -176,9 +227,10 @@ class FeatureGate
 
         if (is_array($tierData)) {
             return [
-                'slug' => $tierData['slug'] ?? null,
-                'name' => $tierData['name'] ?? null,
-                'level' => (int) ($tierData['level'] ?? 0),
+                'slug'        => $tierData['slug'] ?? null,
+                'name'        => $tierData['name'] ?? null,
+                'level'       => (int) ($tierData['level'] ?? 0),
+                'description' => $tierData['description'] ?? null,
             ];
         }
 
