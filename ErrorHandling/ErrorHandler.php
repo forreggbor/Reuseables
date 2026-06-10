@@ -413,7 +413,7 @@ class ErrorHandler
         foreach ($context as $key => $value) {
             if (is_array($value)) {
                 $context[$key] = self::sanitizeContext($value);
-            } elseif (is_string($key) && preg_match('/password|passwd|pwd|secret|token|api[_-]?key/i', $key) === 1) {
+            } elseif (is_string($key) && preg_match('/password|passwd|pwd|secret|token|api[-_]?key/i', $key) === 1) {
                 $context[$key] = '***';
             }
         }

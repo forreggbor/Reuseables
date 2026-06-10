@@ -32,6 +32,14 @@ $isLegacy = $tier === null && $addons === [];
 $te = fn(string $key, mixed ...$params): string =>
     htmlspecialchars($t($key, ...$params), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
+$parseTs = static function (?string $value): ?int {
+    if (empty($value)) {
+        return null;
+    }
+    $ts = strtotime($value);
+    return ($ts !== false && $ts > 0) ? $ts : null;
+};
+
 $statusText = match ($status) {
     'active'    => $te('TEXT_STATUS_ACTIVE'),
     'grace'     => $te('TEXT_STATUS_GRACE'),
@@ -184,8 +192,8 @@ $statusText = match ($status) {
                             <tr>
                                 <td><?= $te('TEXT_LABEL_VALIDATED_AT') ?></td>
                                 <td>
-                                    <?php if (!empty($license['validated_at'])): ?>
-                                        <?= htmlspecialchars(date($datetimeFormat, strtotime($license['validated_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    <?php $ts = $parseTs($license['validated_at'] ?? null); if ($ts !== null): ?>
+                                        <?= htmlspecialchars(date($datetimeFormat, $ts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                     <?php else: ?>
                                         <?= $te('TEXT_MESSAGE_NEVER') ?>
                                     <?php endif ?>
@@ -194,8 +202,8 @@ $statusText = match ($status) {
                             <tr>
                                 <td><?= $te('TEXT_LABEL_EXPIRES_AT') ?></td>
                                 <td>
-                                    <?php if (!empty($license['expires_at'])): ?>
-                                        <?= htmlspecialchars(date($dateFormat, strtotime($license['expires_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    <?php $ts = $parseTs($license['expires_at'] ?? null); if ($ts !== null): ?>
+                                        <?= htmlspecialchars(date($dateFormat, $ts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                         <?php if ($daysRemaining !== null): ?>
                                             <span class="lm-text-muted">(<?= $te('TEXT_MESSAGE_DAYS_REMAINING', $daysRemaining) ?>)</span>
                                         <?php endif ?>
@@ -204,11 +212,11 @@ $statusText = match ($status) {
                                     <?php endif ?>
                                 </td>
                             </tr>
-                            <?php if ($status === 'grace' && !empty($license['grace_expires_at'])): ?>
+                            <?php $tsGrace = $parseTs($license['grace_expires_at'] ?? null); if ($status === 'grace' && $tsGrace !== null): ?>
                                 <tr>
                                     <td><?= $te('TEXT_LABEL_GRACE_EXPIRES_AT') ?></td>
                                     <td>
-                                        <?= htmlspecialchars(date($dateFormat, strtotime($license['grace_expires_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                        <?= htmlspecialchars(date($dateFormat, $tsGrace), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                         <?php if ($graceDaysRemaining !== null): ?>
                                             <span class="lm-text-muted">(<?= $te('TEXT_MESSAGE_DAYS_REMAINING', $graceDaysRemaining) ?>)</span>
                                         <?php endif ?>
@@ -218,8 +226,8 @@ $statusText = match ($status) {
                             <tr>
                                 <td><?= $te('TEXT_LABEL_LAST_CHECK') ?></td>
                                 <td>
-                                    <?php if (!empty($license['last_check_at'])): ?>
-                                        <?= htmlspecialchars(date($datetimeFormat, strtotime($license['last_check_at'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    <?php $ts = $parseTs($license['last_check_at'] ?? null); if ($ts !== null): ?>
+                                        <?= htmlspecialchars(date($datetimeFormat, $ts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                     <?php else: ?>
                                         <?= $te('TEXT_MESSAGE_NEVER') ?>
                                     <?php endif ?>

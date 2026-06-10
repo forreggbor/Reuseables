@@ -603,7 +603,6 @@ class LicenseModule
 
         // Gather view data
         $license          = $this->getLatestLicenseInfo();
-        $status           = $this->getStatus();
         $tier             = $this->getTier();
         $addons           = $this->getAddons();
         $tierModules      = $this->getTierModules();
@@ -611,10 +610,35 @@ class LicenseModule
         $daysRemaining    = $this->getDaysUntilExpiration();
         $graceDaysRemaining = $this->getDaysUntilGraceExpiration();
 
+        // Derive status from the raw (unfiltered) row so suspended/invalid licenses
+        // display correctly. Applies the same expiry checks as getCurrentStatus().
+        if ($license === null) {
+            $status = LicenseStatus::INVALID;
+        } else {
+            $rawStatus = $license['status'] ?? LicenseStatus::INVALID;
+            if ($rawStatus === LicenseStatus::GRACE
+                && !empty($license['grace_expires_at'])
+                && strtotime($license['grace_expires_at']) < time()
+            ) {
+                $status = LicenseStatus::EXPIRED;
+            } elseif (!empty($license['expires_at']) && strtotime($license['expires_at']) < time()
+                && !in_array($rawStatus, [LicenseStatus::SUSPENDED, LicenseStatus::INVALID], true)
+            ) {
+                $status = LicenseStatus::EXPIRED;
+            } else {
+                $status = $rawStatus;
+            }
+        }
+
         try {
             ob_start();
-            include $viewPath;
-            return ob_get_clean() ?: '';
+            try {
+                include $viewPath;
+                return ob_get_clean() ?: '';
+            } catch (\Throwable $e) {
+                ob_end_clean();
+                throw $e;
+            }
         } finally {
             if (isset($savedLocale)) {
                 $this->locale = $savedLocale;

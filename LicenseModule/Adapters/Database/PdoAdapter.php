@@ -48,7 +48,8 @@ class PdoAdapter implements DatabaseAdapterInterface
      */
     public function saveLicenseInfo(array $data): bool
     {
-        $stmt    = $this->pdo->query('SELECT id FROM license_info ORDER BY id DESC LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT id FROM license_info ORDER BY id DESC LIMIT 1');
+        $stmt->execute();
         $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existing === false) {
