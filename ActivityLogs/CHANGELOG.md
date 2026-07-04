@@ -5,6 +5,31 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-04
+
+| Category | Description                                                                                          |
+|----------|-------------------------------------------------------------------------------------------------------|
+| Added    | `on_error` hook to let host apps react when writing a log entry fails                                 |
+| Fixed    | Log writes could crash the calling request instead of failing gracefully                              |
+| Security | View rendering no longer lets template data overwrite internal variables                              |
+
+### Added
+
+- `on_error` configuration option — a `callable(string $message, array $context): void` invoked
+  whenever a log entry fails to write, so host applications can be alerted instead of relying on
+  PHP's `error_log()` alone.
+
+### Fixed
+
+- A database error while writing a log entry could throw an uncaught exception and crash the
+  calling request instead of failing gracefully.
+
+### Security
+
+- Admin view rendering used `extract()` without restrictions, allowing data passed into a view
+  to overwrite internal variables used by the rendering method. Rendering now protects existing
+  variables from being overwritten.
+
 ## [1.2.2] - 2026-05-26
 
 | Category | Description                                                                              |

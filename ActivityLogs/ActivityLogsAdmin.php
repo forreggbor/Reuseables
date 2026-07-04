@@ -367,7 +367,7 @@ class ActivityLogsAdmin
         if (!file_exists($viewPath)) {
             return '';
         }
-        extract($data);
+        extract($data, EXTR_SKIP);
         ob_start();
         try {
             include $viewPath;

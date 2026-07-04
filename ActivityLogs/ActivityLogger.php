@@ -30,6 +30,9 @@ class ActivityLogger
         'encryption_key' => 'activity_log_default_key',
         'table_name' => 'activity_logs',
         'trusted_proxies' => [],
+        // callable(string $message, array $context): void — invoked when a log
+        // write fails; null falls back to PHP's error_log()
+        'on_error' => null,
         'sensitive_fields' => [
             'password',
             'password_hash',
@@ -77,6 +80,8 @@ class ActivityLogger
      *   - encryption_key: Key for checksum generation
      *   - table_name: Database table name (default: activity_logs)
      *   - sensitive_fields: Array of field names to mask
+     *   - on_error: callable(string $message, array $context): void invoked when
+     *     a log write fails; null (default) falls back to PHP's error_log()
      * @return void
      */
     public static function init(PDO $pdo, array $config = []): void
@@ -247,25 +252,40 @@ class ActivityLogger
                 (user_id, source, action, entity_type, entity_id, old_values, new_values, context, ip_address, user_agent, session_id, checksum, created_at)
                 VALUES (:user_id, :source, :action, :entity_type, :entity_id, :old_values, :new_values, :context, :ip_address, :user_agent, :session_id, :checksum, :created_at)";
 
-        $stmt = $pdo->prepare($sql);
+        try {
+            $stmt = $pdo->prepare($sql);
 
-        $result = $stmt->execute([
-            'user_id' => $userId,
-            'source' => $source,
-            'action' => $action,
-            'entity_type' => $entityType,
-            'entity_id' => $entityIdStr,
-            'old_values' => $oldValuesJson,
-            'new_values' => $newValuesJson,
-            'context' => $contextJson,
-            'ip_address' => $ip,
-            'user_agent' => $ua,
-            'session_id' => $sessionId,
-            'checksum' => $checksum,
-            'created_at' => $createdAt,
-        ]);
+            $result = $stmt->execute([
+                'user_id' => $userId,
+                'source' => $source,
+                'action' => $action,
+                'entity_type' => $entityType,
+                'entity_id' => $entityIdStr,
+                'old_values' => $oldValuesJson,
+                'new_values' => $newValuesJson,
+                'context' => $contextJson,
+                'ip_address' => $ip,
+                'user_agent' => $ua,
+                'session_id' => $sessionId,
+                'checksum' => $checksum,
+                'created_at' => $createdAt,
+            ]);
 
-        return $result ? (int)$pdo->lastInsertId() : false;
+            return $result ? (int)$pdo->lastInsertId() : false;
+        } catch (\Throwable $e) {
+            // Logging must never crash the caller — absorb the error and signal failure.
+            $onError = $config['on_error'] ?? null;
+            if (is_callable($onError)) {
+                $onError('ActivityLogger: log write failed', [
+                    'action'      => $action,
+                    'entity_type' => $entityType,
+                    'exception'   => $e->getMessage(),
+                ]);
+            } else {
+                error_log('[ActivityLog] writeLog failed for action "' . $action . '": ' . $e->getMessage());
+            }
+            return false;
+        }
     }
 
     /**

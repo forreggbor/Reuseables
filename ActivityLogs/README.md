@@ -147,6 +147,11 @@ ActivityLogger::init($pdo, [
         'encryption_key', 'private_key', 'access_token', 'refresh_token',
         // Add your own...
     ],
+
+    // Optional: called when a log entry fails to write
+    'on_error' => function (string $message, array $context): void {
+        MyMonitoring::notify($message, $context);
+    },
 ]);
 
 // Add sensitive fields at runtime
@@ -155,12 +160,13 @@ ActivityLogger::addSensitiveFields(['custom_secret', 'pin_code']);
 
 ### Configuration Options
 
-| Option            | Type   | Default                      | Description                                            |
-|-------------------|--------|------------------------------|--------------------------------------------------------|
-| `encryption_key`  | string | `'activity_log_default_key'` | Key for checksum generation                            |
-| `table_name`      | string | `'activity_logs'`            | Database table name                                    |
-| `trusted_proxies` | array  | `[]`                         | IPs/CIDRs of trusted reverse proxies (empty = secure default) |
-| `sensitive_fields`| array  | (see above)                  | Fields to mask with `***MASKED***`                     |
+| Option            | Type     | Default                      | Description                                            |
+|-------------------|----------|------------------------------|--------------------------------------------------------|
+| `encryption_key`  | string   | `'activity_log_default_key'` | Key for checksum generation                            |
+| `table_name`      | string   | `'activity_logs'`            | Database table name                                    |
+| `trusted_proxies` | array    | `[]`                         | IPs/CIDRs of trusted reverse proxies (empty = secure default) |
+| `sensitive_fields`| array    | (see above)                  | Fields to mask with `***MASKED***`                     |
+| `on_error`        | callable | `null`                       | `function(string $message, array $context): void` invoked when a log write fails; falls back to `error_log()` when `null` |
 
 ### Trusted Proxy Configuration
 
