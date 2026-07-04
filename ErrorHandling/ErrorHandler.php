@@ -62,6 +62,10 @@ class ErrorHandler
         'date_format' => 'Y-m-d H:i:s',
         'include_trace' => false,
         'permissions' => 0750,
+        // callable(array $error): void — invoked by the shutdown handler after a
+        // fatal error has been logged, so the application can emit an error page
+        // instead of a blank response; null preserves the log-only behaviour
+        'on_fatal' => null,
     ];
 
     /**
@@ -104,6 +108,9 @@ class ErrorHandler
      *   - date_format: Timestamp format (default: Y-m-d H:i:s)
      *   - include_trace: Include stack trace for errors (default: false)
      *   - permissions: Directory permissions on creation (default: 0750)
+     *   - on_fatal: callable(array $error): void invoked by the shutdown handler
+     *     after a fatal error is logged (e.g. to render an error page); null
+     *     (default) keeps the log-only behaviour
      * @return void
      */
     public static function init(array $config = []): void
@@ -304,6 +311,18 @@ class ErrorHandler
                     'file' => $error['file'],
                     'line' => $error['line'],
                 ]);
+
+                // Let the application emit an error response instead of a blank
+                // page — never during CLI runs, and never allowed to throw while
+                // the engine is shutting down.
+                $onFatal = self::$config['on_fatal'] ?? null;
+                if (is_callable($onFatal) && PHP_SAPI !== 'cli') {
+                    try {
+                        $onFatal($error);
+                    } catch (\Throwable) {
+                        // A failing fatal-page renderer must not mask the original error.
+                    }
+                }
             }
         });
     }

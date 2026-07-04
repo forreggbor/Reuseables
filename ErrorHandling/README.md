@@ -71,6 +71,11 @@ ErrorHandler::init([
 
     // Permissions
     'permissions' => 0755,     // Directory permissions on creation
+
+    // Called by the shutdown handler right after a fatal error is logged
+    'on_fatal' => function (array $error): void {
+        MyErrorPage::render($error);
+    },
 ]);
 ```
 
@@ -84,6 +89,7 @@ ErrorHandler::init([
 | `date_format` | string | `Y-m-d H:i:s` | Timestamp format |
 | `include_trace` | bool | `false` | Include stack trace for exceptions |
 | `permissions` | int | `0755` | Directory permissions on creation |
+| `on_fatal` | callable | `null` | `function(array $error): void` invoked by the shutdown handler after a fatal error is logged (e.g. to render an error page); never called during CLI runs |
 
 ### Log Levels
 
@@ -211,6 +217,10 @@ ErrorHandler::registerShutdownHandler();
 
 // Fatal errors are logged before script termination
 ```
+
+Configure `on_fatal` to render an error page instead of leaving a blank response — it runs right
+after the fatal error is logged, is skipped during CLI runs, and any exception it throws is
+swallowed so it can never mask the original error.
 
 #### registerAllHandlers()
 
