@@ -5,6 +5,25 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-12
+
+| Category | Description                                                                                      |
+|----------|---------------------------------------------------------------------------------------------------|
+| Added    | Restore actions now get a purple badge, same as export/import/upload/download                    |
+| Fixed    | A failed create/update/delete action showed the color of a success instead of red                |
+
+### Added
+
+- `restore_*` actions now resolve to the purple badge color, alongside `export_*`, `import_*`,
+  `upload_*`, and `download_*`.
+
+### Fixed
+
+- An action like `create_full_backup_failed` was colored green (the "create" color) instead of red,
+  because the failure check ran after the create/update/delete prefix checks. The failure check now
+  runs first, so any action ending in `_failed` or `_error` (or starting with `failed_`/`error_`)
+  always shows red regardless of what kind of operation failed.
+
 ## [1.3.0] - 2026-07-04
 
 | Category | Description                                                                                          |
