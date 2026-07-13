@@ -51,7 +51,12 @@ class AdminPageRenderer
     ) {
         $this->viewPath = $viewPath;
         $this->localeDir = $localeDir;
-        $this->defaultLocale = $defaultLocale;
+        // $defaultLocale is host-supplied config (LicenseModule's 'locale' option) —
+        // validate it here too, so an invalid value can never become an unsafe
+        // fallback target in translateBuiltin()'s own validation.
+        $this->defaultLocale = preg_match('/^[A-Za-z]{2,3}(_[A-Za-z0-9]{2,4})?$/', $defaultLocale)
+            ? $defaultLocale
+            : 'en_US';
         $this->defaultTranslator = $defaultTranslator;
     }
 
@@ -147,6 +152,16 @@ class AdminPageRenderer
      */
     private function translateBuiltin(string $locale, string $key, array $params): string
     {
+        // $locale can originate from a host-supplied 'locale' option (or the
+        // constructor-level default, itself host-supplied config) and must never
+        // be trusted for filesystem path construction unsanitized. Whitelist the
+        // expected locale-code shape (e.g. en_US, hu_HU) — anything else falls
+        // back to the default locale, which prevents path traversal outright
+        // since the allowed character set cannot contain '/' or '.'.
+        if (!preg_match('/^[A-Za-z]{2,3}(_[A-Za-z0-9]{2,4})?$/', $locale)) {
+            $locale = $this->defaultLocale;
+        }
+
         if (!isset($this->localeCache[$locale])) {
             $path = $this->localeDir . '/' . $locale . '/messages.php';
             if (file_exists($path)) {

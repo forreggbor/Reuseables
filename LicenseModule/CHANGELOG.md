@@ -5,6 +5,20 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-07-13
+
+| Category | Description                                                                          |
+|----------|---------------------------------------------------------------------------------------|
+| Security | Hardened language-selection handling on the license admin page against invalid input |
+
+### Security
+
+- The language/locale setting used when rendering the license admin page is now validated
+  before being used internally. Previously, an unvalidated value passed through to this
+  setting could have been used to attempt reading or executing unintended files on the
+  server; only recognized language codes (such as `en_US` or `hu_HU`) are now accepted, and
+  anything else safely falls back to the default language
+
 ## [2.0.0] - 2026-07-12
 
 | Category | Description                                                                                   |
