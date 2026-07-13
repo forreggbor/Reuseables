@@ -37,7 +37,7 @@ use PDO;
  * }
  *
  * // Feature gating
- * if ($license->hasModule('reports')) {
+ * if ($license->hasFeature('reports')) {
  *     // Show reports feature
  * }
  *
@@ -56,11 +56,15 @@ class LicenseModule
 
     private LicenseValidator $validator;
     private FeatureGate $featureGate;
+    private AdminPageRenderer $adminRenderer;
     private SessionAdapterInterface $session;
     private DatabaseAdapterInterface $database;
     private array $config;
     private string $locale;
     private ?TranslatorInterface $translator = null;
+
+    /** @var callable|null Optional logging callback: fn(string $message, string $level) */
+    private $logCallback = null;
 
     /**
      * Initialize the license module
@@ -68,8 +72,6 @@ class LicenseModule
      * @param array $config Configuration array:
      *   - get_pdo: callable():PDO - Required. Returns PDO connection
      *   - server_url: string - License server URL (optional, has default)
-     *   - tiers: array - Custom tier configuration (optional, uses JupitERP defaults)
-     *   - addons: array - Custom addon configuration (optional, uses JupitERP defaults)
      *   - session_adapter: SessionAdapterInterface - Custom session adapter (optional)
      *   - http_client: HttpClientInterface - Custom HTTP client (optional)
      *   - log_callback: callable - Logging callback fn(string $message, string $level)
@@ -83,9 +85,55 @@ class LicenseModule
         if (isset($config['translator']) && $config['translator'] instanceof TranslatorInterface) {
             $this->translator = $config['translator'];
         }
+        if (isset($config['log_callback']) && is_callable($config['log_callback'])) {
+            $this->logCallback = $config['log_callback'];
+        }
         $this->initializeAdapters($config);
         $this->initializeValidator($config);
-        $this->initializeFeatureGate($config);
+        $this->initializeFeatureGate();
+        $this->initializeAdminRenderer();
+    }
+
+    /**
+     * Log a message via the configured log_callback, if any. Never throws —
+     * logging must not itself be a source of failure.
+     *
+     * @param string $message
+     * @param string $level e.g. 'WARNING', 'ERROR'
+     */
+    private function log(string $message, string $level): void
+    {
+        if ($this->logCallback === null) {
+            return;
+        }
+
+        try {
+            ($this->logCallback)($message, $level);
+        } catch (\Throwable) {
+            // Swallow — a broken host logger must not break license gating.
+        }
+    }
+
+    /**
+     * Parse a datetime string to a Unix timestamp, or null if empty/unparseable.
+     *
+     * Guards against strtotime() returning false on a malformed date, which would
+     * otherwise silently coerce to 0 in arithmetic and produce nonsense results
+     * (e.g. a huge negative "days remaining"). Mirrors the equivalent defensive
+     * closure already used in views/admin/license.php.
+     *
+     * @param string|null $value
+     * @return int|null
+     */
+    private static function parseTimestamp(?string $value): ?int
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        $ts = strtotime($value);
+
+        return ($ts !== false && $ts > 0) ? $ts : null;
     }
 
     /**
@@ -116,30 +164,51 @@ class LicenseModule
 
     /**
      * Initialize the validator
+     *
+     * @throws \InvalidArgumentException When "http_client" is set but doesn't implement HttpClientInterface
      */
     private function initializeValidator(array $config): void
     {
-        $httpClient = $config['http_client'] ?? new CurlHttpClient();
+        if (isset($config['http_client'])) {
+            if (!$config['http_client'] instanceof HttpClientInterface) {
+                throw new \InvalidArgumentException(
+                    'LicenseModule "http_client" must implement ' . HttpClientInterface::class
+                );
+            }
+            $httpClient = $config['http_client'];
+        } else {
+            $httpClient = new CurlHttpClient();
+        }
+
         $serverUrl = $config['server_url'] ?? self::DEFAULT_SERVER_URL;
-        $logCallback = $config['log_callback'] ?? null;
 
         $this->validator = new LicenseValidator(
             $this->database,
             $httpClient,
             $serverUrl,
-            $logCallback
+            $this->logCallback
         );
     }
 
     /**
      * Initialize the feature gate
      */
-    private function initializeFeatureGate(array $config): void
+    private function initializeFeatureGate(): void
     {
-        $this->featureGate = new FeatureGate(
-            fn() => $this->getParsedFeatures(),
-            $config['tiers'] ?? null,
-            $config['addons'] ?? null
+        $this->featureGate = new FeatureGate(fn() => $this->getParsedFeatures());
+    }
+
+    /**
+     * Initialize the admin page renderer. Must run after $this->locale and
+     * $this->translator are set (both assigned earlier in the constructor).
+     */
+    private function initializeAdminRenderer(): void
+    {
+        $this->adminRenderer = new AdminPageRenderer(
+            __DIR__ . '/views/admin/license.php',
+            __DIR__ . '/locale',
+            $this->locale,
+            $this->translator
         );
     }
 
@@ -152,7 +221,12 @@ class LicenseModule
      *
      * @param string $licenseKey License key to validate
      * @param string $domain Domain to validate against
-     * @return array Validation result with keys: success, status, message, data
+     * @return array Always contains 'success' (bool), 'status' (string), 'message' (string).
+     *               Conditionally present: 'data' (raw server response) only when the
+     *               server was actually reached (both the valid and invalid-but-reachable
+     *               branches) — absent on a throttled (429) result and on all offline
+     *               results; 'throttled' => true only on a 429 result; 'offline' => true
+     *               only on the cached-fallback results. Do not assume 'data' is always set.
      */
     public function validate(string $licenseKey, string $domain): array
     {
@@ -259,30 +333,11 @@ class LicenseModule
     // =========================================================================
 
     /**
-     * Check if a module is enabled
-     *
-     * @param string $module Module identifier
-     * @return bool
-     */
-    public function hasModule(string $module): bool
-    {
-        return $this->featureGate->hasModule($module);
-    }
-
-    /**
-     * Get all enabled modules
-     *
-     * @return string[]
-     */
-    public function getEnabledModules(): array
-    {
-        return $this->featureGate->getEnabledModules();
-    }
-
-    /**
      * Get current tier information
      *
-     * @return array|null Tier object {slug, name, level, description} or null for legacy license
+     * @return array|null Tier object {slug, name, level, description}; null for a
+     *                     legacy license, or for a valid license with no tier assigned
+     *                     (addon-only mode)
      */
     public function getTier(): ?array
     {
@@ -292,7 +347,7 @@ class LicenseModule
     /**
      * Get current tier level
      *
-     * @return int Tier level (0 if legacy/invalid)
+     * @return int Tier level (0 if legacy/invalid or no tier assigned)
      */
     public function getTierLevel(): int
     {
@@ -300,7 +355,34 @@ class LicenseModule
     }
 
     /**
+     * Check whether the current tier matches an exact slug
+     *
+     * @param string $slug Tier slug to match
+     * @return bool
+     */
+    public function hasTier(string $slug): bool
+    {
+        return $this->featureGate->hasTier($slug);
+    }
+
+    /**
+     * Check whether the current tier level meets a minimum threshold.
+     * Pure predicate — does not enforce or block; the host acts on the result.
+     *
+     * @param int $minLevel Minimum required tier level
+     * @return bool
+     */
+    public function requireTierLevel(int $minLevel): bool
+    {
+        return $this->featureGate->requireTierLevel($minLevel);
+    }
+
+    /**
      * Check if an addon is enabled
+     *
+     * Checks the license's addon list (feature_key match) — use for gating on a
+     * specific purchasable/marketed add-on. For a general gating check that also
+     * covers tier-granted features with no matching addon entry, use hasFeature().
      *
      * @param string $addonKey Addon feature key
      * @return bool
@@ -332,13 +414,51 @@ class LicenseModule
     }
 
     /**
-     * Get module slugs enabled by the current tier level only (excluding addon modules).
+     * Get the flat list of enabled feature keys resolved by the license server.
+     * The authoritative enabled-feature set: covers both tier-granted and
+     * addon-granted feature keys. General-purpose gating should check this
+     * via hasFeature() rather than reconstructing tier/addon logic host-side.
      *
      * @return string[]
      */
-    public function getTierModules(): array
+    public function getFeatureKeys(): array
     {
-        return $this->featureGate->getTierModules();
+        return $this->featureGate->getFeatureKeys();
+    }
+
+    /**
+     * Check whether a specific feature key is enabled.
+     * The general-purpose gating check — see getFeatureKeys().
+     *
+     * @param string $key Feature key
+     * @return bool
+     */
+    public function hasFeature(string $key): bool
+    {
+        return $this->featureGate->hasFeature($key);
+    }
+
+    /**
+     * Get the license's package information, if any.
+     *
+     * @return array{id: int, name: string|null, slug: string|null}|null
+     */
+    public function getPackage(): ?array
+    {
+        return $this->featureGate->getPackage();
+    }
+
+    /**
+     * Evaluate a single gating requirement against the current license.
+     * Deny-by-default dispatch; see FeatureGate::allows() for the full contract
+     * (recognized keys: addon, tier, min_tier_level, feature, any_of, all_of).
+     *
+     * @param array $requirement Single-key requirement, or an any_of/all_of composition
+     * @return bool
+     */
+    public function allows(array $requirement): bool
+    {
+        return $this->featureGate->allows($requirement);
     }
 
     // =========================================================================
@@ -425,7 +545,12 @@ class LicenseModule
             return null;
         }
 
-        $expiryTime = strtotime($licenseInfo['expires_at']);
+        $expiryTime = self::parseTimestamp($licenseInfo['expires_at']);
+
+        if ($expiryTime === null) {
+            return null;
+        }
+
         $daysRemaining = ($expiryTime - time()) / 86400;
 
         return (int) ceil($daysRemaining);
@@ -460,7 +585,12 @@ class LicenseModule
             return null;
         }
 
-        $graceExpiryTime = strtotime($graceExpiresAt);
+        $graceExpiryTime = self::parseTimestamp($graceExpiresAt);
+
+        if ($graceExpiryTime === null) {
+            return null;
+        }
+
         $daysRemaining = ($graceExpiryTime - time()) / 86400;
 
         return (int) ceil($daysRemaining);
@@ -502,57 +632,6 @@ class LicenseModule
         return $this->locale;
     }
 
-    /**
-     * Translate a TEXT_* key with optional positional parameters.
-     *
-     * Delegates to the injected TranslatorInterface when available; otherwise loads
-     * the module's own locale PHP-array. Falls back to en_US if the configured locale
-     * file is missing a key.
-     *
-     * @param string $key       Translation key
-     * @param mixed  ...$params Positional values for %s/%d placeholders
-     * @return string
-     */
-    private function t(string $key, mixed ...$params): string
-    {
-        if ($this->translator !== null) {
-            return $this->translator->t($key, $params);
-        }
-
-        static $cache = [];
-        static $fallbackCache = null;
-
-        $locale = $this->locale;
-
-        if (!isset($cache[$locale])) {
-            $path = __DIR__ . '/locale/' . $locale . '/messages.php';
-            if (file_exists($path)) {
-                $loaded = require $path;
-                $cache[$locale] = is_array($loaded) ? $loaded : [];
-            } else {
-                $cache[$locale] = [];
-            }
-        }
-
-        if ($fallbackCache === null) {
-            $path = __DIR__ . '/locale/en_US/messages.php';
-            if (file_exists($path)) {
-                $loaded = require $path;
-                $fallbackCache = is_array($loaded) ? $loaded : [];
-            } else {
-                $fallbackCache = [];
-            }
-        }
-
-        $string = $cache[$locale][$key] ?? $fallbackCache[$key] ?? $key;
-
-        if ($params !== [] && (str_contains($string, '%s') || str_contains($string, '%d'))) {
-            return vsprintf($string, $params);
-        }
-
-        return $string;
-    }
-
     // =========================================================================
     // Admin Page
     // =========================================================================
@@ -571,79 +650,93 @@ class LicenseModule
      *   @type string|null          $validate_url    POST endpoint; if null Validate button is hidden
      *   @type string|null          $csrf_token      Token for AJAX validation call
      *   @type string               $renew_url       Renew link (default https://lm.patrikmol.com)
-     *   @type array                $module_names    slug→display-name map for tier module list
+     *   @type array                $module_names    feature_key→display-name map for the included-features list
      *   @type string               $date_format     PHP date() format (default 'Y-m-d')
      *   @type string               $datetime_format PHP date() format (default 'Y-m-d H:i:s')
      *   @type int                  $history_limit   Max history rows (default 20)
      * }
      * @return string Rendered HTML fragment, or empty string if the view file is not yet present
+     *
+     * Gathers license/gating data and delegates locale/translator resolution and
+     * the actual view rendering to AdminPageRenderer. Injects into the view:
+     * $license, $status, $tier, $addons, $featureKeys, $isLegacy (true only for a
+     * genuine legacy/no-tier-data license — under the deny-by-default gating
+     * policy this means every gating call denies, not that "all features are
+     * enabled"), $history, $daysRemaining, $graceDaysRemaining, $options, $t.
      */
     public function renderAdminPage(array $options = []): string
     {
-        $viewPath = __DIR__ . '/views/admin/license.php';
-
-        if (!file_exists($viewPath)) {
+        if (!$this->adminRenderer->viewExists()) {
             return '';
         }
 
-        // Resolve per-call locale
-        $callLocale = $options['locale'] ?? $this->locale;
+        $license = $this->getLatestLicenseInfo();
 
-        // Build $t closure
-        if (isset($options['translator']) && $options['translator'] instanceof TranslatorInterface) {
-            $callTranslator = $options['translator'];
-            $t = static function (string $key, mixed ...$params) use ($callTranslator): string {
-                return $callTranslator->t($key, $params);
-            };
-        } else {
-            $savedLocale = $this->locale;
-            $this->locale = $callLocale;
-            $t = fn(string $key, mixed ...$params): string => $this->t($key, ...$params);
-        }
+        $viewData = [
+            'license' => $license,
+            // Derived from the raw (unfiltered) row so suspended/invalid licenses
+            // display correctly. Applies the same expiry checks as getCurrentStatus().
+            'status' => $this->deriveDisplayStatus($license),
+            'tier' => $this->getTier(),
+            'addons' => $this->getAddons(),
+            'featureKeys' => $this->getFeatureKeys(),
+            // True legacy (no tier/addon/feature data at all — the historical ['all']
+            // sentinel) vs. a valid tier-less/addon-only license with nothing granted
+            // are indistinguishable from tier/addons alone (both null/empty in either
+            // case), so this is derived from FeatureGate's own source of truth rather
+            // than guessed here. Reads through the memoized cache already warmed by
+            // getTier()/getAddons()/getFeatureKeys() above — no extra database read.
+            'isLegacy' => $this->featureGate->isLegacy(),
+            'history' => $this->getValidationHistory((int) ($options['history_limit'] ?? 20)),
+            'daysRemaining' => $this->getDaysUntilExpiration(),
+            'graceDaysRemaining' => $this->getDaysUntilGraceExpiration(),
+        ];
 
-        // Gather view data
-        $license          = $this->getLatestLicenseInfo();
-        $tier             = $this->getTier();
-        $addons           = $this->getAddons();
-        $tierModules      = $this->getTierModules();
-        $history          = $this->getValidationHistory((int) ($options['history_limit'] ?? 20));
-        $daysRemaining    = $this->getDaysUntilExpiration();
-        $graceDaysRemaining = $this->getDaysUntilGraceExpiration();
+        return $this->adminRenderer->render($viewData, $options);
+    }
 
-        // Derive status from the raw (unfiltered) row so suspended/invalid licenses
-        // display correctly. Applies the same expiry checks as getCurrentStatus().
+    /**
+     * Derive the license status to display on the admin page from a raw
+     * (unfiltered) license_info row, applying the same grace/expiry checks as
+     * LicenseValidator::getCurrentStatus() — but on the unfiltered row, so
+     * suspended/invalid licenses display correctly instead of disappearing.
+     *
+     * @param array|null $license Raw row from getLatestLicenseInfo()
+     * @return string One of the LicenseStatus constants
+     */
+    private function deriveDisplayStatus(?array $license): string
+    {
         if ($license === null) {
-            $status = LicenseStatus::INVALID;
-        } else {
-            $rawStatus = $license['status'] ?? LicenseStatus::INVALID;
-            if ($rawStatus === LicenseStatus::GRACE
-                && !empty($license['grace_expires_at'])
-                && strtotime($license['grace_expires_at']) < time()
-            ) {
-                $status = LicenseStatus::EXPIRED;
-            } elseif (!empty($license['expires_at']) && strtotime($license['expires_at']) < time()
-                && !in_array($rawStatus, [LicenseStatus::SUSPENDED, LicenseStatus::INVALID], true)
-            ) {
-                $status = LicenseStatus::EXPIRED;
-            } else {
-                $status = $rawStatus;
-            }
+            return LicenseStatus::INVALID;
         }
 
-        try {
-            ob_start();
-            try {
-                include $viewPath;
-                return ob_get_clean() ?: '';
-            } catch (\Throwable $e) {
-                ob_end_clean();
-                throw $e;
-            }
-        } finally {
-            if (isset($savedLocale)) {
-                $this->locale = $savedLocale;
-            }
+        $rawStatus = $license['status'] ?? LicenseStatus::INVALID;
+
+        // Blocked statuses are terminal — never let date-based reclassification
+        // below downgrade a suspended/invalid license into merely "expired".
+        // Identical logic to LicenseValidator::getCurrentStatus().
+        if (in_array($rawStatus, [LicenseStatus::SUSPENDED, LicenseStatus::INVALID], true)) {
+            return $rawStatus;
         }
+
+        if ($rawStatus === LicenseStatus::GRACE) {
+            $graceExpiry = self::parseTimestamp($license['grace_expires_at'] ?? null);
+
+            if ($graceExpiry !== null && $graceExpiry < time()) {
+                return LicenseStatus::EXPIRED;
+            }
+
+            return LicenseStatus::GRACE;
+        }
+
+        // An unparseable expiry date means "don't reclassify" rather than "treat as past".
+        $expiry = self::parseTimestamp($license['expires_at'] ?? null);
+
+        if ($expiry !== null && $expiry < time()) {
+            return LicenseStatus::EXPIRED;
+        }
+
+        return $rawStatus;
     }
 
     // =========================================================================
@@ -653,27 +746,122 @@ class LicenseModule
     /**
      * Get parsed features from license info
      *
-     * @return array|null Features array or null for legacy license
+     * Orchestrates three independent concerns, kept in their own methods so a
+     * future validation rule costs one small method + one line — not a growing
+     * pile in a single method:
+     *   1. fetch (with fail-safe error handling — see below)
+     *   2. shape recognition (the legacy/malformed gate — {@see isRecognizedFeatureFormat()})
+     *   3. field diagnostics on an already-recognized payload — {@see validateFeatureFields()})
+     *
+     * @return array{tier: array|null, addons: array, feature_keys: array, package: array|null}|null
+     *         Structured features, or null for a legacy/unrestricted license
      */
     private function getParsedFeatures(): ?array
     {
-        $licenseInfo = $this->validator->getLicenseInfo();
+        try {
+            $licenseInfo = $this->validator->getLicenseInfo();
+        } catch (\Throwable $e) {
+            $this->log(
+                'LicenseModule: failed to load license info for feature gating (' . $e->getMessage() . '); denying by default',
+                'ERROR'
+            );
+            return null;
+        }
 
         if ($licenseInfo === null || empty($licenseInfo['features'])) {
             return null;
         }
 
         $features = json_decode($licenseInfo['features'], true);
+        // Captured immediately after decode, with nothing else touching JSON in
+        // between — json_last_error() is process-global, so this ordering must
+        // never be allowed to drift as the method evolves. Passed as a parameter
+        // rather than re-read inside isRecognizedFeatureFormat() for exactly
+        // that reason.
+        $jsonError = json_last_error();
 
-        // Legacy format: ['all'] or similar array
-        if (is_array($features) && !isset($features['tier'])) {
-            return null;
+        if (!$this->isRecognizedFeatureFormat($features, $jsonError)) {
+            return null; // logging (if any) already happened inside the gate
         }
+
+        $this->validateFeatureFields($features); // non-fatal diagnostics only
 
         return [
             'tier' => $features['tier'] ?? null,
             'addons' => $features['addons'] ?? [],
+            'feature_keys' => $features['feature_keys'] ?? [],
+            'package' => $features['package'] ?? null,
         ];
+    }
+
+    /**
+     * Shape-recognition gate: distinguishes the legacy `['all']` sentinel (no
+     * 'tier' key at all) from a structured, non-legacy license whose tier
+     * happens to be null (addon-only mode — see FeatureGate) from genuinely
+     * malformed/corrupt data.
+     *
+     * Uses array_key_exists rather than isset() because isset() is false for an
+     * explicit null value, which would otherwise misclassify a package-only/
+     * tier-less license as legacy and silently drop its addons/feature_keys/
+     * package.
+     *
+     * Only the exact `['all']` sentinel is an expected, silent legacy case —
+     * anything else that fails to parse into the structured shape is a real
+     * data anomaly (corrupted/truncated JSON, unexpected server format) and is
+     * logged so it doesn't look identical to an intentional legacy license when
+     * diagnosing why gating denies everything.
+     *
+     * @param mixed $features Decoded JSON payload (or null/scalar on decode failure)
+     * @param int $jsonError json_last_error() captured right after decode by the caller
+     * @return bool True if $features is the structured {tier, addons, ...} shape
+     */
+    private function isRecognizedFeatureFormat(mixed $features, int $jsonError): bool
+    {
+        if (is_array($features) && array_key_exists('tier', $features)) {
+            return true;
+        }
+
+        if ($features !== ['all']) {
+            $this->log(
+                'LicenseModule: license_info.features did not match a recognized format'
+                    . ($jsonError !== JSON_ERROR_NONE ? ' (JSON error: ' . json_last_error_msg() . ')' : '')
+                    . '; treating as legacy/deny-by-default',
+                'WARNING'
+            );
+        }
+
+        return false;
+    }
+
+    /**
+     * Field-diagnostics dispatcher for an already-recognized structured feature
+     * payload. Never changes the caller's return value — logs only. A future
+     * rule (e.g. validating `addons[].feature_key` shape, `package.id` type)
+     * costs one more line here, nothing else in getParsedFeatures() changes.
+     *
+     * @param array $features Structured feature payload (already passed the shape gate)
+     */
+    private function validateFeatureFields(array $features): void
+    {
+        $this->warnOnNonNumericTierLevel($features['tier'] ?? null);
+    }
+
+    /**
+     * Log a warning if the license server sent a non-numeric tier level.
+     * FeatureGate::getTier() safely defaults such a level to 0 regardless —
+     * this is diagnostics only, not a correctness guard.
+     *
+     * @param mixed $tier Tier payload (array|null) as received from the server
+     */
+    private function warnOnNonNumericTierLevel(mixed $tier): void
+    {
+        if (is_array($tier) && isset($tier['level']) && !is_numeric($tier['level'])) {
+            $this->log(
+                'LicenseModule: license server sent a non-numeric tier level ('
+                    . var_export($tier['level'], true) . '); tier level will default to 0',
+                'WARNING'
+            );
+        }
     }
 
     /**
@@ -699,18 +887,45 @@ class LicenseModule
     /**
      * Get status message for display
      *
+     * Note: no GRACE arm — checkMiddlewareJson() (this method's only caller)
+     * already returns null for any isActive() status, which includes GRACE, so
+     * this method is never reached with status GRACE. (LICENSE_GRACE_MESSAGE is
+     * still used directly by views/grace.php.)
+     *
      * @param string $status License status
      * @return string Human-readable message
      */
     private function getStatusMessage(string $status): string
     {
         return match ($status) {
-            LicenseStatus::GRACE => function_exists('_') ? _('LICENSE_GRACE_MESSAGE') : 'License has expired but is in a grace period. Please renew to avoid service interruption.',
-            LicenseStatus::EXPIRED => function_exists('_') ? _('LICENSE_EXPIRED_MESSAGE') : 'License has expired. System is in read-only mode.',
-            LicenseStatus::SUSPENDED => function_exists('_') ? _('LICENSE_SUSPENDED_MESSAGE') : 'License has been suspended. Please contact support.',
-            LicenseStatus::INVALID => function_exists('_') ? _('LICENSE_INVALID_MESSAGE') : 'Invalid license. Please check your license key.',
+            LicenseStatus::EXPIRED => $this->translateWithFallback('LICENSE_EXPIRED_MESSAGE', 'License has expired. System is in read-only mode.'),
+            LicenseStatus::SUSPENDED => $this->translateWithFallback('LICENSE_SUSPENDED_MESSAGE', 'License has been suspended. Please contact support.'),
+            LicenseStatus::INVALID => $this->translateWithFallback('LICENSE_INVALID_MESSAGE', 'Invalid license. Please check your license key.'),
             default => 'License status: ' . $status,
         };
+    }
+
+    /**
+     * Translate a gettext key with a safe fallback.
+     *
+     * Doesn't trust function_exists('_') alone — gettext returns the key itself
+     * unchanged when the extension is loaded but no .mo catalog is bound for it,
+     * which would otherwise leak raw keys like "LICENSE_EXPIRED_MESSAGE" to
+     * end users instead of a readable fallback.
+     *
+     * @param string $key Gettext translation key
+     * @param string $fallback English fallback text
+     * @return string
+     */
+    private function translateWithFallback(string $key, string $fallback): string
+    {
+        if (!function_exists('_')) {
+            return $fallback;
+        }
+
+        $translated = _($key);
+
+        return ($translated === $key) ? $fallback : $translated;
     }
 
     /**

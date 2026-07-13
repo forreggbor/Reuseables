@@ -5,6 +5,71 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-12
+
+| Category | Description                                                                                   |
+|----------|------------------------------------------------------------------------------------------------|
+| Added    | New, simpler way for projects to check "is this feature allowed on the current license"       |
+| Changed  | ⚠️ License tiers and add-ons are now read directly from the license server; projects no longer configure them locally |
+| Changed  | ⚠️ A license with no tier or feature information now blocks access instead of allowing everything |
+| Removed  | ⚠️ The previous per-project tier/module list configuration and its related checks             |
+| Fixed    | Suspended licenses were sometimes reported as simply "invalid," hiding the real reason access was blocked |
+| Fixed    | License notice pages could show raw internal text instead of a readable message           |
+| Fixed    | A corrupted license date no longer produces an incorrect "days remaining" value            |
+| Fixed    | Invalid advanced configuration settings now show a clear error, or are safely ignored, instead of crashing |
+
+### Added
+
+- Simple gating checks projects can call directly: "does this license have this tier", "is the
+  tier at least this level", "does this feature key exist on this license", and a combined check
+  that can require any one, or all, of several conditions at once
+- The license's package information (if the license server sent one) is now available to read
+
+### Changed
+
+- ⚠️ BREAKING: License tiers and add-ons are no longer configured per project inside this module.
+  All tier, add-on, and feature information now comes directly and only from the license server's
+  response — this removes the risk of a project's local list of tiers/features drifting out of
+  sync with what the license server actually offers
+- ⚠️ BREAKING: A license that has no tier or feature information at all (for example a very old
+  license format) now blocks all gated functionality by default, instead of unlocking everything.
+  Projects that intentionally want to grant unrestricted access must do so explicitly through the
+  license server, not by leaving the license's tier/feature data empty
+- The license admin page's "included modules" list has been replaced with the plain list of
+  feature names the license server actually granted, so what's displayed always matches what the
+  server sent
+- Fixed a display bug where a license without a tier, but with a package or feature data attached,
+  could have its add-ons and feature list disappear from the admin page
+
+### Removed
+
+- ⚠️ BREAKING: The previous way of checking "does this license include module X" (and the related
+  "list all enabled modules" / "list modules for this tier" checks) has been removed, along with
+  the per-project configuration option that listed which modules belong to which tier or add-on.
+  Projects using this module must switch to the new feature-based checks described above; see the
+  module's `doc/HOST-GATING-INTEGRATION.md` and `doc/LEGACY-TIER-ADDON-SPEC.md` for the migration
+  guide and a record of each project's previous tier/add-on setup
+
+### Fixed
+
+- Suspended licenses were sometimes reported as simply "invalid" throughout the system — in the
+  license status check, in the status reported to other systems, and in the validation history
+  log, where the record of that check could be missing entirely. Suspended and invalid licenses
+  are now always correctly identified and logged
+- If the license server could not be reached, the system could no longer tell an already-suspended
+  or invalid license apart from one that had merely expired, risking an incorrect status change
+  while offline. A suspended or invalid license now always stays that way until the license server
+  says otherwise
+- The pages shown for an expired, suspended, or grace-period license could display raw internal
+  text instead of a readable message, if the surrounding system's translation setup wasn't fully
+  configured for this module. A readable English message is now always shown as a fallback
+- A corrupted or unreadable license date (for example an expiration date) no longer produces an
+  incorrect result, such as a large negative number of days remaining; it is now safely treated as
+  unknown
+- An invalid custom connection setting for reaching the license server now shows a clear, specific
+  error message instead of a confusing low-level crash
+- An invalid logging setting no longer prevents the license system from starting
+
 ## [1.6.1] - 2026-06-10
 
 | Category | Description                                                        |

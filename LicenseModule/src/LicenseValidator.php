@@ -47,7 +47,12 @@ class LicenseValidator
      *
      * @param string $licenseKey License key to validate
      * @param string $domain Domain to validate against
-     * @return array Validation result with keys: success, status, message, data
+     * @return array Always contains 'success' (bool), 'status' (string), 'message' (string).
+     *               Conditionally present: 'data' (raw server response) only when the
+     *               server was actually reached (both the valid and invalid-but-reachable
+     *               branches) — absent on a throttled (429) result and on all offline
+     *               results; 'throttled' => true only on a 429 result; 'offline' => true
+     *               only on the cached-fallback results. Do not assume 'data' is always set.
      */
     public function validate(string $licenseKey, string $domain): array
     {
@@ -69,7 +74,10 @@ class LicenseValidator
 
                 $this->updateLicenseInfo($updateData);
 
-                $licenseInfo = $this->database->getLicenseInfo();
+                // Unfiltered lookup — the row we just wrote may now have a status
+                // (e.g. suspended/invalid) excluded by getLicenseInfo()'s filter,
+                // which would otherwise silently skip logging this attempt.
+                $licenseInfo = $this->database->getLatestLicenseInfo();
                 if ($licenseInfo !== null) {
                     $this->database->logValidation(
                         (int) $licenseInfo['id'],
@@ -92,7 +100,8 @@ class LicenseValidator
                 'last_check_at' => date('Y-m-d H:i:s'),
             ]);
 
-            $licenseInfo = $this->database->getLicenseInfo();
+            // Unfiltered — see the identical comment in the success branch above.
+            $licenseInfo = $this->database->getLatestLicenseInfo();
             if ($licenseInfo !== null) {
                 $this->database->logValidation(
                     (int) $licenseInfo['id'],
@@ -116,7 +125,8 @@ class LicenseValidator
                 'throttled' => true,
             ];
         } catch (\Exception $e) {
-            $licenseInfo = $this->database->getLicenseInfo();
+            // Unfiltered — see the identical comment in the success branch above.
+            $licenseInfo = $this->database->getLatestLicenseInfo();
             if ($licenseInfo !== null) {
                 $this->database->logValidation(
                     (int) $licenseInfo['id'],
@@ -263,12 +273,17 @@ class LicenseValidator
     /**
      * Handle offline mode when license server is unreachable
      *
+     * Uses the unfiltered accessor (not getLicenseInfo()) so an already-blocked
+     * (suspended/invalid) license is visible here — otherwise this method would
+     * wrongly report "no license information found" for a blocked license going
+     * offline, or worse, let the grace-period logic below silently un-block it.
+     *
      * @param string $error Error message
      * @return array Validation result
      */
     private function handleOfflineMode(string $error): array
     {
-        $licenseInfo = $this->database->getLicenseInfo();
+        $licenseInfo = $this->database->getLatestLicenseInfo();
 
         if ($licenseInfo === null) {
             return [
@@ -278,7 +293,32 @@ class LicenseValidator
             ];
         }
 
-        $lastValidation = strtotime($licenseInfo['validated_at'] ?? '1970-01-01');
+        $cachedStatus = $licenseInfo['status'] ?? LicenseStatus::INVALID;
+
+        // A license already blocked is a terminal, deliberate server-side decision —
+        // offline-grace machinery must never un-block it. Return the cached blocked
+        // status verbatim and skip the grace-period-days logic entirely.
+        if (in_array($cachedStatus, [LicenseStatus::SUSPENDED, LicenseStatus::INVALID], true)) {
+            $this->database->logValidation(
+                (int) $licenseInfo['id'],
+                'error',
+                [],
+                'Offline mode (cached blocked status ' . $cachedStatus . '): ' . $error
+            );
+
+            return [
+                'success' => false,
+                'status' => $cachedStatus,
+                'message' => 'Using cached license status (offline mode): ' . $error,
+                'offline' => true,
+            ];
+        }
+
+        // Missing/unparseable validated_at defaults to epoch (0), NOT null — this
+        // preserves the original conservative '1970-01-01' fallback: a license with
+        // no readable last-validation timestamp degrades toward read-only, never
+        // toward "still valid indefinitely".
+        $lastValidation = self::parseTimestamp($licenseInfo['validated_at'] ?? null) ?? 0;
 
         if ($this->gracePeriodManager->isExpired($lastValidation)) {
             $this->updateLicenseInfo([
@@ -325,11 +365,16 @@ class LicenseValidator
     /**
      * Get current license status
      *
+     * Uses the unfiltered accessor (not getLicenseInfo()) so a genuinely suspended
+     * or invalid license is visible here — getLicenseInfo()'s status filter
+     * previously made this method blind to those two statuses, silently reporting
+     * them both as INVALID (so isSuspended() could never return true).
+     *
      * @return string License status
      */
     public function getCurrentStatus(): string
     {
-        $licenseInfo = $this->database->getLicenseInfo();
+        $licenseInfo = $this->database->getLatestLicenseInfo();
 
         if ($licenseInfo === null) {
             return LicenseStatus::INVALID;
@@ -337,17 +382,29 @@ class LicenseValidator
 
         $status = $licenseInfo['status'] ?? LicenseStatus::INVALID;
 
+        // Blocked statuses are terminal — never let the date-based reclassification
+        // below downgrade a suspended/invalid license into merely "expired"
+        // (read-only). Mirrors LicenseModule::deriveDisplayStatus()'s identical guard.
+        if (in_array($status, [LicenseStatus::SUSPENDED, LicenseStatus::INVALID], true)) {
+            return $status;
+        }
+
         // If in grace period, check if grace has expired locally
         if ($status === LicenseStatus::GRACE) {
-            if (!empty($licenseInfo['grace_expires_at']) && strtotime($licenseInfo['grace_expires_at']) < time()) {
+            $graceExpiry = self::parseTimestamp($licenseInfo['grace_expires_at'] ?? null);
+
+            if ($graceExpiry !== null && $graceExpiry < time()) {
                 return LicenseStatus::EXPIRED;
             }
 
             return LicenseStatus::GRACE;
         }
 
-        // Check if license is expired by date
-        if (!empty($licenseInfo['expires_at']) && strtotime($licenseInfo['expires_at']) < time()) {
+        // Check if license is expired by date. An unparseable expiry date means
+        // "don't reclassify" rather than "treat as past".
+        $expiry = self::parseTimestamp($licenseInfo['expires_at'] ?? null);
+
+        if ($expiry !== null && $expiry < time()) {
             return LicenseStatus::EXPIRED;
         }
 
@@ -357,17 +414,22 @@ class LicenseValidator
     /**
      * Check if periodic validation is due
      *
+     * Uses the unfiltered accessor so a blocked (suspended/invalid) license
+     * respects the normal validation_frequency cadence like any other license,
+     * instead of always being immediately "due" (which would otherwise hammer
+     * the license server on every check for a blocked license).
+     *
      * @return bool
      */
     public function isValidationDue(): bool
     {
-        $licenseInfo = $this->database->getLicenseInfo();
+        $licenseInfo = $this->database->getLatestLicenseInfo();
 
         if ($licenseInfo === null) {
             return true;
         }
 
-        $lastCheck = strtotime($licenseInfo['last_check_at'] ?? $licenseInfo['validated_at'] ?? '1970-01-01');
+        $lastCheck = self::parseTimestamp($licenseInfo['last_check_at'] ?? $licenseInfo['validated_at'] ?? null) ?? 0;
         $validationFrequency = (int) ($licenseInfo['validation_frequency'] ?? 24);
 
         $hoursSinceLastCheck = (time() - $lastCheck) / 3600;
@@ -429,5 +491,27 @@ class LicenseValidator
         if ($this->logCallback !== null) {
             ($this->logCallback)($message, $level);
         }
+    }
+
+    /**
+     * Parse a datetime string to a Unix timestamp, or null if empty/unparseable.
+     *
+     * Guards against strtotime() returning false on a malformed date, which would
+     * otherwise silently coerce to 0 in arithmetic and produce nonsense results
+     * (e.g. a huge negative "days remaining"). Mirrors the equivalent defensive
+     * closure already used in views/admin/license.php.
+     *
+     * @param string|null $value
+     * @return int|null
+     */
+    private static function parseTimestamp(?string $value): ?int
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        $ts = strtotime($value);
+
+        return ($ts !== false && $ts > 0) ? $ts : null;
     }
 }

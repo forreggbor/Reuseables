@@ -1,9 +1,26 @@
+<?php
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * Blocking view shown for a suspended or invalid license — rendered by
+ * LicenseModule::renderView() inside checkMiddleware().
+ */
+$__ = static function (string $key, string $fallback): string {
+    if (!function_exists('_')) {
+        return $fallback;
+    }
+    $translated = _($key);
+    // gettext returns the key itself when no catalog is bound for it — don't
+    // leak that raw key to end users, fall back to the safe English text.
+    return ($translated === $key) ? $fallback : $translated;
+};
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo function_exists('_') ? _('LICENSE_SUSPENDED_TITLE') : 'License Suspended'; ?></title>
+    <title><?php echo $__('LICENSE_SUSPENDED_TITLE', 'License Suspended'); ?></title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -79,15 +96,15 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
             </svg>
         </div>
-        <h1><?php echo function_exists('_') ? _('LICENSE_SUSPENDED_TITLE') : 'License Suspended'; ?></h1>
+        <h1><?php echo $__('LICENSE_SUSPENDED_TITLE', 'License Suspended'); ?></h1>
         <p class="message">
-            <?php echo function_exists('_') ? _('LICENSE_SUSPENDED_MESSAGE') : 'Your license has been suspended. Access to the system has been temporarily disabled.'; ?>
+            <?php echo $__('LICENSE_SUSPENDED_MESSAGE', 'Your license has been suspended. Access to the system has been temporarily disabled.'); ?>
         </p>
         <div class="suspended-notice">
-            <?php echo function_exists('_') ? _('LICENSE_SUSPENDED_NOTICE') : 'All system functionality is currently unavailable. Please contact support to resolve this issue.'; ?>
+            <?php echo $__('LICENSE_SUSPENDED_NOTICE', 'All system functionality is currently unavailable. Please contact support to resolve this issue.'); ?>
         </div>
         <p class="contact">
-            <?php echo function_exists('_') ? _('LICENSE_CONTACT_SUPPORT') : 'Please contact support to restore your license.'; ?>
+            <?php echo $__('LICENSE_CONTACT_SUPPORT', 'Please contact support to restore your license.'); ?>
         </p>
     </div>
 </body>

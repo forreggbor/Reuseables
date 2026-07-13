@@ -7,12 +7,18 @@ A framework-agnostic PHP module for license validation and tier-based feature ga
 - Online license validation with configurable server endpoint
 - Server-side grace period support (expired license continues working within grace window)
 - Offline grace period (7 days default) with cached status
-- Hierarchical tier system (higher tiers inherit lower tier modules)
-- Addon-based feature unlocking
-- Self-contained admin page with tier, addon badges, and validation history
+- **Single source of truth for tier/addon/feature gating** — evaluates only server-provided
+  license data; no local tier→module or addon→module mapping, no per-project configuration
+- Deny-by-default gating: a legacy/no-tier-data license denies everything rather than
+  implying unrestricted access
+- Self-contained admin page with tier, addon badges, feature list, and validation history
 - Module-owned translations (en_US/hu_HU) with optional host translator bridge
 - Translatable error views (gettext support)
 - Framework-agnostic adapters for database, session, and HTTP
+
+See [`doc/HOST-GATING-INTEGRATION.md`](doc/HOST-GATING-INTEGRATION.md) for the full host
+integration guide (gating patterns, the `allows()` contract, and the two license modes the
+server supports).
 
 ## Requirements
 
@@ -50,7 +56,7 @@ if ($check !== null) {
 }
 
 // Feature gating
-if ($license->hasModule('reports')) {
+if ($license->hasFeature('reports')) {
     // Show reports feature
 }
 ```
@@ -92,19 +98,6 @@ $license = new LicenseModule([
 
     // Optional: Custom license server URL
     'server_url' => 'https://lm.patrikmol.com/api/v1/licenses/verify',
-
-    // Optional: Custom tier configuration
-    'tiers' => [
-        1 => ['name' => 'Basic', 'modules' => ['feature_a', 'feature_b']],
-        2 => ['name' => 'Pro', 'modules' => ['feature_c']],  // Inherits tier 1
-        3 => ['name' => 'Enterprise', 'modules' => ['feature_d', 'feature_e']],
-    ],
-
-    // Optional: Custom addon configuration
-    'addons' => [
-        'analytics' => ['tracking', 'reports'],
-        'api' => ['api_access'],
-    ],
 
     // Optional: Logging callback
     'log_callback' => fn(string $message, string $level) => error_log("[$level] $message"),
@@ -148,30 +141,54 @@ if ($license->isValidationDue()) {
 
 ### Feature Gating
 
+LicenseModule is the single source of truth for tier/addon/feature data — it evaluates gating
+directly from what the license server sent, with no local tier→module mapping. State *what a
+feature requires* at the call site; the module answers true/false. See
+[`doc/HOST-GATING-INTEGRATION.md`](doc/HOST-GATING-INTEGRATION.md) for the full guide, including
+the `allows()` contract and the two license modes the server supports (tier-based vs.
+tier-less/addon-only).
+
+**Legacy / no-tier-data license:** a license with no tier data at all (the historical `['all']`
+sentinel, or no license row) is treated as unknown and **denies everything by default**. This
+differs from older versions of this module, where a legacy license implied unrestricted access.
+"Unrestricted" must now be expressed server-side as an explicit tier/feature/addon set.
+
 ```php
-// Check single module
-if ($license->hasModule('reports')) {
+// General-purpose gating check — the flat, server-resolved feature set (works
+// for both tier-granted and addon-granted feature keys)
+if ($license->hasFeature('reports')) {
     // Show reports
 }
 
-// Get all enabled modules
-$modules = $license->getEnabledModules();
+// All enabled feature keys (tier + addons combined by the server)
+$features = $license->getFeatureKeys();
 
-// Get tier information
+// Tier information (passthrough; null if legacy, or if no tier is assigned — see the
+// tier-less/addon-only mode in doc/HOST-GATING-INTEGRATION.md)
 $tier = $license->getTier();  // ['slug' => 'pro', 'name' => 'Pro', 'level' => 4, 'description' => '...']
 $level = $license->getTierLevel();  // 4
+$license->hasTier('pro');             // exact tier-slug match
+$license->requireTierLevel(3);        // pure predicate: current level >= 3 (host still enforces)
 
-// Check addons
+// Check a specific purchasable/marketed addon (richer than hasFeature — includes
+// name/description; a tier can grant a feature_key with no matching addon entry)
 if ($license->hasAddon('analytics')) {
     // Show analytics features
 }
-$addons = $license->getEnabledAddons();  // ['analytics', 'mailchimp']
+$addonKeys = $license->getEnabledAddons();  // ['analytics', 'mailchimp']
+$addonRows = $license->getAddons();         // full rows: feature_key, name, slug, description
 
-// Full addon rows (feature_key, name, slug, description)
-$addonRows = $license->getAddons();
+// Package information, if the license has one (API-only — renderAdminPage() does
+// not currently display it)
+$package = $license->getPackage();  // ['id' => 1, 'name' => 'Pro Suite', 'slug' => 'pro-suite'] or null
 
-// Tier-only module slugs (excludes addon modules)
-$tierModules = $license->getTierModules();
+// Composed requirement — deny-by-default: an empty, unrecognized, or multi-key
+// requirement always evaluates to false
+$license->allows(['feature' => 'reports']);
+$license->allows(['any_of' => [
+    ['addon' => 'seo'],
+    ['min_tier_level' => 4],
+]]);
 
 // Newest license row regardless of status (null if no row exists)
 $latestInfo = $license->getLatestLicenseInfo();
@@ -254,7 +271,7 @@ Insert `$html` anywhere inside your admin layout's `<body>`.
 | renew_url        | string               | `https://lm.patrikmol.com` | Renew button link target.                                                   |
 | locale           | string               | `en_US`                    | Locale override for this render (`en_US` or `hu_HU`).                      |
 | translator       | TranslatorInterface  | `null`                     | Inject a host translator; host strings win over the module's built-ins.     |
-| module_names     | array                | `[]`                       | Map of slug → display name for the tier module list.                        |
+| module_names     | array                | `[]`                       | Map of feature_key → display name for the included-features list.           |
 | date_format      | string               | `Y-m-d`                    | PHP `date()` format for date fields.                                        |
 | datetime_format  | string               | `Y-m-d H:i:s`              | PHP `date()` format for datetime fields.                                    |
 | history_limit    | int                  | `20`                       | Max validation history rows to show.                                        |
@@ -286,27 +303,6 @@ $html = $licenseModule->renderAdminPage([
     // ...other options
 ]);
 ```
-
-## Default Tier Configuration
-
-The module includes default tiers based on FlowerShop:
-
-| Level | Name     | Modules |
-|-------|----------|---------|
-| 1     | Core     | catalog, orders, users, vat_validation, activity_audit, email_templates, favorites |
-| 2     | Standard | membership, invoicing, payment_methods, custom_attributes |
-| 3     | Advanced | reports, delivery, storage_management |
-| 4     | Pro      | supplier, incoming_goods, purchasing |
-
-**Note:** Tiers are hierarchical. A Pro license (level 4) includes all modules from Core, Standard, and Advanced tiers.
-
-## Default Addons
-
-| Addon Key    | Modules       |
-|--------------|---------------|
-| analytics    | tracking      |
-| messageboard | messageboard  |
-| mailchimp    | mailchimp     |
 
 ## Database Schema
 
@@ -494,6 +490,8 @@ The module supports two independent grace period concepts:
 ### Server-Side Grace Period
 
 When a license expires on the server, the server may grant a configurable grace period during which the license remains fully operational. The server returns `status: "grace"` with a `grace_expires_at` date. Use `isInGracePeriod()` to detect this state and warn users to renew.
+
+Grace is intentionally **non-blocking**: `checkMiddleware()`/`checkMiddlewareJson()` treat GRACE the same as ACTIVE and never interrupt the request. The documented pattern for surfacing this to users is a custom banner built from `isInGracePeriod()` + `getDaysUntilGraceExpiration()`. The module also ships `views/grace.php`, a full-page grace notice, for hosts who prefer that instead — it is available but **not** wired into `checkMiddleware()` by design, since a full-page interstitial would contradict grace being non-blocking.
 
 ### Offline Grace Period
 

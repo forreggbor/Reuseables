@@ -1,9 +1,29 @@
+<?php
+/**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
+ * Optional full-page grace-period warning view. Not wired into
+ * checkMiddleware() by design — a GRACE-status license is non-blocking, so
+ * the module never renders this automatically. Available for hosts who want
+ * a full-page grace notice instead of (or alongside) a custom banner built
+ * from isInGracePeriod() + getDaysUntilGraceExpiration().
+ */
+$__ = static function (string $key, string $fallback): string {
+    if (!function_exists('_')) {
+        return $fallback;
+    }
+    $translated = _($key);
+    // gettext returns the key itself when no catalog is bound for it — don't
+    // leak that raw key to end users, fall back to the safe English text.
+    return ($translated === $key) ? $fallback : $translated;
+};
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo function_exists('_') ? _('LICENSE_GRACE_TITLE') : 'License Grace Period'; ?></title>
+    <title><?php echo $__('LICENSE_GRACE_TITLE', 'License Grace Period'); ?></title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -79,15 +99,15 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
         </div>
-        <h1><?php echo function_exists('_') ? _('LICENSE_GRACE_TITLE') : 'License Grace Period'; ?></h1>
+        <h1><?php echo $__('LICENSE_GRACE_TITLE', 'License Grace Period'); ?></h1>
         <p class="message">
-            <?php echo function_exists('_') ? _('LICENSE_GRACE_MESSAGE') : 'Your license has expired but is currently in a grace period. Please renew your license to avoid service interruption.'; ?>
+            <?php echo $__('LICENSE_GRACE_MESSAGE', 'Your license has expired but is currently in a grace period. Please renew your license to avoid service interruption.'); ?>
         </p>
         <div class="grace-notice">
-            <?php echo function_exists('_') ? _('LICENSE_GRACE_NOTICE') : 'The system is fully operational during the grace period. Renew your license to ensure uninterrupted access.'; ?>
+            <?php echo $__('LICENSE_GRACE_NOTICE', 'The system is fully operational during the grace period. Renew your license to ensure uninterrupted access.'); ?>
         </div>
         <p class="contact">
-            <?php echo function_exists('_') ? _('LICENSE_CONTACT_SUPPORT') : 'Please contact support to renew your license.'; ?>
+            <?php echo $__('LICENSE_CONTACT_SUPPORT', 'Please contact support to renew your license.'); ?>
         </p>
     </div>
 </body>

@@ -9,7 +9,12 @@
  *   $status            — current license status string
  *   $tier              — array {slug, name, level, description} or null
  *   $addons            — array of addon rows {feature_key, name, slug, description}
- *   $tierModules       — array of module slugs enabled by tier
+ *   $featureKeys       — array of feature keys resolved by the license server (tier + addons combined)
+ *   $isLegacy          — true only for a genuine legacy/no-tier-data license (the historical
+ *                        ['all'] sentinel) — distinct from a valid tier-less license with
+ *                        nothing granted, which also has null $tier/empty $addons but is NOT
+ *                        legacy. Under the deny-by-default gating policy, legacy means every
+ *                        gating call denies — not that all features are enabled.
  *   $history           — array of validation history rows
  *   $daysRemaining     — int|null
  *   $graceDaysRemaining — int|null
@@ -26,8 +31,6 @@ $dateFormat       = $options['date_format'] ?? 'Y-m-d';
 $datetimeFormat   = $options['datetime_format'] ?? 'Y-m-d H:i:s';
 
 $showRenew = $status === 'expired' || ($daysRemaining !== null && $daysRemaining <= 30);
-
-$isLegacy = $tier === null && $addons === [];
 
 $te = fn(string $key, mixed ...$params): string =>
     htmlspecialchars($t($key, ...$params), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -278,25 +281,25 @@ $statusText = match ($status) {
                         <?php if (!empty($tier['description'])): ?>
                             <p class="lm-text-muted"><?= htmlspecialchars($tier['description'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
                         <?php endif ?>
-                        <?php if (!empty($tierModules)): ?>
-                            <p><strong><?= $te('TEXT_LABEL_INCLUDED_MODULES') ?>:</strong></p>
+                        <?php if (!empty($featureKeys)): ?>
+                            <p><strong><?= $te('TEXT_LABEL_INCLUDED_FEATURES') ?>:</strong></p>
                             <ul class="lm-module-list">
-                                <?php foreach ($tierModules as $moduleSlug): ?>
+                                <?php foreach ($featureKeys as $featureKey): ?>
                                     <li>
                                         <?php
-                                        $displayName = $moduleNames[$moduleSlug] ?? null;
+                                        $displayName = $moduleNames[$featureKey] ?? null;
                                         if ($displayName !== null):
                                         ?>
                                             <?= htmlspecialchars($displayName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                         <?php else: ?>
-                                            <?= htmlspecialchars($moduleSlug, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                            <?= htmlspecialchars($featureKey, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                                         <?php endif ?>
                                     </li>
                                 <?php endforeach ?>
                             </ul>
                         <?php endif ?>
                     <?php elseif ($isLegacy): ?>
-                        <p><?= $te('TEXT_MESSAGE_ALL_FEATURES_ENABLED') ?></p>
+                        <p class="lm-text-muted"><?= $te('TEXT_MESSAGE_LEGACY_NO_FEATURE_DATA') ?></p>
                     <?php else: ?>
                         <p class="lm-text-muted"><?= $te('TEXT_MESSAGE_NO_TIER') ?></p>
                     <?php endif ?>
