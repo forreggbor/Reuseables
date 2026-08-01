@@ -19,7 +19,8 @@ class InvoiceBuilder
     /**
      * Build an Invoice object from order data
      *
-     * @param array $orderData Order information
+     * @param array $orderData Order information; 'e_invoice' (bool, default false) selects
+     *                         electronic vs paper invoice type
      * @param array $buyerData Buyer/customer information
      * @param array $items Invoice line items
      * @param bool $preview Whether this is a preview (no invoice created)
@@ -27,10 +28,12 @@ class InvoiceBuilder
      */
     public function build(array $orderData, array $buyerData, array $items, bool $preview = false): \SzamlaAgent\Document\Invoice\Invoice
     {
-        // Create e-invoice
-        $invoice = new \SzamlaAgent\Document\Invoice\Invoice(
-            \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_E_INVOICE
-        );
+        // Paper invoice by default; electronic only when explicitly requested via $orderData['e_invoice']
+        $type = !empty($orderData['e_invoice'])
+            ? \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_E_INVOICE
+            : \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_P_INVOICE;
+
+        $invoice = new \SzamlaAgent\Document\Invoice\Invoice($type);
 
         // Set header
         $this->setHeader($invoice, $orderData, $preview);
@@ -53,13 +56,17 @@ class InvoiceBuilder
      * Build a ReverseInvoice (storno) object
      *
      * @param string $originalInvoiceNumber Original invoice number to reverse
+     * @param bool $eInvoice Whether the reverse invoice should be electronic (should mirror
+     *                       the original invoice's type); defaults to paper
      * @return \SzamlaAgent\Document\Invoice\ReverseInvoice
      */
-    public function buildReverseInvoice(string $originalInvoiceNumber): \SzamlaAgent\Document\Invoice\ReverseInvoice
+    public function buildReverseInvoice(string $originalInvoiceNumber, bool $eInvoice = false): \SzamlaAgent\Document\Invoice\ReverseInvoice
     {
-        $reverseInvoice = new \SzamlaAgent\Document\Invoice\ReverseInvoice(
-            \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_E_INVOICE
-        );
+        $type = $eInvoice
+            ? \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_E_INVOICE
+            : \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_P_INVOICE;
+
+        $reverseInvoice = new \SzamlaAgent\Document\Invoice\ReverseInvoice($type);
 
         $header = $reverseInvoice->getHeader();
         $header->setInvoiceNumber($originalInvoiceNumber);

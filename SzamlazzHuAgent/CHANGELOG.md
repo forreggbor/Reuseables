@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.4.0   | 2026-08-01 | Add configurable e-invoice vs paper invoice type          |
 | 1.3.0   | 2026-06-03 | Add per-line item comment field                                   |
 | 1.2.0   | 2026-02-10 | Add payment_method_label, validate keys, deprecate config mapping |
 | 1.1.8   | 2026-02-09 | Fix legacy cURL fallback consistency with InvoiceBuilder |
@@ -22,6 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.4.0] - 2026-08-01
+
+| Category | Description |
+|----------|-------------|
+| Added    | `e_invoice` order data key selects electronic vs paper invoice type |
+| Added    | `eInvoice` parameter on `createStornoInvoice()` to mirror the original invoice's type |
+| Changed  | Invoices are paper by default instead of always electronic |
+
+### Added
+
+- `e_invoice` key in `$orderData` (SDK path via `InvoiceBuilder::build()`) — `true` generates an electronic invoice, `false` (default) generates a paper invoice
+- `eInvoice` parameter on `SzamlazzHuAgent::createStornoInvoice()` and `InvoiceBuilder::buildReverseInvoice()` — controls whether the storno invoice is electronic; should mirror the original invoice's type
+- Legacy cURL fallback (`buildInvoiceXml()`) now honors the same `e_invoice` order data key for the `<eszamla>` XML flag
+
+### Changed
+
+- **Default invoice type changed from electronic to paper** — both the SDK path (`InvoiceBuilder::build()`) and the legacy cURL fallback (`buildInvoiceXml()`) previously always generated an electronic invoice regardless of `$orderData`. They now default to a paper invoice unless `'e_invoice' => true` is explicitly set. Existing integrations that rely on invoices always being electronic must add `'e_invoice' => true` to `$orderData`.
 
 ## [1.3.0] - 2026-06-03
 

@@ -268,9 +268,11 @@ class SzamlazzHuAgent
      *
      * @param string $invoiceNumber Original invoice number to reverse
      * @param string|null $reason Reason for cancellation
+     * @param bool $eInvoice Whether the reverse invoice should be electronic; should mirror
+     *                       the original invoice's type (defaults to paper)
      * @return InvoiceResult
      */
-    public function createStornoInvoice(string $invoiceNumber, ?string $reason = null): InvoiceResult
+    public function createStornoInvoice(string $invoiceNumber, ?string $reason = null, bool $eInvoice = false): InvoiceResult
     {
         $agent = $this->getAgent();
 
@@ -279,7 +281,7 @@ class SzamlazzHuAgent
         }
 
         try {
-            $reverseInvoice = $this->builder->buildReverseInvoice($invoiceNumber);
+            $reverseInvoice = $this->builder->buildReverseInvoice($invoiceNumber, $eInvoice);
 
             $result = $agent->generateReverseInvoice($reverseInvoice);
 
@@ -788,6 +790,10 @@ class SzamlazzHuAgent
 
     /**
      * Build XML for invoice request
+     *
+     * @param array $orderData Order information; 'e_invoice' (bool, default false) selects
+     *                         electronic vs paper invoice type — kept consistent with the
+     *                         SDK code path in InvoiceBuilder::build()
      */
     private function buildInvoiceXml(array $orderData, array $buyerData, array $items): string
     {
@@ -796,12 +802,13 @@ class SzamlazzHuAgent
         $fulfillmentDate = $orderData['fulfillment_date'] ?? $issueDate;
         $paymentKey = $this->resolvePaymentMethodKey($orderData['payment_method'] ?? 'bank_transfer');
         $paymentLabel = $orderData['payment_method_label'] ?? $this->getPaymentMethodLabel($paymentKey);
+        $eInvoice = !empty($orderData['e_invoice']) ? 'true' : 'false';
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>';
         $xml .= '<xmlszamla xmlns="http://www.szamlazz.hu/xmlszamla" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">';
         $xml .= '<beallitasok>';
         $xml .= '<szamlaagentkulcs>' . htmlspecialchars($this->config['api_key']) . '</szamlaagentkulcs>';
-        $xml .= '<eszamla>true</eszamla>';
+        $xml .= '<eszamla>' . $eInvoice . '</eszamla>';
         $xml .= '<szamlaLetoltes>true</szamlaLetoltes>';
         $xml .= '</beallitasok>';
         $xml .= '<fejlec>';

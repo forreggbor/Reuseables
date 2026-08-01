@@ -162,7 +162,8 @@ Create a reverse (storno) invoice for an existing invoice.
 ```php
 $result = $agent->createStornoInvoice(
     invoiceNumber: 'E-INV-2025-00001',
-    reason: 'Customer requested cancellation'
+    reason: 'Customer requested cancellation',
+    eInvoice: false                              // Should mirror the original invoice's type; default: false
 );
 ```
 
@@ -364,6 +365,7 @@ $orderData = [
     'currency' => 'Ft',                         // Ft, HUF, EUR, USD
     'language' => 'hu',                         // hu or en
     'comment' => 'Optional invoice comment',
+    'e_invoice' => false,                       // Optional, default: false (paper invoice)
 ];
 ```
 
