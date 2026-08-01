@@ -17,7 +17,7 @@ Lightweight, framework-agnostic PHP `.env` file parser. A standalone replacement
 Copy this module to your project's `lib/` folder:
 
 ```bash
-rsync -av --delete ~/development/reusables/DotEnv/ lib/DotEnv/
+rsync -av --delete ~/development/Reusables/DotEnv/ lib/DotEnv/
 ```
 
 Add the namespace to your `composer.json` autoload:

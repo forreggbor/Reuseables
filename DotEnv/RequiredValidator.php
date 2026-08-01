@@ -3,10 +3,7 @@
 /**
  * RequiredValidator — Validates required environment variables after .env loading.
  *
- * Used via chaining:
- *   DotEnv::createImmutable('/path')->load()->required(['DB_HOST', 'DB_NAME'])->notEmpty();
- *
- * Wait — correct usage (required is on DotEnv instance, not on load result):
+ * Used via chaining (required() is on the DotEnv instance, not on load()'s array result):
  *   $dotenv = DotEnv::createImmutable('/path');
  *   $dotenv->load();
  *   $dotenv->required(['DB_HOST', 'DB_NAME'])->notEmpty();

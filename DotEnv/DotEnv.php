@@ -12,7 +12,7 @@
  *   DotEnv::createImmutable('/path/to/dir')->required(['KEY'])->notEmpty();
  *
  * @package   DotEnv
- * @version   1.0.0
+ * @version   1.0.1
  */
 
 declare(strict_types=1);
