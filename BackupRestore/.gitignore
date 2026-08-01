@@ -1,0 +1,8 @@
+# Composer — track manifest, lock, and generated autoload — never package source
+/vendor/*
+!/vendor/autoload.php
+!/vendor/composer/
+/vendor/composer/*
+!/vendor/composer/*.php
+!/vendor/composer/*.json
+!/vendor/composer/LICENSE

@@ -1,0 +1,29 @@
+{
+    "name": "patrikmol/backup-restore",
+    "description": "Framework-agnostic database and file backup/restore module",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.3",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "phpseclib/phpseclib": "^3.0"
+    },
+    "require-dev": {
+        "ext-pdo_mysql": "*"
+    },
+    "autoload": {
+        "classmap": [
+            "BackupRestore.php",
+            "src/",
+            "Adapters/"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
