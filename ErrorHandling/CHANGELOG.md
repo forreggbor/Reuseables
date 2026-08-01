@@ -5,6 +5,17 @@ All notable changes to ErrorHandler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-01
+
+| Category | Description                                                                    |
+|----------|----------------------------------------------------------------------------------|
+| Fixed    | README documented the wrong `permissions` default; class docblock `@version` was stale |
+
+### Fixed
+
+- `permissions` config option's documented default was `0755` in both the Configuration Options table and the Full Configuration Example; corrected to `0750` to match the actual default (tightened in a prior security-hardening pass, but the README was never updated).
+- Class docblock `@version` tag was stuck at `1.0.1`, two releases behind; corrected.
+
 ## [1.2.0] - 2026-07-04
 
 | Category | Description                                                                    |

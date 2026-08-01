@@ -70,7 +70,7 @@ ErrorHandler::init([
     'include_trace' => false,  // Include stack traces for exceptions
 
     // Permissions
-    'permissions' => 0755,     // Directory permissions on creation
+    'permissions' => 0750,     // Directory permissions on creation
 
     // Called by the shutdown handler right after a fatal error is logged
     'on_fatal' => function (array $error): void {
@@ -88,7 +88,7 @@ ErrorHandler::init([
 | `log_level` | string | `ERROR` | Minimum level to log |
 | `date_format` | string | `Y-m-d H:i:s` | Timestamp format |
 | `include_trace` | bool | `false` | Include stack trace for exceptions |
-| `permissions` | int | `0755` | Directory permissions on creation |
+| `permissions` | int | `0750` | Directory permissions on creation |
 | `on_fatal` | callable | `null` | `function(array $error): void` invoked by the shutdown handler after a fatal error is logged (e.g. to render an error page); never called during CLI runs |
 
 ### Log Levels
