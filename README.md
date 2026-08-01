@@ -11,6 +11,7 @@
 | Component                           | Description                                                                                   |
 |-------------------------------------|-----------------------------------------------------------------------------------------------|
 | [ActivityLogs](ActivityLogs/)       | Framework-agnostic PHP activity logging with flexible schema and integrity checks             |
+| [BackupRestore](BackupRestore/)     | Framework-agnostic PHP database/file backup and restore with atomic rollback and remote SFTP  |
 | [CronAdmin](CronAdmin/)             | Framework-agnostic PHP cron job administration                                                |
 | [DotEnv](DotEnv/)                   | Lightweight framework-agnostic PHP .env parser, zero dependencies, phpdotenv-compatible API   |
 | [ErrorHandling](ErrorHandling/)     | Framework-agnostic PHP error and exception logging with severity levels                       |

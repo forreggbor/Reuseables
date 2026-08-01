@@ -49,7 +49,7 @@ one sidebar entry + one toast notification include.
 ## 2. Step 1: Sync the module
 
 ```bash
-rsync -av --delete reusables/PatchModule/ lib/PatchModule/
+rsync -av --delete Reusables/PatchModule/ lib/PatchModule/
 ```
 
 Add the module namespace to your autoloader. If you use Composer's `psr-4`
@@ -1067,7 +1067,7 @@ None.
 
 ### Action required
 
-None — `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` and you are done. No controller, adapter, or config changes are needed.
+None — `rsync -av --delete Reusables/PatchModule/ lib/PatchModule/` and you are done. No controller, adapter, or config changes are needed.
 
 ### What changed
 
@@ -1104,7 +1104,7 @@ None.
 
 ### Action required
 
-None — `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` and you are done. No controller, adapter, config, or wire-format changes are needed.
+None — `rsync -av --delete Reusables/PatchModule/ lib/PatchModule/` and you are done. No controller, adapter, config, or wire-format changes are needed.
 
 ### What changed
 
@@ -1146,7 +1146,7 @@ See [Step 10 — php.ini upload limits](#phpini-upload-limits-manual-upload) for
 
 1. **Add the `/upload` route** — see [Step 5](#6-step-5-routes).
 2. **Raise php.ini limits** if you plan to use manual upload.
-3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+3. `rsync -av --delete Reusables/PatchModule/ lib/PatchModule/` as usual.
 
 No adapter, schema, or existing config changes are required.
 
@@ -1193,7 +1193,7 @@ No operator action is required.
 
 1. **Upgrade PatchCreator to v1.03.00** before building new patch archives.
 2. **Grant `CREATE` to the app DB user** if not already present (see above).
-3. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+3. `rsync -av --delete Reusables/PatchModule/ lib/PatchModule/` as usual.
 4. Build and install the upgrade patch — the v1.6.4 installer silently skips the missing `migrations/`
    directory; the v1.8.0 code lands in place; bootstrap fires on the next patch install.
 
@@ -1225,7 +1225,7 @@ rewritten warning that names PatrikMol Solutions Kft. as the only acceptable ori
 1. **Remove any `archive_signature_verifier` and `max_signature_size` keys** from your config arrays — they are silently ignored in v1.x but will cause no harm if left; clean them up at your convenience.
 2. **Remove any code that calls `getArchiveSignatureVerifier()` or `getMaxSignatureSize()`** on the `PatchModule` instance — these methods no longer exist.
 3. **`expected_public_key_pem` is now auto-flow-only** — if you configured it only because manual upload required it, you can remove it. If you use it for patch-server key pinning, keep it.
-4. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+4. `rsync -av --delete Reusables/PatchModule/ lib/PatchModule/` as usual.
 
 ---
 
@@ -1312,4 +1312,4 @@ Add the `GET /details/{id}` route for the per-record details endpoint. The Slim 
 1. **Run the schema migration** (see above) before deploying.
 2. **Add both new methods** to any custom `DatabaseAdapterInterface` implementation.
 3. **Add the `GET /details/{id}` route** to the host router (see above).
-4. `rsync -av --delete reusables/PatchModule/ lib/PatchModule/` as usual.
+4. `rsync -av --delete Reusables/PatchModule/ lib/PatchModule/` as usual.

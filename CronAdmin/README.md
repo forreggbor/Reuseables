@@ -37,8 +37,8 @@ Framework-agnostic PHP 8.3+ cron job administration module. Provides a manifest-
 
 ```bash
 # Rsync both reusables into lib/
-rsync -av --delete /home/gabor/development/reusables/CronAdmin/   lib/CronAdmin/
-rsync -av --delete /home/gabor/development/reusables/ActivityLogs/ lib/ActivityLogs/
+rsync -av --delete /home/gabor/development/Reusables/CronAdmin/   lib/CronAdmin/
+rsync -av --delete /home/gabor/development/Reusables/ActivityLogs/ lib/ActivityLogs/
 ```
 
 Add to `composer.json` once:
@@ -162,7 +162,7 @@ $cron->dispatch();
 | `recipient_resolver` | `MailRecipientResolverInterface` | No | — | Returns admin email list |
 | `logger` | `LoggerInterface` | No | no-op | Bridges to host `app_log()` or PSR-3 logger |
 
-All three admin UI keys (`auth_adapter`, `csrf_adapter`, `base_url`) must be provided together or omitted together — partial configuration returns `null` from `getAdminActions()`.
+All three admin UI keys (`auth_adapter`, `csrf_adapter`, `base_url`) must be provided together or omitted together — partial configuration throws `InvalidConfigException` when constructing `CronAdmin`.
 
 ## Admin UI
 

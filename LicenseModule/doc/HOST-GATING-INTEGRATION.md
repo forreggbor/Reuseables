@@ -31,15 +31,18 @@ style regardless of which mode a given license actually uses:
 2. **Tier-less / addon-only.** A tier object still exists (slug/name/level may be present, e.g. a
    placeholder tier) but contributes **no** feature keys of its own — only the selected standalone
    addons' feature keys populate the resolved feature set. `getTier()` can legitimately return an
-   object with no bearing on gating in this mode, or `null` if no tier is assigned at all.
+   object with no bearing on gating in this mode.
 
 Two of the three currently-integrated hosts (TrafficJournal, UniCMS) already operate in mode 2 —
 see `LEGACY-TIER-ADDON-SPEC.md` for their addon lists.
 
 **This is not the "legacy" case.** Legacy means the license has **no tier data at all** — the
 historical `['all']` sentinel, or no license row. A tier-less-features license (mode 2) still has
-a real `tier` object; gating evaluates truthfully against whatever addons/features were actually
-granted, which may legitimately be nothing.
+a real `tier` **or** `package` object; gating evaluates truthfully against whatever addons/features
+were actually granted, which may legitimately be nothing. A server response with **neither** a
+`tier` nor a `package` object present (`LicenseValidator::parseServerResponse()`) falls back to the
+legacy `['all']` sentinel regardless of any `addons`/`features` also present in that response — so a
+true addon-only license still needs at least one of those two objects for its addons to resolve.
 
 ## `hasFeature()` vs `hasAddon()`
 
@@ -47,7 +50,7 @@ granted, which may legitimately be nothing.
   server's flat, fully-resolved feature set (tier-granted + addon-granted feature keys combined).
   Works correctly for both license modes, and for tier-granted feature keys that have no matching
   addon object. **Use this for gating.**
-- **`hasAddon(string $featureKey)`** — checks specifically whether a purchasable/marketed addon
+- **`hasAddon(string $addonKey)`** — checks specifically whether a purchasable/marketed addon
   object exists in the license's `addons[]` array (which carries `name`/`description` for display).
   Use it for **presentation** — badges, upsell prompts, "you have the X add-on" messaging — not as
   the primary gate, since a tier can grant a feature key with no corresponding addon entry at all.
@@ -93,7 +96,7 @@ never by leaving the license's data empty.
 | `getTierLevel()` | `int` | `0` if legacy or no tier. |
 | `hasTier(string $slug)` | `bool` | Exact tier-slug match. |
 | `requireTierLevel(int $minLevel)` | `bool` | Pure predicate — see below. |
-| `hasAddon(string $featureKey)` | `bool` | Checks the addon list — see "hasFeature vs hasAddon" above. |
+| `hasAddon(string $addonKey)` | `bool` | Checks the addon list — see "hasFeature vs hasAddon" above. |
 | `getEnabledAddons()` | `string[]` | Enabled addon feature keys. |
 | `getAddons()` | `array` of `{feature_key,name,slug,description}` | Full addon rows, for display. |
 | `getFeatureKeys()` | `string[]` | The authoritative flat enabled-feature set. |

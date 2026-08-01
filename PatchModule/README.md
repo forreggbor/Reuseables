@@ -31,7 +31,7 @@ Framework-agnostic patch management module for PHP applications. Handles checkin
 Copy the module to your project's library directory:
 
 ```bash
-rsync -av --delete /path/to/reusables/PatchModule/ /path/to/project/lib/PatchModule/
+rsync -av --delete /path/to/Reusables/PatchModule/ /path/to/project/lib/PatchModule/
 ```
 
 Import the database schema (order matters — `patch_migrations` has a FK to `patch_history`):

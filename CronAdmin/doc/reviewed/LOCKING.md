@@ -46,4 +46,4 @@ Sync from `AdminActions::index()` (HTTP-triggered) does NOT acquire the sync flo
 
 ## Crontab cadence requirement
 
-The Scheduler assumes `* * * * *` (every minute). A 5-minute `*/5` cadence causes between-tick triggers to be silently missed — e.g. a job scheduled at `every_n_minutes=3` would only fire when the crontab tick aligns with `minuteOfDay % 3 === 0`. This is a deployment requirement documented loudly in `README.md`.
+The Scheduler assumes `* * * * *` (every minute). A 5-minute `*/5` cadence causes between-tick triggers to be silently missed — e.g. a job scheduled at `every_n_minutes=15` would only fire when the crontab tick aligns with `minuteOfDay % 15 === 0`. This is a deployment requirement documented loudly in `README.md`.

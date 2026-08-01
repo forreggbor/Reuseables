@@ -4,7 +4,7 @@ Framework-agnostic PHP module for Szamlazz.hu invoice integration.
 
 ## Features
 
-- **Invoices**: Generate e-invoices, preview, and create storno (reverse) invoices
+- **Invoices**: Generate paper or e-invoices, preview, and create storno (reverse) invoices
 - **Delivery Notes**: Generate szállítólevél documents
 - **Proforma Invoices**: Generate díjbekérő with deletion support
 - **Receipts**: Generate nyugta with PDF retrieval, email sending, and storno

@@ -36,18 +36,18 @@ A `429` proves the server is up and the license has not changed. It would be wro
 Check `throttled` before treating a failed validation as a hard error:
 
 ```php
-$result = $licenseModule->validateLicense($licenseKey, $domain);
+$result = $licenseModule->validate($licenseKey, $domain);
 
 if (!empty($result['throttled'])) {
     // Server is reachable but rate-limiting us — treat current cached status as authoritative
-    $status = $licenseModule->getCurrentStatus();
+    $status = $licenseModule->getStatus();
     // Continue normally; do not show an error to the user
 } elseif (!$result['success']) {
     // Real failure (offline, revoked, expired)
 }
 ```
 
-`getCurrentStatus()` reads the locally cached license status, which remains valid across throttled responses.
+`getStatus()` reads the locally cached license status, which remains valid across throttled responses.
 
 ## Status Constant
 

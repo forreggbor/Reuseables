@@ -267,7 +267,7 @@ Insert `$html` anywhere inside your admin layout's `<body>`.
 |------------------|----------------------|----------------------------|-----------------------------------------------------------------------------|
 | asset_base_url   | string               | `''`                       | URL prefix for CSS/JS assets. Required for assets to load.                  |
 | validate_url     | string\|null         | `null`                     | POST endpoint for validation. If null, the Validate button is hidden.       |
-| csrf_token       | string\|null         | `null`                     | CSRF token posted by the Validate button AJAX call.                         |
+| csrf_token       | string\|null         | `''`                       | CSRF token posted by the Validate button AJAX call.                         |
 | renew_url        | string               | `https://lm.patrikmol.com` | Renew button link target.                                                   |
 | locale           | string               | `en_US`                    | Locale override for this render (`en_US` or `hu_HU`).                      |
 | translator       | TranslatorInterface  | `null`                     | Inject a host translator; host strings win over the module's built-ins.     |
@@ -355,8 +355,8 @@ class MyDatabaseAdapter implements DatabaseAdapterInterface
     /** Return the newest license row regardless of status, or null if the table is empty. */
     public function getLatestLicenseInfo(): ?array { /* ... */ }
 
-    /** Return validation history rows (newest first), limited to $limit entries. */
-    public function getValidationHistory(int $limit = 20): array { /* ... */ }
+    /** Return validation history rows for $licenseId (newest first), limited to $limit entries. */
+    public function getValidationHistory(int $licenseId, int $limit): array { /* ... */ }
 }
 
 $license = new LicenseModule([

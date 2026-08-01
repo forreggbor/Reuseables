@@ -106,7 +106,7 @@ class GettextFallback
      * Set the current locale
      *
      * @param string $locale Locale code (e.g., 'hu_HU', 'en_US')
-     * @return bool True if locale was set successfully
+     * @return bool Always true
      */
     public static function setLocale(string $locale): bool
     {

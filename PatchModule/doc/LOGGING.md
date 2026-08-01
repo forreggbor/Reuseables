@@ -76,7 +76,7 @@ These are the six audit events emitted via `activity()`. Store them in your acti
 
 Emitted after a successful patch installation.
 
-**Source:** `src/PatchInstaller.php:377`
+**Source:** `src/PatchInstaller.php:673`
 
 | Field        | Value                                 |
 |--------------|---------------------------------------|
@@ -103,7 +103,7 @@ userId:     7
 
 Emitted when installation fails (with or without a successful rollback).
 
-**Source:** `src/PatchInstaller.php:710`
+**Source:** `src/PatchInstaller.php:1019`
 
 | Field        | Value                                                                   |
 |--------------|-------------------------------------------------------------------------|
@@ -186,8 +186,8 @@ userId:     7
 
 When a patch install fails and the module automatically rolls back, two audit events are emitted:
 
-1. `rollback_patch` or `rollback_patch_failed` — from `doRollback()`, with `userId` carrying the user who started the install
-2. `install_patch_failed` — from `handleInstallFailure()`, with the same `userId` and the `rolled_back` boolean in `newValues`
+1. `rollback_patch` or `rollback_patch_failed` — from `doRollback()`. `handleInstallFailure()` calls `rollback()` without forwarding the install's `$userId`, so this event's `userId` is always `null` for an automatic post-failure rollback (it is only non-null for an admin-initiated manual rollback)
+2. `install_patch_failed` — from `handleInstallFailure()`, with the install's actual `userId` and the `rolled_back` boolean in `newValues`
 
 The `rolled_back` boolean in `install_patch_failed` is retained for backwards compatibility. The standalone `rollback_patch[_failed]` events are the canonical audit source for rollback outcomes.
 
@@ -197,7 +197,7 @@ The `rolled_back` boolean in `install_patch_failed` is retained for backwards co
 
 Emitted when a user dismisses a single patch notification.
 
-**Source:** `src/PatchChecker.php:348`
+**Source:** `src/PatchChecker.php:368`
 
 | Field        | Value                               |
 |--------------|-------------------------------------|
@@ -214,7 +214,7 @@ Emitted when a user dismisses a single patch notification.
 
 Emitted when a user dismisses all available patch notifications at once.
 
-**Source:** `src/PatchChecker.php:378`
+**Source:** `src/PatchChecker.php:398`
 
 | Field        | Value                                                       |
 |--------------|-------------------------------------------------------------|
@@ -238,52 +238,52 @@ Messages are emitted in pipeline order during a successful installation.
 
 | Level   | Message pattern                                                             | Source line |
 |---------|-----------------------------------------------------------------------------|-------------|
-| INFO    | `Patch install: starting preflight checks for v{version}`                   | :183        |
-| INFO    | `Patch install: downloading patch v{version}`                               | :195        |
-| WARNING | `Patch install: license check stale, refreshing and retrying download`      | :215        |
-| INFO    | `Patch install: extracting patch`                                           | :236        |
-| INFO    | `Patch install: creating pre-patch backup`                                  | :256        |
-| INFO    | `Patch install: backup created (ID: {backupId})`                            | :273        |
+| INFO    | `Patch install: starting preflight checks for v{version}`                   | :197        |
+| INFO    | `Patch install: downloading patch v{version}`                               | :209        |
+| WARNING | `Patch install: license check stale, refreshing and retrying download`      | :229        |
+| INFO    | `Patch install: extracting patch`                                           | :413        |
+| INFO    | `Patch install: creating pre-patch backup`                                  | :446        |
+| INFO    | `Patch install: backup created (ID: {backupId})`                            | :463        |
 | INFO    | `Patch install: no SQL migrations, skipping backup`                                                                       | :465        |
 | INFO    | `Patch install: no SQL migrations, skipping`                                                                              | :485        |
 | WARNING | `Patch install: manifest.migrations[] disagrees with archive contents; proceeding from on-disk listing`                   | :493        |
 | INFO    | `Patch install: executing {N} SQL migration(s)`                                                                           | :496        |
 | INFO    | `Patch install: SQL migrations completed ({N} applied, {M} already-applied)`                                              | :509        |
-| INFO    | `Patch install: copying files`                                              | :301        |
-| INFO    | `Patch install: {N} files copied`                                           | :315        |
-| INFO    | `Patch install: {N} obsolete files removed`                                 | :326        |
-| INFO    | `Patch install: updating version to {version}`                              | :336        |
-| INFO    | `Patch install: verifying installation`                                     | :344        |
-| INFO    | `Patch install: cleaning up`                                                | :354        |
-| INFO    | `Patch install: v{version} installed successfully`                          | :386        |
-| ERROR   | `Patch install: failed to disable maintenance mode: {message}`              | :401        |
+| INFO    | `Patch install: copying files`                                              | :550        |
+| INFO    | `Patch install: {N} files copied`                                           | :564        |
+| INFO    | `Patch install: {N} obsolete files removed`                                 | :588        |
+| INFO    | `Patch install: updating version to {version}`                              | :607        |
+| INFO    | `Patch install: verifying installation`                                     | :627        |
+| INFO    | `Patch install: cleaning up`                                                | :650        |
+| INFO    | `Patch install: v{version} installed successfully`                          | :682        |
+| ERROR   | `Patch install: failed to disable maintenance mode: {message}`              | :275        |
 
 ### PatchInstaller — Failure Handling
 
 | Level   | Message pattern                                                                              | Source line |
 |---------|----------------------------------------------------------------------------------------------|-------------|
-| ERROR   | `Patch install failed: {errorMessage}`                                                       | :678        |
-| WARNING | `Could not update patch_history failure status: {message}`                                   | :689        |
-| WARNING | `Patch install: attempting rollback (backup: {backupId\|none}, snapshot: yes\|no)`           | :695        |
+| ERROR   | `Patch install failed: {errorMessage}`                                                       | :987        |
+| WARNING | `Could not update patch_history failure status: {message}`                                   | :998        |
+| WARNING | `Patch install: attempting rollback (backup: {backupId\|none}, snapshot: yes\|no)`           | :1005       |
 
 ### PatchInstaller — Rollback
 
 | Level   | Message pattern                                                             | Source line |
 |---------|-----------------------------------------------------------------------------|-------------|
-| WARNING | `Patch rollback: starting for v{version} (ID: {patchHistoryId})`           | :422        |
-| ERROR   | `Patch rollback: failed to disable maintenance mode: {message}`             | :435        |
-| ERROR   | `Patch rollback: database restore failed - {error}`                         | :453        |
-| INFO    | `Patch rollback: database restored from backup ID {backupId}`               | :456        |
-| ERROR   | `Patch rollback: file restore failed - {error}`                             | :460        |
-| WARNING | `Patch rollback: could not update status - {message}`                       | :471        |
-| INFO    | `Patch rollback completed successfully`                                     | :481        |
+| WARNING | `Patch rollback: starting for v{version} (ID: {patchHistoryId})`           | :701        |
+| ERROR   | `Patch rollback: failed to disable maintenance mode: {message}`             | :714        |
+| ERROR   | `Patch rollback: database restore failed - {error}`                         | :733        |
+| INFO    | `Patch rollback: database restored from backup ID {backupId}`               | :744        |
+| ERROR   | `Patch rollback: file restore failed - {error}`                             | :750        |
+| WARNING | `Patch rollback: could not update status - {message}`                       | :771        |
+| INFO    | `Patch rollback completed successfully`                                     | :781        |
 
 ### PatchInstaller — Snapshot Pruning
 
 | Level   | Message pattern                                                             | Source line |
 |---------|-----------------------------------------------------------------------------|-------------|
-| WARNING | `Patch prune: could not load history - {message}`                           | :613        |
-| WARNING | `Patch prune: could not clear backup_id for #{id}: {message}`               | :639        |
+| WARNING | `Patch prune: could not load history - {message}`                           | :922        |
+| WARNING | `Patch prune: could not clear backup_id for #{id}: {message}`               | :948        |
 
 ### PatchMigrator
 
@@ -334,10 +334,10 @@ The logger is injected into both `PatchInstaller` and `PatchChecker` via constru
 Typical wiring via the facade:
 
 ```php
-$patchModule = new PatchModule(
-    logger: new YourLoggerAdapter($db),
+$patchModule = new PatchModule([
+    'logger' => new YourLoggerAdapter($db),
     // ... other adapters
-);
+]);
 ```
 
 Direct injection into `PatchInstaller`:

@@ -303,7 +303,7 @@ their password to install the next queued patch.
 ```json
 {
   "success": false,
-  "error_code": "signature_verification_failed",
+  "error_code": "verification_failed",
   "error": "Update verification failed. The changes have been rolled back."
 }
 ```
@@ -324,11 +324,12 @@ the client retries at 1500 ms intervals).
 {
   "steps": [
     { "id": "preflight_checks",  "status": "completed" },
-    { "id": "create_backup",     "status": "completed" },
-    { "id": "download_patch",    "status": "active"    },
-    { "id": "extract_patch",     "status": "pending"   },
+    { "id": "download_patch",    "status": "completed" },
+    { "id": "extract_patch",     "status": "active"    },
+    { "id": "create_backup",     "status": "pending"   },
     { "id": "execute_migration", "status": "pending"   },
     { "id": "copy_files",        "status": "pending"   },
+    { "id": "remove_files",      "status": "pending"   },
     { "id": "update_version",    "status": "pending"   },
     { "id": "verify_installation","status": "pending"  },
     { "id": "cleanup",           "status": "pending"   }

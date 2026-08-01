@@ -1,9 +1,9 @@
 DO NOT EDIT FILES IN THIS DIRECTORY DIRECTLY.
 
 This directory is a vendored copy of the CronAdmin reusable module,
-synced from /home/gabor/development/reusables/CronAdmin/ via rsync.
+synced from /home/gabor/development/Reusables/CronAdmin/ via rsync.
 
-To update: rsync -av --delete /path/to/reusables/CronAdmin/ lib/CronAdmin/
+To update: rsync -av --delete /path/to/Reusables/CronAdmin/ lib/CronAdmin/
 
 Any local edits will be wiped on the next rsync. All host customisation
 belongs in:

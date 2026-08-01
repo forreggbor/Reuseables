@@ -18,7 +18,7 @@ return [
         'default_frequency' => 'daily',                            // every_n_minutes|hourly|daily|weekly|monthly
 
         // ── Conditional (required per frequency) ───────────────────────────────
-        'default_hour'            => 3,       // 0–23  — required when frequency ∈ {hourly,daily,weekly,monthly}
+        'default_hour'            => 3,       // 0–23  — required when frequency ∈ {daily,weekly,monthly}
         'default_minute'          => 0,       // 0–59  — required when frequency ∈ {hourly,daily,weekly,monthly}
         'default_days_of_week'    => '',      // CSV 0–6 (0=Sun) — required when frequency=weekly, e.g. '0,3'
         'default_days_of_month'   => '',      // CSV 1–31 — required when frequency=monthly, e.g. '1,15'
@@ -101,7 +101,7 @@ UPDATE cron_jobs SET job_key = 'db_backup' WHERE job_key = 'backup';
 
 | State | `Dispatcher::dispatch()` | `AdminActions::index()` |
 |-------|--------------------------|--------------------------|
-| File missing | ERROR log, return early — no jobs run | Red error banner |
+| File missing | ERROR log, sync skipped, but `dispatch()` still fetches and runs due/pending jobs against an empty class map — each fails as `class_not_found`, and any pending Run-Now trigger is claimed and cleared without ever executing | Red error banner |
 | `return []` | Valid — all `active=1` rows soft-deleted | "No jobs declared" info banner |
 
 ---

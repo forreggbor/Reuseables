@@ -7,8 +7,8 @@ Step-by-step recipe for wiring CronAdmin into a host project.
 ## Step 1 — Rsync both reusables
 
 ```bash
-rsync -av --delete /home/gabor/development/reusables/CronAdmin/   lib/CronAdmin/
-rsync -av --delete /home/gabor/development/reusables/ActivityLogs/ lib/ActivityLogs/
+rsync -av --delete /home/gabor/development/Reusables/CronAdmin/   lib/CronAdmin/
+rsync -av --delete /home/gabor/development/Reusables/ActivityLogs/ lib/ActivityLogs/
 ```
 
 > **DO NOT edit anything under `lib/CronAdmin/` directly.** The `.synced-from-upstream` marker file flags it as vendored — future re-rsyncs (`--delete`) will wipe any local edits. All host customisation belongs in your adapters, manifest, and locale file.
