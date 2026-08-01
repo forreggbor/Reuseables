@@ -468,19 +468,31 @@ class ActivityLogger
         $allKeys = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
 
         foreach ($allKeys as $key) {
-            $oldVal = $oldValues[$key] ?? null;
-            $newVal = $newValues[$key] ?? null;
+            $oldExists = array_key_exists($key, $oldValues);
+            $newExists = array_key_exists($key, $newValues);
+
+            // A key present on only one side is always a change — even when the present
+            // value is falsy (null/false/0/''), which would otherwise string-cast to the
+            // same "" as a genuinely absent key and be mistaken for "unchanged" below.
+            if ($oldExists !== $newExists) {
+                if ($oldExists) {
+                    $filteredOld[$key] = $oldValues[$key];
+                }
+                if ($newExists) {
+                    $filteredNew[$key] = $newValues[$key];
+                }
+                continue;
+            }
+
+            $oldVal = $oldValues[$key];
+            $newVal = $newValues[$key];
 
             $oldCompare = is_array($oldVal) ? json_encode($oldVal) : (string)$oldVal;
             $newCompare = is_array($newVal) ? json_encode($newVal) : (string)$newVal;
 
             if ($oldCompare !== $newCompare) {
-                if (array_key_exists($key, $oldValues)) {
-                    $filteredOld[$key] = $oldVal;
-                }
-                if (array_key_exists($key, $newValues)) {
-                    $filteredNew[$key] = $newVal;
-                }
+                $filteredOld[$key] = $oldVal;
+                $filteredNew[$key] = $newVal;
             }
         }
 

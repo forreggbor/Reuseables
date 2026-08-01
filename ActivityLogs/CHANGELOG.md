@@ -5,6 +5,20 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-08-01
+
+| Category | Description                                                                                      |
+|----------|---------------------------------------------------------------------------------------------------|
+| Fixed    | A field present on only one side of a diff with a falsy value was incorrectly treated as unchanged |
+
+### Fixed
+
+- **`filterUnchangedValues()` falsy-value edge case** — a key present in only `$oldValues` or only
+  `$newValues` was compared via `?? null` before casting to string, so a present falsy value (e.g.
+  `null`, `false`, `0`, `''`) and a genuinely absent key both cast to `""` and were mistaken for
+  "unchanged". Key presence is now checked before the value comparison, so a key added or removed is
+  always recorded as a change regardless of its value.
+
 ## [1.4.0] - 2026-07-12
 
 | Category | Description                                                                                      |
