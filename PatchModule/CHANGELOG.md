@@ -5,6 +5,20 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-08-01
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | `patch_settings.setting_value` column widened from `TEXT` to `MEDIUMTEXT` to prevent update checks from failing on large cached payloads |
+| Fixed    | Cached patch settings JSON no longer escapes non-ASCII characters, reducing payload size for multi-language release notes |
+
+### Fixed
+
+- **`patch_settings.setting_value` widened to `MEDIUMTEXT`** — the cached `patch_available_data` JSON blob embeds full dual-language (HU + EN) release notes; on a multi-version cumulative update the encoded payload could exceed the 65,535-byte `TEXT` limit, crashing the "check for updates" flow with `SQLSTATE[22001] Data too long`. A non-destructive migration is provided at `schema/migrations/2026_08_01_143553_patch_settings_value_mediumtext.sql`.
+- **Unicode-safe JSON encoding for cached patch settings** — `patch_available_data` and `patch_dismissed_versions` are now encoded with `JSON_UNESCAPED_UNICODE`, keeping multi-byte release-notes text (e.g. Hungarian) from ballooning into `\uXXXX` escapes and pushing the payload closer to the storage limit.
+
+---
+
 ## [2.6.1] - 2026-05-30
 
 | Category | Description |

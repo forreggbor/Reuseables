@@ -36,6 +36,6 @@ CREATE TABLE IF NOT EXISTS patch_history (
 
 CREATE TABLE IF NOT EXISTS patch_settings (
     setting_key VARCHAR(100) PRIMARY KEY COMMENT 'Setting identifier',
-    setting_value TEXT NULL COMMENT 'Setting value (JSON for complex data)',
+    setting_value MEDIUMTEXT NULL COMMENT 'Setting value (JSON for complex data)',
     updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

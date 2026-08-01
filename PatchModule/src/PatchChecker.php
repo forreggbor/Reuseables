@@ -236,8 +236,10 @@ class PatchChecker
             $this->log("Patch check: marked {$count} yanked patch(es) as obsolete: " . implode(', ', $yankedVersions), 'INFO');
         }
 
-        // Cache all patches
-        $this->database->setSetting('patch_available_data', json_encode($patchesData));
+        // Cache all patches. JSON_UNESCAPED_UNICODE keeps multi-byte release-notes
+        // text (e.g. Hungarian) from ballooning into \uXXXX escapes, which can push
+        // the encoded payload past the setting_value column's storage limit (#231).
+        $this->database->setSetting('patch_available_data', json_encode($patchesData, JSON_UNESCAPED_UNICODE));
 
         $count        = count($patchesData);
         $firstVersion = $patchesData[0]['version'];
@@ -361,7 +363,7 @@ class PatchChecker
             $dismissed[] = $version;
         }
 
-        $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed));
+        $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed, JSON_UNESCAPED_UNICODE));
 
         $this->logActivity('dismiss_patch', 'patch', null, null, ['version' => $version], $userId);
     }
@@ -391,7 +393,7 @@ class PatchChecker
             }
         }
 
-        $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed));
+        $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed, JSON_UNESCAPED_UNICODE));
 
         $this->logActivity('dismiss_all_patches', 'patch', null, null, ['versions' => $versions], $userId);
     }
@@ -415,7 +417,10 @@ class PatchChecker
                     if (empty($filtered)) {
                         $this->database->setSetting('patch_available_data', null);
                     } else {
-                        $this->database->setSetting('patch_available_data', json_encode(array_values($filtered)));
+                        $this->database->setSetting(
+                            'patch_available_data',
+                            json_encode(array_values($filtered), JSON_UNESCAPED_UNICODE)
+                        );
                     }
                 }
             }
@@ -429,7 +434,7 @@ class PatchChecker
             if (empty($dismissed)) {
                 $this->database->setSetting('patch_dismissed_versions', null);
             } else {
-                $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed));
+                $this->database->setSetting('patch_dismissed_versions', json_encode($dismissed, JSON_UNESCAPED_UNICODE));
             }
         }
     }
