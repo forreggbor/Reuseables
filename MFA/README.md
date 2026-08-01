@@ -5,13 +5,13 @@ RFC 6238 compliant TOTP (Time-based One-Time Password) implementation for PHP. C
 ## Features
 
 - TOTP code generation and verification
-- Built-in QR code generator (no external dependencies)
+- Built-in QR code generator (no third-party libraries)
 - Cryptographically secure secret generation (CSPRNG)
 - Timing-safe code verification (prevents timing attacks)
 - Replay attack prevention support
 - Argon2id hashed backup codes
 - Configurable time tolerance for clock drift
-- Zero external dependencies
+- Zero third-party library dependencies
 
 ## Requirements
 
@@ -19,6 +19,7 @@ RFC 6238 compliant TOTP (Time-based One-Time Password) implementation for PHP. C
 - `random_bytes()` function (standard in PHP 7+)
 - `hash_hmac()` function (standard)
 - `password_hash()` with Argon2id support (PHP 7.3+)
+- `ext-zlib` (`gzcompress()`) — required for QR code PNG generation
 
 ## Installation
 
@@ -101,7 +102,7 @@ MFAuthenticator::init([
 |--------|-------------|
 | `getCode(string $secret, ?int $timestamp = null): string` | Generate TOTP code |
 | `verify(string $secret, string $code, ?int &$usedTimestamp = null): bool` | Verify code with timing-safe comparison |
-| `verifyWithReplayProtection(string $secret, string $code, ?int $lastUsed): int\|false` | Verify with replay attack prevention |
+| `verifyWithReplayProtection(string $secret, string $code, ?int $lastUsedTimestamp): int\|false` | Verify with replay attack prevention |
 | `getSecondsRemaining(): int` | Seconds until current code expires |
 
 ### QR Code Generation

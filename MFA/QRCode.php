@@ -19,7 +19,7 @@ namespace MFA;
  * Core algorithms based on Kazuhiko Arase's qrcode-generator (MIT license).
  *
  * @package MFA
- * @version 1.0.1
+ * @version 1.0.3
  */
 class QRCode
 {

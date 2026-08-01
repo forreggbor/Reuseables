@@ -18,7 +18,7 @@ namespace MFA;
  * - Configuration validation
  *
  * @package MFA
- * @version 1.0.0
+ * @version 1.0.3
  * @license MIT
  */
 class MFAuthenticator

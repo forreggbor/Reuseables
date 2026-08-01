@@ -5,6 +5,18 @@ All notable changes to MFAuthenticator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-08-01
+
+| Category | Description                                                          |
+|----------|-----------------------------------------------------------------------|
+| Fixed    | README documented a wrong parameter name and understated a zlib dependency; both class docblock `@version` tags were stale |
+
+### Fixed
+
+- `verifyWithReplayProtection()`'s third parameter is `$lastUsedTimestamp`; the README's API Reference table showed `$lastUsed`, which would fatal with "Unknown named parameter" under a named-argument call.
+- README's "no external dependencies" / "zero external dependencies" claims corrected to "no third-party libraries" — QR code generation depends on the `zlib` PHP extension (`gzcompress()`), now listed under Requirements as `ext-zlib`.
+- `MFAuthenticator.php` and `QRCode.php` class docblock `@version` tags were stale (`1.0.0` and `1.0.1` respectively); both corrected.
+
 ## [1.0.2] - 2026-03-03
 
 | Category | Description                                                          |
