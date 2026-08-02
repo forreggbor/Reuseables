@@ -160,6 +160,7 @@
             ['Source',       data.source || '—'],
             ['Action',       data.action],
             ['Entity',       data.entity_type ? (data.entity_type + (data.entity_id ? ' #' + data.entity_id : '')) : '—'],
+            ['Reason',       data.reason || '—'],
             ['IP Address',   data.ip_address || '—'],
             ['User Agent',   data.user_agent || '—'],
             ['Session ID',   data.session_id || '—'],

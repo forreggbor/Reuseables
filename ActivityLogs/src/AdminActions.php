@@ -114,6 +114,8 @@ class AdminActions
             return ['status' => 404, 'data' => ['error' => 'Entry not found.']];
         }
 
+        $context = $this->decodeJson($entry->context ?? null);
+
         return [
             'status' => 200,
             'data'   => [
@@ -126,7 +128,8 @@ class AdminActions
                 'entity_id'   => $entry->entity_id,
                 'old_values'  => $this->decodeJson($entry->old_values ?? null),
                 'new_values'  => $this->decodeJson($entry->new_values ?? null),
-                'context'     => $this->decodeJson($entry->context ?? null),
+                'context'     => $context,
+                'reason'      => is_array($context) ? ($context['reason'] ?? null) : null,
                 'ip_address'  => $entry->ip_address,
                 'user_agent'  => $entry->user_agent,
                 'session_id'  => $entry->session_id,
@@ -159,7 +162,7 @@ class AdminActions
             // Header row
             yield $this->csvRow([
                 'ID', 'Time', 'User', 'Source', 'Action',
-                'Entity Type', 'Entity ID', 'IP Address', 'Old Values', 'New Values', 'Context',
+                'Entity Type', 'Entity ID', 'IP Address', 'Reason', 'Old Values', 'New Values', 'Context',
             ]);
 
             $chunkSize = 1000;
@@ -192,6 +195,7 @@ class AdminActions
                 foreach ($rows as $row) {
                     $userId    = $row->user_id;
                     $userLabel = $userId !== null ? $userCache[(int)$userId] : '';
+                    $context   = $this->decodeJsonSafe($row->context ?? null);
 
                     yield $this->csvRow([
                         $row->id,
@@ -202,6 +206,7 @@ class AdminActions
                         $row->entity_type ?? '',
                         $row->entity_id ?? '',
                         $row->ip_address ?? '',
+                        $context['reason'] ?? '',
                         $this->jsonForCsv($row->old_values ?? null),
                         $this->jsonForCsv($row->new_values ?? null),
                         $this->jsonForCsv($row->context ?? null),

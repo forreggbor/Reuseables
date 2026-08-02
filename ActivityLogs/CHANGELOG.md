@@ -5,6 +5,22 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-08-02
+
+| Category | Description                                                                                      |
+|----------|---------------------------------------------------------------------------------------------------|
+| Fixed    | A `reason` recorded in the generic `context` payload was never surfaced back out anywhere         |
+
+### Fixed
+
+- **`AdminActions::details()`/`exportCsv()` dropped `context.reason`** — a consumer that records a
+  `reason` key inside the generic `context` JSON payload (e.g. a host wrapper folding a "reason for
+  this action" field into `context` before calling `log()`) had no way to see it again: `details()`
+  didn't include it in its response, and `exportCsv()` had no `Reason` column. Both now surface
+  `context.reason` — `details()` under a top-level `reason` key, `exportCsv()` as a new `Reason`
+  column between Entity ID and Old Values. `js/activity-logs.js`'s `renderModal()` also gained a
+  `Reason` row so the bundled admin UI actually displays it.
+
 ## [1.4.1] - 2026-08-01
 
 | Category | Description                                                                                      |
