@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-08-03
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | Restoring on hosts without shell access now works for backups that were created normally (with shell access) |
+| Security | On hosts without shell access, restoring from a specially crafted malicious backup can no longer write files outside the intended restore folder |
+
+### Fixed
+- Restoring a backup on a host without shell access (the fallback mode used on some shared hosting) now works correctly for backups that were created normally — previously, this failed outright for a full restore, and silently skipped restoring the database or files at all for a scoped/partial restore, without any error being shown (#10).
+
+### Security
+- On hosts without shell access, the safety check that refuses to restore a specially crafted malicious backup (one designed to write files outside the intended restore folder) now actually runs — previously it could be silently skipped on that hosting mode, relying only on an incidental, undocumented protection elsewhere (#11).
+
 ## [0.1.2] - 2026-08-03
 
 | Category | Description |

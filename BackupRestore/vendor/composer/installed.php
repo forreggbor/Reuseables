@@ -3,7 +3,7 @@
         'name' => 'patrikmol/backup-restore',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => 'af7a6720847b3ee4fd0c72647503f8f7043e4f6c',
+        'reference' => '21e397f8b3186193030d8cacec428525ba28f581',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -31,7 +31,7 @@
         'patrikmol/backup-restore' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => 'af7a6720847b3ee4fd0c72647503f8f7043e4f6c',
+            'reference' => '21e397f8b3186193030d8cacec428525ba28f581',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

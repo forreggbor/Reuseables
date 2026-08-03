@@ -5,6 +5,19 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.1.3] - 2026-08-03
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva   | A shell-hozzáférés nélküli visszaállítás mostantól működik olyan mentéseknél, amelyek shell-hozzáféréssel, normál módon készültek |
+| Biztonság | Shell-hozzáférés nélküli hosztokon egy célzottan rosszindulatú mentés visszaállítása többé nem írhat fájlokat a célterületen kívülre |
+
+### Javítva
+- A mentés visszaállítása shell-hozzáférés nélküli hosztokon (néhány osztott tárhelyen használt tartalék mód) mostantól helyesen működik az olyan mentéseknél, amelyek normál (shell-hozzáféréssel rendelkező) módon készültek — korábban ez teljes visszaállításnál egyértelmű hibával meghiúsult, részleges/szűkített visszaállításnál pedig csendben, hibaüzenet nélkül kihagyta az adatbázis vagy a fájlok visszaállítását (#10).
+
+### Biztonság
+- Shell-hozzáférés nélküli hosztokon a célzottan rosszindulatú mentések elutasítására szolgáló biztonsági ellenőrzés mostantól ténylegesen lefut — korábban ezen a tárhelyi módon csendben kimaradhatott, és csak egy nem dokumentált, véletlenszerű védelemre lehetett hagyatkozni máshol (#11).
+
 ## [0.1.2] - 2026-08-03
 
 | Kategória   | Leírás |

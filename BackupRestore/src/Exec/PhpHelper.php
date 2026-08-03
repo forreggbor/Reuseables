@@ -343,6 +343,190 @@ class PhpHelper
     // ──────────────────────────────────────────────────────────
 
     /**
+     * Normalize a tar/tar.gz archive so PharData can correctly enumerate and
+     * extract it, working around a PharData/Phar limitation: it cannot
+     * iterate OR extract archives containing a "." self-referencing
+     * directory entry, or whose member names carry a literal "./" prefix on
+     * every entry — both of which GNU tar emits by default for
+     * `tar -czf archive.tgz -C dir .` (exactly what
+     * {@see \BackupRestore\Exec\ShellHelper::tarCreateGz()} runs, so this
+     * affects every backup created in exec mode once later read back via
+     * this pure-PHP fallback). Confirmed live: `RecursiveIteratorIterator`
+     * over such an archive yields zero members (silently — no exception),
+     * and `extractTo($dir, null, true)` throws
+     * `PharException: Cannot extract ".", internal error`. The silent-zero-
+     * members case is the more dangerous one: it does not just break full
+     * extraction, it also empties {@see tarList()} (defeating the
+     * pre-extraction zip-slip containment check, which trivially "passes"
+     * an empty member list) and silently no-ops selective extraction (e.g.
+     * `RestoreEngine`'s own `./manifest.json` / `./database/*` pattern
+     * extraction), which previously failed downstream with a misleading
+     * "No SQL dump found in archive" rather than the real cause.
+     *
+     * Writes a normalized, uncompressed, plain-.tar copy alongside the
+     * source archive — same scratch-path convention as {@see tarCreateGz()}
+     * (derived from the source path's own directory, never
+     * `sys_get_temp_dir()`, which may not be host-isolated and could leak
+     * backup content, including a raw SQL dump, into a world-readable
+     * location). The caller must delete the returned path when done.
+     *
+     * Safe to call on an archive that does not have this issue (e.g. one
+     * this class's own {@see tarCreateGz()} already produced) — normalizing
+     * it is then a no-op beyond the decompress/copy round trip.
+     *
+     * Also returns every member's RAW, unmodified name (`rawMemberNames`) —
+     * read directly from the tar headers, not via PharData's own iterator.
+     * This exists for issue #11: PharData's `RecursiveIteratorIterator`
+     * yields zero members not just for the "./"-shaped case above, but also
+     * for an archive containing a `../`-escaping member name — confirmed
+     * live — which would otherwise make a pre-extraction containment check
+     * built on that iterator pass vacuously on exactly the archives it
+     * exists to catch. `PathGuard::assertArchiveMembersContained()` already
+     * correctly rejects a `../`-escaping name once it actually receives
+     * one, so callers doing a full (unfiltered) extraction should validate
+     * against `rawMemberNames`, not against anything derived from iterating
+     * the (normalized-for-extraction) `PharData` object.
+     *
+     * @param string $archivePath Path to a .tar or .tar.gz/.tgz archive
+     * @return array{path: string, rawMemberNames: array<int,string>}
+     *         `path`: absolute path to a normalized, uncompressed .tar copy
+     * @throws \RuntimeException On read/decompression/write failure
+     */
+    private static function normalizeArchiveForPharData(string $archivePath): array
+    {
+        $raw = file_get_contents($archivePath);
+        if ($raw === false) {
+            throw new \RuntimeException("Could not read archive: {$archivePath}");
+        }
+
+        // Gzip magic bytes (0x1f 0x8b) — decompress if compressed, otherwise
+        // treat as an already-plain tar.
+        if (strlen($raw) >= 2 && $raw[0] === "\x1f" && $raw[1] === "\x8b") {
+            $decompressed = gzdecode($raw);
+            if ($decompressed === false) {
+                throw new \RuntimeException("Could not decompress archive: {$archivePath}");
+            }
+            $raw = $decompressed;
+        }
+
+        $rawMemberNames = self::listRawTarMemberNames($raw);
+        $normalized = self::stripAndNormalizeTarEntries($raw);
+
+        $tempPath = dirname($archivePath) . '/.tmp_normalized_' . bin2hex(random_bytes(8)) . '.tar';
+        if (file_put_contents($tempPath, $normalized) === false) {
+            throw new \RuntimeException("Could not write normalized archive: {$tempPath}");
+        }
+
+        return ['path' => $tempPath, 'rawMemberNames' => $rawMemberNames];
+    }
+
+    /**
+     * Enumerate every member's raw, unmodified name from raw (uncompressed)
+     * tar bytes via direct header parsing — deliberately NOT PharData's own
+     * iterator (see {@see normalizeArchiveForPharData()}'s docblock for why
+     * that cannot be trusted to enumerate every archive shape). The "."/"./"
+     * self-referencing root entry is excluded (carries no information a
+     * containment check needs); every other name — including a `../`-escaping
+     * one — is returned completely unmodified, precisely so the caller's
+     * containment check sees the true name and can reject it.
+     *
+     * @param string $tarData Raw, uncompressed tar bytes
+     * @return array<int,string> Every real member's raw name field
+     */
+    private static function listRawTarMemberNames(string $tarData): array
+    {
+        $names = [];
+        $offset = 0;
+        $len = strlen($tarData);
+
+        while ($offset + 512 <= $len) {
+            $header = substr($tarData, $offset, 512);
+
+            if (trim($header, "\0") === '') {
+                break;
+            }
+
+            $name = rtrim(substr($header, 0, 100), "\0");
+            $sizeOctal = rtrim(substr($header, 124, 12), "\0 ");
+            $size = $sizeOctal === '' ? 0 : intval($sizeOctal, 8);
+            $contentBlocks = (int) ceil($size / 512);
+
+            if ($name !== '' && $name !== '.' && $name !== './') {
+                $names[] = $name;
+            }
+
+            $offset += 512 + $contentBlocks * 512;
+        }
+
+        return $names;
+    }
+
+    /**
+     * Strip a "." self-referencing directory entry and rewrite any
+     * "./"-prefixed member name to its bare relative form, recomputing each
+     * rewritten header's checksum per the POSIX ustar spec. Operates on raw,
+     * uncompressed tar bytes — the byte-level format PharData's own tar
+     * reader cannot correctly traverse in the shape GNU tar produces for
+     * `tar -C dir .` (see {@see normalizeArchiveForPharData()}).
+     *
+     * @param string $tarData Raw, uncompressed tar bytes
+     * @return string Normalized tar bytes
+     */
+    private static function stripAndNormalizeTarEntries(string $tarData): string
+    {
+        $out = '';
+        $offset = 0;
+        $len = strlen($tarData);
+
+        while ($offset + 512 <= $len) {
+            $header = substr($tarData, $offset, 512);
+
+            // A zero-filled block marks the end of the archive (conventionally
+            // two in a row) — copy the remainder through unchanged.
+            if (trim($header, "\0") === '') {
+                $out .= substr($tarData, $offset);
+                break;
+            }
+
+            $name = rtrim(substr($header, 0, 100), "\0");
+            $typeflag = $header[156];
+            $sizeOctal = rtrim(substr($header, 124, 12), "\0 ");
+            $size = $sizeOctal === '' ? 0 : intval($sizeOctal, 8);
+            $contentBlocks = (int) ceil($size / 512);
+            $entryTotalLen = 512 + $contentBlocks * 512;
+
+            // '5' = POSIX ustar DIRTYPE. A "." (or "./") directory entry is
+            // pure self-referencing metadata about the archive root — the
+            // destination directory already exists (or gets created) on the
+            // extraction side, so this entry carries nothing extraction needs.
+            if (($name === '.' || $name === './') && $typeflag === '5') {
+                $offset += $entryTotalLen;
+                continue;
+            }
+
+            if (str_starts_with($name, './')) {
+                $newNameField = str_pad(substr($name, 2), 100, "\0");
+                $header = $newNameField . substr($header, 100);
+
+                // Recompute the header checksum (offset 148, 8 bytes) per the
+                // ustar spec: sum of all 512 header bytes with the checksum
+                // field itself treated as all spaces (0x20) during the sum.
+                $forSum = substr($header, 0, 148) . str_repeat(' ', 8) . substr($header, 156);
+                $sum = 0;
+                for ($i = 0; $i < 512; $i++) {
+                    $sum += ord($forSum[$i]);
+                }
+                $header = substr($header, 0, 148) . sprintf("%06o\0 ", $sum) . substr($header, 156);
+            }
+
+            $out .= $header . substr($tarData, $offset + 512, $contentBlocks * 512);
+            $offset += $entryTotalLen;
+        }
+
+        return $out;
+    }
+
+    /**
      * List contents of a tar.gz archive via PharData.
      *
      * @param string $archivePath Path to .tar.gz or .tgz file
@@ -355,17 +539,28 @@ class PhpHelper
         }
 
         try {
-            $phar = new \PharData($archivePath);
+            $normalized = self::normalizeArchiveForPharData($archivePath);
+        } catch (\RuntimeException $e) {
+            return ['success' => false, 'files' => [], 'error' => $e->getMessage()];
+        }
+
+        try {
+            $phar = new \PharData($normalized['path']);
             $files = [];
             $iterator = new \RecursiveIteratorIterator($phar);
 
+            // getSubPathname() (on the ITERATOR) — not $file->getPathname(),
+            // which returns the full "phar://<archive-path>/<member>" stream
+            // URL rather than a relative member path.
             foreach ($iterator as $file) {
-                $files[] = './' . $file->getPathname();
+                $files[] = './' . $iterator->getSubPathname();
             }
 
             return ['success' => true, 'files' => $files, 'error' => null];
         } catch (\Exception $e) {
             return ['success' => false, 'files' => [], 'error' => $e->getMessage()];
+        } finally {
+            @unlink($normalized['path']);
         }
     }
 
@@ -382,7 +577,14 @@ class PhpHelper
         }
 
         try {
-            $phar = new \PharData($archivePath);
+            $normalized = self::normalizeArchiveForPharData($archivePath);
+        } catch (\RuntimeException $e) {
+            Logger::log("[PhpHelper] tarCount failed: " . $e->getMessage(), 'WARNING');
+            return 0;
+        }
+
+        try {
+            $phar = new \PharData($normalized['path']);
             $count = 0;
             $iterator = new \RecursiveIteratorIterator($phar);
             foreach ($iterator as $_) {
@@ -392,6 +594,8 @@ class PhpHelper
         } catch (\Exception $e) {
             Logger::log("[PhpHelper] tarCount failed: " . $e->getMessage(), 'WARNING');
             return 0;
+        } finally {
+            @unlink($normalized['path']);
         }
     }
 
@@ -555,24 +759,31 @@ class PhpHelper
         }
 
         try {
-            $phar = new \PharData($archivePath);
+            $normalized = self::normalizeArchiveForPharData($archivePath);
+        } catch (\RuntimeException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+
+        try {
+            $phar = new \PharData($normalized['path']);
 
             if (!is_dir($destDir)) {
                 mkdir($destDir, 0775, true);
             }
 
             if ($pattern === null) {
-                // Full extraction — enumerate and validate every member's
-                // destination BEFORE PharData writes anything (see
-                // ShellHelper::tarExtract()'s comment: once written, a
-                // `../`-escaping member has already done its damage; a
-                // post-extraction scan could only ever discover it).
-                $allMembers = [];
-                foreach (new \RecursiveIteratorIterator($phar) as $file) {
-                    $allMembers[] = $file->getPathname();
-                }
+                // Full extraction — validate every member's destination
+                // BEFORE PharData writes anything (see ShellHelper::tarExtract()'s
+                // comment: once written, a `../`-escaping member has already
+                // done its damage; a post-extraction scan could only ever
+                // discover it). Checked against $normalized['rawMemberNames']
+                // — raw tar-header-parsed names, not PharData's own iterator
+                // (issue #11: that iterator yields ZERO members for an archive
+                // containing a `../`-escaping name, exactly the case this
+                // check exists to catch, making an iterator-derived member
+                // list vacuous here).
                 try {
-                    \BackupRestore\PathGuard::assertArchiveMembersContained($allMembers, $destDir);
+                    \BackupRestore\PathGuard::assertArchiveMembersContained($normalized['rawMemberNames'], $destDir);
                 } catch (\RuntimeException $e) {
                     return ['success' => false, 'error' => 'Refusing to extract unsafe archive: ' . $e->getMessage()];
                 }
@@ -585,7 +796,10 @@ class PhpHelper
 
                 $iterator = new \RecursiveIteratorIterator($phar);
                 foreach ($iterator as $file) {
-                    $relativePath = $file->getPathname();
+                    // Same getSubPathname() reasoning as the full-extraction
+                    // branch above — getPathname() would never match
+                    // $patternDir, silently extracting nothing.
+                    $relativePath = $iterator->getSubPathname();
                     if (str_starts_with($relativePath, $patternDir . '/') || $relativePath === $patternDir) {
                         $matchingFiles[] = $relativePath;
                     }
@@ -605,6 +819,8 @@ class PhpHelper
             return ['success' => true, 'error' => null];
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
+        } finally {
+            @unlink($normalized['path']);
         }
     }
 
@@ -622,17 +838,24 @@ class PhpHelper
         }
 
         try {
-            $phar = new \PharData($archivePath);
+            $normalized = self::normalizeArchiveForPharData($archivePath);
+        } catch (\RuntimeException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+
+        try {
+            $phar = new \PharData($normalized['path']);
             if (!is_dir($destDir)) {
                 mkdir($destDir, 0775, true);
             }
 
-            $allMembers = [];
-            foreach (new \RecursiveIteratorIterator($phar) as $file) {
-                $allMembers[] = $file->getPathname();
-            }
+            // Checked against $normalized['rawMemberNames'] — see tarExtract()'s
+            // identical reasoning (issue #11: PharData's own iterator yields
+            // zero members for a `../`-escaping archive, making an
+            // iterator-derived member list vacuous for exactly the case this
+            // check exists to catch).
             try {
-                \BackupRestore\PathGuard::assertArchiveMembersContained($allMembers, $destDir);
+                \BackupRestore\PathGuard::assertArchiveMembersContained($normalized['rawMemberNames'], $destDir);
             } catch (\RuntimeException $e) {
                 return ['success' => false, 'error' => 'Refusing to extract unsafe archive: ' . $e->getMessage()];
             }
@@ -641,6 +864,8 @@ class PhpHelper
             return ['success' => true, 'error' => null];
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
+        } finally {
+            @unlink($normalized['path']);
         }
     }
 

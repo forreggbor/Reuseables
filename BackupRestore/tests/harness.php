@@ -590,6 +590,91 @@ if ($ffStandaloneBackup['success']) {
 }
 
 // ---------------------------------------------------------------------
+// PHP fallback archive extraction (exec() unavailable) — shell-mode
+// archives (issue #10)
+// ---------------------------------------------------------------------
+
+section('PHP fallback archive extraction of shell-mode-created archives (fail-fast issue #10)');
+
+// A real backup, created via this harness's normal (exec-available) path —
+// ShellHelper::tarCreateGz() ("tar -czf ... -C dir .") — is exactly the
+// archive shape that broke PharData: a "." self-referencing directory entry
+// plus a literal "./" prefix on every member name. PharData's iterator
+// silently yields zero members for such an archive (no exception — which
+// also emptied the pre-extraction zip-slip containment check) and
+// extractTo() threw `PharException: Cannot extract "."`.
+$archiveFixBackup = $engine->createBackup(['type' => 'database', 'note' => 'archive-fix test']);
+check('Archive-fix test: source backup created', $archiveFixBackup['success'], $archiveFixBackup['error'] ?? '');
+
+if ($archiveFixBackup['success']) {
+    $archiveFixPath = $engine->getBackupDir() . '/' . $archiveFixBackup['filename'];
+
+    $listResult = BackupRestore\Exec\PhpHelper::tarList($archiveFixPath);
+    check('Shell-mode archive: PhpHelper::tarList() succeeds', $listResult['success'], $listResult['error'] ?? '');
+    check(
+        'Shell-mode archive: tarList() finds manifest.json and the database dump',
+        $listResult['success']
+            && !empty(array_filter($listResult['files'], fn ($f) => str_contains($f, 'manifest.json')))
+            && !empty(array_filter($listResult['files'], fn ($f) => str_contains($f, '.sql'))),
+        json_encode($listResult['files'] ?? [])
+    );
+
+    $count = BackupRestore\Exec\PhpHelper::tarCount($archiveFixPath);
+    check('Shell-mode archive: PhpHelper::tarCount() reports > 0', $count > 0, "count={$count}");
+
+    $fullExtractDir = $scratchRoot . '/archive_fix_full';
+    $fullExtractResult = BackupRestore\Exec\PhpHelper::tarExtract($archiveFixPath, $fullExtractDir);
+    check('Shell-mode archive: PhpHelper::tarExtract() full extraction succeeds', $fullExtractResult['success'], $fullExtractResult['error'] ?? '');
+    check('Shell-mode archive: full extraction produced manifest.json', file_exists($fullExtractDir . '/manifest.json'));
+    check('Shell-mode archive: full extraction produced the database dump', !empty(glob($fullExtractDir . '/database/*.sql')));
+
+    // Selective extraction — exactly what RestoreEngine::restoreFromArchivePath()
+    // calls on every real restore. Before this fix, this silently matched zero
+    // files (RecursiveIteratorIterator's $file->getPathname() returned the full
+    // phar:// stream URL, which never matches a relative pattern), reporting
+    // success=true while extracting nothing.
+    $selectiveManifestDir = $scratchRoot . '/archive_fix_manifest';
+    $selectiveManifestResult = BackupRestore\Exec\PhpHelper::tarExtract($archiveFixPath, $selectiveManifestDir, './manifest.json');
+    check('Shell-mode archive: selective extraction of ./manifest.json succeeds', $selectiveManifestResult['success'], $selectiveManifestResult['error'] ?? '');
+    check('Shell-mode archive: selective ./manifest.json extraction actually produced the file', file_exists($selectiveManifestDir . '/manifest.json'));
+
+    $selectiveDbDir = $scratchRoot . '/archive_fix_database';
+    $selectiveDbResult = BackupRestore\Exec\PhpHelper::tarExtract($archiveFixPath, $selectiveDbDir, './database/*');
+    check('Shell-mode archive: selective extraction of ./database/* succeeds', $selectiveDbResult['success'], $selectiveDbResult['error'] ?? '');
+    check('Shell-mode archive: selective ./database/* extraction actually produced the dump', !empty(glob($selectiveDbDir . '/database/*.sql')));
+
+    $leftoverNormalized = glob($engine->getBackupDir() . '/.tmp_normalized_*');
+    check('Shell-mode archive: no leftover .tmp_normalized_* scratch files', empty($leftoverNormalized), implode(',', $leftoverNormalized));
+
+    // Definitive end-to-end proof: the standalone CLI, forced into PHP-fallback
+    // mode, restoring a REAL (unmodified, genuinely shell-mode-created) backup
+    // archive directly — no repack workaround needed, unlike issue #9's test B
+    // (which had to repack via PhpHelper::tarCreateGz() specifically because
+    // this bug was not fixed yet).
+    $archiveFixRow = $engine->getBackup($archiveFixBackup['backup_id']);
+    $archiveFixCmd = sprintf(
+        'php -d disable_functions=exec,shell_exec,system,passthru,proc_open,popen %s --file=%s --token=%s --db-host=%s --db-port=%d --db-user=%s --db-pass=%s --db-name=%s 2>&1',
+        escapeshellarg(__DIR__ . '/../standalone/restore.php'),
+        escapeshellarg($archiveFixPath),
+        escapeshellarg($archiveFixRow->restore_token),
+        escapeshellarg($dbHost),
+        $dbPort,
+        escapeshellarg($dbUser),
+        escapeshellarg($dbPass),
+        escapeshellarg($dbName)
+    );
+    $archiveFixOutput = [];
+    $archiveFixReturnCode = 0;
+    exec($archiveFixCmd, $archiveFixOutput, $archiveFixReturnCode);
+    $archiveFixOutputText = implode("\n", $archiveFixOutput);
+    check(
+        'Shell-mode archive: standalone CLI restores a REAL (non-repacked) backup end-to-end in forced PHP-fallback mode',
+        $archiveFixReturnCode === 0 && str_contains($archiveFixOutputText, 'Restore completed successfully'),
+        $archiveFixOutputText
+    );
+}
+
+// ---------------------------------------------------------------------
 // Security regression checks (from the 2026-07-12 /security-review pass)
 // ---------------------------------------------------------------------
 
@@ -614,6 +699,116 @@ if ($tarBuildRc === 0) {
     $zipSlipResult = BackupRestore\Exec\ExecHelper::tarExtract($maliciousArchive, $zipSlipDest);
     check('Zip-slip: tarExtract() refuses a ../-escaping archive member', $zipSlipResult['success'] === false, json_encode($zipSlipResult));
     check('Zip-slip: no file written outside the destination directory', !file_exists(dirname($zipSlipDest) . '/escape.txt'));
+}
+
+section('Security: zip-slip refused via the PHP-fallback path too (issue #11)');
+
+// The section above goes through ExecHelper (exec() is available in this
+// harness, so it exercises ShellHelper::tarExtract()). PharData's own
+// RecursiveIteratorIterator yields ZERO members for a `../`-escaping
+// archive (confirmed live) — which would make an iterator-derived
+// containment check vacuous. PhpHelper::tarExtract() must reject this via
+// the raw tar-header-parsed member list instead — called directly here
+// (bypassing ExecHelper) to force the PHP-fallback code path specifically.
+if ($tarBuildRc === 0) {
+    $zipSlipDestPhp = $scratchRoot . '/zipslip_dest_php/inner';
+    mkdir($zipSlipDestPhp, 0777, true);
+    $zipSlipResultPhp = BackupRestore\Exec\PhpHelper::tarExtract($maliciousArchive, $zipSlipDestPhp);
+    check('PHP-fallback zip-slip: tarExtract() refuses a ../-escaping archive member', $zipSlipResultPhp['success'] === false, json_encode($zipSlipResultPhp));
+    check('PHP-fallback zip-slip: no file written outside the destination directory', !file_exists(dirname($zipSlipDestPhp) . '/escape.txt'));
+}
+
+// Same check, but through the standalone disaster-recovery script, forced
+// into PHP-fallback mode via a subprocess — proves executeRestore()'s own
+// mirrored fix (not just the library's) actually rejects the archive.
+//
+// Deliberately targets its OWN disposable scratch database (outside the
+// {$dbName}_ namespace, per the same reasoning as the issue #9 fail-fast
+// section) rather than the shared $dbName every other section depends on:
+// if this containment check has a bug, the standalone script's atomic
+// restore would still proceed to its RENAME TABLE swap — moving the target
+// database's real tables out to an "_old_*" database and not restoring any
+// back (this test's dump intentionally defines zero tables), which would
+// silently empty a shared database out from under every later test section.
+// A throwaway scratch database contains that blast radius to itself.
+if ($tarBuildRc === 0) {
+    $zipSlipDbName = 'br_zipsliptest_' . bin2hex(random_bytes(4));
+    $adminPdo->exec("CREATE DATABASE IF NOT EXISTS `{$zipSlipDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+    try {
+        // The standalone CLI needs a full manifest.json + database dump inside
+        // the archive (not just a bare escape.txt) to get past its own earlier
+        // validation steps and reach the extraction step under test.
+        $zipSlipStandaloneWork = $scratchRoot . '/zipslip_standalone_work';
+        mkdir($zipSlipStandaloneWork . '/database', 0777, true);
+        file_put_contents($zipSlipStandaloneWork . '/database/dump.sql', "SELECT 1;\n");
+        file_put_contents($zipSlipStandaloneWork . '/manifest.json', json_encode([
+            'version' => 1,
+            'backup_type' => 'database',
+            'restore_token' => 'zipsliptesttoken',
+            'database' => ['dump_file' => 'database/dump.sql'],
+        ]));
+        file_put_contents($zipSlipStandaloneWork . '/escape.txt', 'malicious content');
+
+        // Anchored to the FULL "./"-prefixed name tar's own -C dir . convention
+        // produces (confirmed live) — a pattern anchored only to "escape.txt"
+        // without the "./" prefix does not match, silently leaving the member
+        // un-transformed and defeating the whole point of this test archive.
+        $zipSlipStandaloneArchive = $scratchRoot . '/zipslip_standalone.tgz';
+        exec(
+            'tar -czf ' . escapeshellarg($zipSlipStandaloneArchive)
+            . ' --transform ' . escapeshellarg('s,^\./escape\.txt$,../escape.txt,')
+            . ' -C ' . escapeshellarg($zipSlipStandaloneWork) . ' . 2>&1',
+            $zipSlipStandaloneBuildOutput,
+            $zipSlipStandaloneBuildRc
+        );
+        check('PHP-fallback zip-slip (standalone) test setup: crafted archive with a ../-escaping member', $zipSlipStandaloneBuildRc === 0, implode("\n", $zipSlipStandaloneBuildOutput));
+
+        // Verify via a separate `tar -tzf` listing (not the -czf creation
+        // command's own output, which is just warnings, never a member list)
+        // that the archive genuinely contains the escaping member — otherwise
+        // a passing "refuses" check below could vacuously pass for having
+        // nothing malicious to refuse in the first place.
+        $zipSlipStandaloneListing = [];
+        exec('tar -tzf ' . escapeshellarg($zipSlipStandaloneArchive) . ' 2>&1', $zipSlipStandaloneListing);
+        check(
+            'PHP-fallback zip-slip (standalone) test setup: archive listing actually contains ../escape.txt',
+            in_array('../escape.txt', $zipSlipStandaloneListing, true),
+            implode("\n", $zipSlipStandaloneListing)
+        );
+
+        if ($zipSlipStandaloneBuildRc === 0) {
+            $zipSlipStandaloneCmd = sprintf(
+                'php -d disable_functions=exec,shell_exec,system,passthru,proc_open,popen %s --file=%s --token=zipsliptesttoken --db-host=%s --db-port=%d --db-user=%s --db-pass=%s --db-name=%s 2>&1',
+                escapeshellarg(__DIR__ . '/../standalone/restore.php'),
+                escapeshellarg($zipSlipStandaloneArchive),
+                escapeshellarg($dbHost),
+                $dbPort,
+                escapeshellarg($dbUser),
+                escapeshellarg($dbPass),
+                escapeshellarg($zipSlipDbName)
+            );
+            $zipSlipStandaloneOutput = [];
+            $zipSlipStandaloneReturnCode = 0;
+            exec($zipSlipStandaloneCmd, $zipSlipStandaloneOutput, $zipSlipStandaloneReturnCode);
+            $zipSlipStandaloneOutputText = implode("\n", $zipSlipStandaloneOutput);
+            // The containment check runs BEFORE extractTo() is ever called (see
+            // restore_assert_archive_members_contained()'s own docblock) — a
+            // "Refusing to extract" failure here is proof nothing was written to
+            // disk from this archive, not just that some final state looks clean.
+            check(
+                'PHP-fallback zip-slip (standalone): restore.php refuses the ../-escaping archive before extracting anything',
+                $zipSlipStandaloneReturnCode !== 0 && str_contains($zipSlipStandaloneOutputText, 'Refusing to extract unsafe archive'),
+                $zipSlipStandaloneOutputText
+            );
+        }
+    } finally {
+        try {
+            $adminPdo->exec("DROP DATABASE IF EXISTS `{$zipSlipDbName}`");
+        } catch (\Throwable) {
+            // best-effort cleanup
+        }
+    }
 }
 
 section('Security: Fs::removeDirectory() does not follow a symlink out of the tree');

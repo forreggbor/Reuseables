@@ -636,6 +636,165 @@ function readEnvCredentials(): array
 }
 
 /**
+ * Normalize a tar/tar.gz archive so PharData can correctly enumerate and
+ * extract it — works around a PharData/Phar limitation: it cannot iterate
+ * OR extract archives containing a "." self-referencing directory entry, or
+ * whose member names carry a literal "./" prefix on every entry, both of
+ * which GNU tar emits by default for `tar -czf archive.tgz -C dir .` (the
+ * shape every normal exec-mode backup is created in). Confirmed live:
+ * iterating such an archive yields zero members (silently — no exception),
+ * and extractTo($dir, null, true) throws
+ * `PharException: Cannot extract ".", internal error`.
+ *
+ * Also returns every member's RAW, unmodified name (`rawMemberNames`) — read
+ * directly from the tar headers, not via PharData's own iterator. This
+ * exists for issue #11: PharData's RecursiveIteratorIterator yields zero
+ * members not just for the "./"-shaped case above, but also for an archive
+ * containing a `../`-escaping member name — confirmed live — which would
+ * otherwise make a pre-extraction containment check built on that iterator
+ * pass vacuously on exactly the archives it exists to catch.
+ * restore_assert_archive_members_contained() already correctly rejects a
+ * `../`-escaping name once it actually receives one.
+ *
+ * Kept in sync manually with
+ * BackupRestore\Exec\PhpHelper::normalizeArchiveForPharData() — the
+ * standalone script cannot depend on the framework autoloader. One
+ * deliberate difference: this version takes an explicit scratch directory
+ * (the caller already has $tempDir on hand), where the library version
+ * derives one from the archive's own directory since its static utility
+ * methods don't receive a scratch-dir parameter.
+ *
+ * @param string $archivePath Path to a .tar or .tar.gz/.tgz archive
+ * @param string $scratchDir Writable directory for the normalized copy
+ * @return array{path: string, rawMemberNames: array<int,string>}
+ * @throws RuntimeException On read/decompression/write failure
+ */
+function normalizeArchiveForPharData(string $archivePath, string $scratchDir): array
+{
+    $raw = file_get_contents($archivePath);
+    if ($raw === false) {
+        throw new RuntimeException("Could not read archive: {$archivePath}");
+    }
+
+    // Gzip magic bytes (0x1f 0x8b) — decompress if compressed, otherwise
+    // treat as an already-plain tar.
+    if (strlen($raw) >= 2 && $raw[0] === "\x1f" && $raw[1] === "\x8b") {
+        $decompressed = gzdecode($raw);
+        if ($decompressed === false) {
+            throw new RuntimeException("Could not decompress archive: {$archivePath}");
+        }
+        $raw = $decompressed;
+    }
+
+    $rawMemberNames = listRawTarMemberNames($raw);
+    $normalized = stripAndNormalizeTarEntries($raw);
+
+    $tempPath = rtrim($scratchDir, '/') . '/.tmp_normalized_' . bin2hex(random_bytes(8)) . '.tar';
+    if (file_put_contents($tempPath, $normalized) === false) {
+        throw new RuntimeException("Could not write normalized archive: {$tempPath}");
+    }
+
+    return ['path' => $tempPath, 'rawMemberNames' => $rawMemberNames];
+}
+
+/**
+ * Enumerate every member's raw, unmodified name from raw (uncompressed) tar
+ * bytes via direct header parsing — deliberately NOT PharData's own
+ * iterator (see normalizeArchiveForPharData()'s docblock for why). The
+ * "."/"./" self-referencing root entry is excluded; every other name —
+ * including a `../`-escaping one — is returned completely unmodified.
+ *
+ * Kept in sync manually with
+ * BackupRestore\Exec\PhpHelper::listRawTarMemberNames().
+ *
+ * @param string $tarData Raw, uncompressed tar bytes
+ * @return array<int,string> Every real member's raw name field
+ */
+function listRawTarMemberNames(string $tarData): array
+{
+    $names = [];
+    $offset = 0;
+    $len = strlen($tarData);
+
+    while ($offset + 512 <= $len) {
+        $header = substr($tarData, $offset, 512);
+
+        if (trim($header, "\0") === '') {
+            break;
+        }
+
+        $name = rtrim(substr($header, 0, 100), "\0");
+        $sizeOctal = rtrim(substr($header, 124, 12), "\0 ");
+        $size = $sizeOctal === '' ? 0 : intval($sizeOctal, 8);
+        $contentBlocks = (int) ceil($size / 512);
+
+        if ($name !== '' && $name !== '.' && $name !== './') {
+            $names[] = $name;
+        }
+
+        $offset += 512 + $contentBlocks * 512;
+    }
+
+    return $names;
+}
+
+/**
+ * Strip a "." self-referencing directory entry and rewrite any "./"-prefixed
+ * member name to its bare relative form, recomputing each rewritten header's
+ * checksum per the POSIX ustar spec. Operates on raw, uncompressed tar bytes.
+ *
+ * Kept in sync manually with
+ * BackupRestore\Exec\PhpHelper::stripAndNormalizeTarEntries().
+ *
+ * @param string $tarData Raw, uncompressed tar bytes
+ * @return string Normalized tar bytes
+ */
+function stripAndNormalizeTarEntries(string $tarData): string
+{
+    $out = '';
+    $offset = 0;
+    $len = strlen($tarData);
+
+    while ($offset + 512 <= $len) {
+        $header = substr($tarData, $offset, 512);
+
+        if (trim($header, "\0") === '') {
+            $out .= substr($tarData, $offset);
+            break;
+        }
+
+        $name = rtrim(substr($header, 0, 100), "\0");
+        $typeflag = $header[156];
+        $sizeOctal = rtrim(substr($header, 124, 12), "\0 ");
+        $size = $sizeOctal === '' ? 0 : intval($sizeOctal, 8);
+        $contentBlocks = (int) ceil($size / 512);
+        $entryTotalLen = 512 + $contentBlocks * 512;
+
+        if (($name === '.' || $name === './') && $typeflag === '5') {
+            $offset += $entryTotalLen;
+            continue;
+        }
+
+        if (str_starts_with($name, './')) {
+            $newNameField = str_pad(substr($name, 2), 100, "\0");
+            $header = $newNameField . substr($header, 100);
+
+            $forSum = substr($header, 0, 148) . str_repeat(' ', 8) . substr($header, 156);
+            $sum = 0;
+            for ($i = 0; $i < 512; $i++) {
+                $sum += ord($forSum[$i]);
+            }
+            $header = substr($header, 0, 148) . sprintf("%06o\0 ", $sum) . substr($header, 156);
+        }
+
+        $out .= $header . substr($tarData, $offset + 512, $contentBlocks * 512);
+        $offset += $entryTotalLen;
+    }
+
+    return $out;
+}
+
+/**
  * Extract manifest.json from a TGZ archive
  *
  * In exec mode: uses tar CLI.
@@ -741,19 +900,27 @@ function executeRestore(string $archivePath, string $tempDir, array $creds, arra
             return ['success' => false, 'error' => 'Failed to extract archive: ' . implode("\n", $output)];
         }
     } else {
+        $normalizedArchive = null;
         try {
-            $phar = new PharData($archivePath);
-            $allMembers = [];
-            foreach (new RecursiveIteratorIterator($phar) as $file) {
-                $allMembers[] = $file->getPathname();
-            }
-            restore_assert_archive_members_contained($allMembers, $tempDir);
+            $normalizedArchive = normalizeArchiveForPharData($archivePath, $tempDir);
+            $phar = new PharData($normalizedArchive['path']);
+
+            // Checked against $normalizedArchive['rawMemberNames'] — raw
+            // tar-header-parsed names, not PharData's own iterator (issue #11:
+            // that iterator yields zero members for a `../`-escaping archive,
+            // making an iterator-derived member list vacuous for exactly the
+            // case this check exists to catch).
+            restore_assert_archive_members_contained($normalizedArchive['rawMemberNames'], $tempDir);
 
             $phar->extractTo($tempDir, null, true);
         } catch (RuntimeException $e) {
             return ['success' => false, 'error' => 'Refusing to extract unsafe archive: ' . $e->getMessage()];
         } catch (Exception $e) {
             return ['success' => false, 'error' => 'Failed to extract archive: ' . $e->getMessage()];
+        } finally {
+            if ($normalizedArchive !== null) {
+                @unlink($normalizedArchive['path']);
+            }
         }
     }
 

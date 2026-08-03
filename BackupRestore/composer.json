@@ -5,8 +5,11 @@
     "license": "MIT",
     "require": {
         "php": ">=8.3",
+        "ext-mbstring": "*",
         "ext-openssl": "*",
         "ext-pdo": "*",
+        "ext-phar": "*",
+        "ext-zlib": "*",
         "phpseclib/phpseclib": "^3.0"
     },
     "require-dev": {
