@@ -543,6 +543,161 @@ final class RestoreEngine
     }
 
     // =========================================================================
+    // Foreign-key capture/rebuild helpers (shared by restoreDatabaseAtomic()
+    // and restoreDatabaseInPlace() — partial restores must protect FKs that
+    // cross the managed/non-managed table boundary; both strategies capture,
+    // drop, and rebuild them the same way, only the target database name and
+    // failure handling differ per call site).
+    // =========================================================================
+
+    /**
+     * Map raw information_schema.KEY_COLUMN_USAGE/REFERENTIAL_CONSTRAINTS rows
+     * (TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME,
+     * REFERENCED_COLUMN_NAME, DELETE_RULE, UPDATE_RULE) into the associative
+     * FK-descriptor shape used by the rebuild helpers below.
+     *
+     * @param array<int,array> $rows
+     * @return array<int,array{table:string,constraint:string,column:string,ref_table:string,ref_column:string,delete_rule:string,update_rule:string}>
+     */
+    private static function mapForeignKeyRows(array $rows): array
+    {
+        $fks = [];
+        foreach ($rows as $row) {
+            $fks[] = [
+                'table' => $row[0],
+                'constraint' => $row[1],
+                'column' => $row[2],
+                'ref_table' => $row[3],
+                'ref_column' => $row[4],
+                'delete_rule' => $row[5],
+                'update_rule' => $row[6],
+            ];
+        }
+        return $fks;
+    }
+
+    /**
+     * Query FKs defined on tables OUTSIDE $tables that reference a table IN
+     * $tables ("external inbound" FKs) — captured before a partial restore's
+     * table swap/rename so they can be dropped (MariaDB auto-updates them
+     * when the referenced table is renamed away) and rebuilt afterward
+     * pointing at the same table under its permanent name again.
+     *
+     * @param array $creds Database credentials
+     * @param string $dbName Database name to query
+     * @param string[] $tables Managed table names
+     * @return array<int,array{table:string,constraint:string,column:string,ref_table:string,ref_column:string,delete_rule:string,update_rule:string}>
+     */
+    private function queryExternalInboundForeignKeys(array $creds, string $dbName, array $tables): array
+    {
+        if (empty($tables)) {
+            return [];
+        }
+
+        $inList = Identifier::quoteStringList($tables);
+        $result = ExecHelper::mysqlQuery(
+            "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME,
+                    kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME,
+                    rc.DELETE_RULE, rc.UPDATE_RULE
+             FROM   information_schema.KEY_COLUMN_USAGE kcu
+             JOIN   information_schema.REFERENTIAL_CONSTRAINTS rc
+                        ON  rc.CONSTRAINT_NAME   = kcu.CONSTRAINT_NAME
+                        AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+             WHERE  kcu.TABLE_SCHEMA          = '{$dbName}'
+               AND  kcu.REFERENCED_TABLE_NAME IN ({$inList})
+               AND  kcu.TABLE_NAME            NOT IN ({$inList})",
+            $creds
+        );
+
+        if (!$result['success'] || empty($result['rows'])) {
+            return [];
+        }
+
+        return self::mapForeignKeyRows($result['rows']);
+    }
+
+    /**
+     * Query FKs defined ON a table IN $tables that reference a table OUTSIDE
+     * $tables ("outbound" FKs) — the golden dump's own CREATE TABLE for a
+     * managed table still defines these, so importing it into an isolated
+     * temp database recreates them pointing at a same-named table that does
+     * not exist there; RENAME TABLE does not fix this (it only updates FKs
+     * that point AT a renamed table, not FKs defined ON it), so the caller
+     * must drop+recreate them against the live table after the swap.
+     *
+     * @param array $creds Database credentials
+     * @param string $dbName Database name to query
+     * @param string[] $tables Managed table names
+     * @return array<int,array{table:string,constraint:string,column:string,ref_table:string,ref_column:string,delete_rule:string,update_rule:string}>
+     */
+    private function queryOutboundForeignKeys(array $creds, string $dbName, array $tables): array
+    {
+        if (empty($tables)) {
+            return [];
+        }
+
+        $inList = Identifier::quoteStringList($tables);
+        $result = ExecHelper::mysqlQuery(
+            "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME,
+                    kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME,
+                    rc.DELETE_RULE, rc.UPDATE_RULE
+             FROM   information_schema.KEY_COLUMN_USAGE kcu
+             JOIN   information_schema.REFERENTIAL_CONSTRAINTS rc
+                        ON  rc.CONSTRAINT_NAME   = kcu.CONSTRAINT_NAME
+                        AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+             WHERE  kcu.TABLE_SCHEMA          = '{$dbName}'
+               AND  kcu.TABLE_NAME            IN ({$inList})
+               AND  kcu.REFERENCED_TABLE_NAME  NOT IN ({$inList})",
+            $creds
+        );
+
+        if (!$result['success'] || empty($result['rows'])) {
+            return [];
+        }
+
+        return self::mapForeignKeyRows($result['rows']);
+    }
+
+    /**
+     * Build the " ON DELETE x ON UPDATE y" DDL fragment for a captured FK,
+     * omitting the RESTRICT clause (the implicit default — mirrors how MySQL
+     * itself omits it from SHOW CREATE TABLE output).
+     *
+     * @param array{delete_rule:string,update_rule:string} $fk
+     * @return string
+     */
+    private static function foreignKeyOnClause(array $fk): string
+    {
+        $onDelete = $fk['delete_rule'] !== 'RESTRICT' ? " ON DELETE {$fk['delete_rule']}" : '';
+        $onUpdate = $fk['update_rule'] !== 'RESTRICT' ? " ON UPDATE {$fk['update_rule']}" : '';
+        return $onDelete . $onUpdate;
+    }
+
+    /**
+     * Build a single `ALTER TABLE ... DROP FOREIGN KEY ...;` statement for a captured FK.
+     *
+     * @param array{table:string,constraint:string} $fk
+     * @return string
+     */
+    private static function foreignKeyDropStatement(array $fk): string
+    {
+        return 'ALTER TABLE ' . Identifier::quote($fk['table']) . ' DROP FOREIGN KEY ' . Identifier::quote($fk['constraint']) . ';';
+    }
+
+    /**
+     * Build a single `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY ...;` statement for a captured FK.
+     *
+     * @param array{table:string,constraint:string,column:string,ref_table:string,ref_column:string,delete_rule:string,update_rule:string} $fk
+     * @return string
+     */
+    private static function foreignKeyAddStatement(array $fk): string
+    {
+        return 'ALTER TABLE ' . Identifier::quote($fk['table']) . ' ADD CONSTRAINT ' . Identifier::quote($fk['constraint'])
+            . ' FOREIGN KEY (' . Identifier::quote($fk['column']) . ') REFERENCES ' . Identifier::quote($fk['ref_table'])
+            . ' (' . Identifier::quote($fk['ref_column']) . ')' . self::foreignKeyOnClause($fk) . ';';
+    }
+
+    // =========================================================================
     // Orphan cleanup
     // =========================================================================
 
@@ -1096,36 +1251,10 @@ final class RestoreEngine
             // Mirrors the same protection in restoreDatabaseInPlace().
             $externalFksToRebuild = [];
             if ($isPartial && !empty($currentTables)) {
-                $inList = Identifier::quoteStringList($currentTables);
-                $extFkResult = ExecHelper::mysqlQuery(
-                    "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME,
-                            kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME,
-                            rc.DELETE_RULE, rc.UPDATE_RULE
-                     FROM   information_schema.KEY_COLUMN_USAGE kcu
-                     JOIN   information_schema.REFERENTIAL_CONSTRAINTS rc
-                                ON  rc.CONSTRAINT_NAME   = kcu.CONSTRAINT_NAME
-                                AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
-                     WHERE  kcu.TABLE_SCHEMA          = '{$creds['database']}'
-                       AND  kcu.REFERENCED_TABLE_NAME IN ({$inList})
-                       AND  kcu.TABLE_NAME            NOT IN ({$inList})",
-                    $creds
-                );
-                if ($extFkResult['success'] && !empty($extFkResult['rows'])) {
-                    $extDropStatements = [];
-                    foreach ($extFkResult['rows'] as $row) {
-                        $extDropStatements[] = 'ALTER TABLE ' . Identifier::quote($row[0]) . ' DROP FOREIGN KEY ' . Identifier::quote($row[1]) . ';';
-                        $externalFksToRebuild[] = [
-                            'table' => $row[0],
-                            'constraint' => $row[1],
-                            'column' => $row[2],
-                            'ref_table' => $row[3],
-                            'ref_column' => $row[4],
-                            'delete_rule' => $row[5],
-                            'update_rule' => $row[6],
-                        ];
-                    }
-                    $this->log("[Restore/Atomic] Dropping " . count($extDropStatements) . " external FK constraints referencing managed tables", 'DEBUG');
-                    $extDropSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', $extDropStatements) . " SET FOREIGN_KEY_CHECKS = 1;";
+                $externalFksToRebuild = $this->queryExternalInboundForeignKeys($creds, $creds['database'], $currentTables);
+                if (!empty($externalFksToRebuild)) {
+                    $this->log("[Restore/Atomic] Dropping " . count($externalFksToRebuild) . " external FK constraints referencing managed tables", 'DEBUG');
+                    $extDropSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', array_map([self::class, 'foreignKeyDropStatement'], $externalFksToRebuild)) . " SET FOREIGN_KEY_CHECKS = 1;";
                     ExecHelper::mysqlExec($extDropSQL, $creds, $creds['database']);
                 }
             }
@@ -1140,33 +1269,7 @@ final class RestoreEngine
             // it against the live table after the swap.
             $outboundFksToRebuild = [];
             if ($isPartial && !empty($currentTables)) {
-                $inList = Identifier::quoteStringList($currentTables);
-                $outFkResult = ExecHelper::mysqlQuery(
-                    "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME,
-                            kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME,
-                            rc.DELETE_RULE, rc.UPDATE_RULE
-                     FROM   information_schema.KEY_COLUMN_USAGE kcu
-                     JOIN   information_schema.REFERENTIAL_CONSTRAINTS rc
-                                ON  rc.CONSTRAINT_NAME   = kcu.CONSTRAINT_NAME
-                                AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
-                     WHERE  kcu.TABLE_SCHEMA          = '{$creds['database']}'
-                       AND  kcu.TABLE_NAME            IN ({$inList})
-                       AND  kcu.REFERENCED_TABLE_NAME  NOT IN ({$inList})",
-                    $creds
-                );
-                if ($outFkResult['success'] && !empty($outFkResult['rows'])) {
-                    foreach ($outFkResult['rows'] as $row) {
-                        $outboundFksToRebuild[] = [
-                            'table' => $row[0],
-                            'constraint' => $row[1],
-                            'column' => $row[2],
-                            'ref_table' => $row[3],
-                            'ref_column' => $row[4],
-                            'delete_rule' => $row[5],
-                            'update_rule' => $row[6],
-                        ];
-                    }
-                }
+                $outboundFksToRebuild = $this->queryOutboundForeignKeys($creds, $creds['database'], $currentTables);
             }
 
             $restoreResult = ExecHelper::mysqlQuery(
@@ -1270,13 +1373,7 @@ final class RestoreEngine
             // restoreDatabaseInPlace().
             if (!empty($externalFksToRebuild)) {
                 $this->log("[Restore/Atomic] Rebuilding " . count($externalFksToRebuild) . " external FK constraints", 'DEBUG');
-                $rebuildStatements = [];
-                foreach ($externalFksToRebuild as $fk) {
-                    $onDelete = $fk['delete_rule'] !== 'RESTRICT' ? " ON DELETE {$fk['delete_rule']}" : '';
-                    $onUpdate = $fk['update_rule'] !== 'RESTRICT' ? " ON UPDATE {$fk['update_rule']}" : '';
-                    $rebuildStatements[] = 'ALTER TABLE ' . Identifier::quote($fk['table']) . ' ADD CONSTRAINT ' . Identifier::quote($fk['constraint']) . ' FOREIGN KEY (' . Identifier::quote($fk['column']) . ') REFERENCES ' . Identifier::quote($fk['ref_table']) . ' (' . Identifier::quote($fk['ref_column']) . "){$onDelete}{$onUpdate};";
-                }
-                $rebuildSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', $rebuildStatements) . " SET FOREIGN_KEY_CHECKS = 1;";
+                $rebuildSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', array_map([self::class, 'foreignKeyAddStatement'], $externalFksToRebuild)) . " SET FOREIGN_KEY_CHECKS = 1;";
                 $rebuildResult = ExecHelper::mysqlExec($rebuildSQL, $creds, $creds['database']);
                 if (!($rebuildResult['success'] ?? false)) {
                     $this->log("[Restore/Atomic] External FK rebuild FAILED, leaving {$oldDbName} and {$restoreDbName} in place for manual recovery: " . ($rebuildResult['error'] ?? 'unknown'), 'ERROR');
@@ -1298,10 +1395,8 @@ final class RestoreEngine
                 $this->log("[Restore/Atomic] Fixing " . count($outboundFksToRebuild) . " outbound FK constraints on managed tables", 'DEBUG');
                 $outFixStatements = [];
                 foreach ($outboundFksToRebuild as $fk) {
-                    $onDelete = $fk['delete_rule'] !== 'RESTRICT' ? " ON DELETE {$fk['delete_rule']}" : '';
-                    $onUpdate = $fk['update_rule'] !== 'RESTRICT' ? " ON UPDATE {$fk['update_rule']}" : '';
-                    $outFixStatements[] = 'ALTER TABLE ' . Identifier::quote($fk['table']) . ' DROP FOREIGN KEY ' . Identifier::quote($fk['constraint']) . ';';
-                    $outFixStatements[] = 'ALTER TABLE ' . Identifier::quote($fk['table']) . ' ADD CONSTRAINT ' . Identifier::quote($fk['constraint']) . ' FOREIGN KEY (' . Identifier::quote($fk['column']) . ') REFERENCES ' . Identifier::quote($fk['ref_table']) . ' (' . Identifier::quote($fk['ref_column']) . "){$onDelete}{$onUpdate};";
+                    $outFixStatements[] = self::foreignKeyDropStatement($fk);
+                    $outFixStatements[] = self::foreignKeyAddStatement($fk);
                 }
                 $outFixSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', $outFixStatements) . " SET FOREIGN_KEY_CHECKS = 1;";
                 $outFixResult = ExecHelper::mysqlExec($outFixSQL, $creds, $creds['database']);
@@ -1405,36 +1500,10 @@ final class RestoreEngine
             // freshly-restored tables.
             $externalFksToRebuild = [];
             if ($isPartial && !empty($currentTables)) {
-                $inList = Identifier::quoteStringList($currentTables);
-                $extFkResult = ExecHelper::mysqlQuery(
-                    "SELECT kcu.TABLE_NAME, kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME,
-                            kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME,
-                            rc.DELETE_RULE, rc.UPDATE_RULE
-                     FROM   information_schema.KEY_COLUMN_USAGE kcu
-                     JOIN   information_schema.REFERENTIAL_CONSTRAINTS rc
-                                ON  rc.CONSTRAINT_NAME   = kcu.CONSTRAINT_NAME
-                                AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
-                     WHERE  kcu.TABLE_SCHEMA          = '{$dbName}'
-                       AND  kcu.REFERENCED_TABLE_NAME IN ({$inList})
-                       AND  kcu.TABLE_NAME            NOT IN ({$inList})",
-                    $creds
-                );
-                if ($extFkResult['success'] && !empty($extFkResult['rows'])) {
-                    $extDropStatements = [];
-                    foreach ($extFkResult['rows'] as $row) {
-                        $extDropStatements[] = 'ALTER TABLE ' . Identifier::quote($row[0]) . ' DROP FOREIGN KEY ' . Identifier::quote($row[1]) . ';';
-                        $externalFksToRebuild[] = [
-                            'table' => $row[0],
-                            'constraint' => $row[1],
-                            'column' => $row[2],
-                            'ref_table' => $row[3],
-                            'ref_column' => $row[4],
-                            'delete_rule' => $row[5],
-                            'update_rule' => $row[6],
-                        ];
-                    }
-                    $this->log("[Restore/InPlace] Dropping " . count($extDropStatements) . " external FK constraints referencing managed tables", 'DEBUG');
-                    $extDropSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', $extDropStatements) . " SET FOREIGN_KEY_CHECKS = 1;";
+                $externalFksToRebuild = $this->queryExternalInboundForeignKeys($creds, $dbName, $currentTables);
+                if (!empty($externalFksToRebuild)) {
+                    $this->log("[Restore/InPlace] Dropping " . count($externalFksToRebuild) . " external FK constraints referencing managed tables", 'DEBUG');
+                    $extDropSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', array_map([self::class, 'foreignKeyDropStatement'], $externalFksToRebuild)) . " SET FOREIGN_KEY_CHECKS = 1;";
                     ExecHelper::mysqlExec($extDropSQL, $creds, $dbName);
                 }
             }
@@ -1622,13 +1691,7 @@ final class RestoreEngine
             // back to the original state (which includes the original FK constraints).
             if (!empty($externalFksToRebuild)) {
                 $this->log("[Restore/InPlace] Rebuilding " . count($externalFksToRebuild) . " external FK constraints", 'DEBUG');
-                $rebuildStatements = [];
-                foreach ($externalFksToRebuild as $fk) {
-                    $onDelete = $fk['delete_rule'] !== 'RESTRICT' ? " ON DELETE {$fk['delete_rule']}" : '';
-                    $onUpdate = $fk['update_rule'] !== 'RESTRICT' ? " ON UPDATE {$fk['update_rule']}" : '';
-                    $rebuildStatements[] = 'ALTER TABLE ' . Identifier::quote($fk['table']) . ' ADD CONSTRAINT ' . Identifier::quote($fk['constraint']) . ' FOREIGN KEY (' . Identifier::quote($fk['column']) . ') REFERENCES ' . Identifier::quote($fk['ref_table']) . ' (' . Identifier::quote($fk['ref_column']) . "){$onDelete}{$onUpdate};";
-                }
-                $rebuildSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', $rebuildStatements) . " SET FOREIGN_KEY_CHECKS = 1;";
+                $rebuildSQL = "SET FOREIGN_KEY_CHECKS = 0; " . implode(' ', array_map([self::class, 'foreignKeyAddStatement'], $externalFksToRebuild)) . " SET FOREIGN_KEY_CHECKS = 1;";
                 $rebuildResult = ExecHelper::mysqlExec($rebuildSQL, $creds, $dbName);
                 if (!($rebuildResult['success'] ?? false)) {
                     // HARD FAIL: leaving the DB without its FK constraints is

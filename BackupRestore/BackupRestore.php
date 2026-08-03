@@ -46,7 +46,7 @@ use PDO;
  * ]);
  *
  * @package BackupRestore
- * @version 0.1.1
+ * @version 0.1.2
  * @license MIT
  */
 class BackupRestore
@@ -348,6 +348,18 @@ class BackupRestore
         if (!class_exists(ActivityLogger::class)) {
             // ActivityLogs is a required sibling dependency; the host/harness
             // is responsible for making it autoloadable (see doc/INTEGRATION-GUIDE.md).
+            // Every audit() call site below degrades silently on a missing
+            // class (a broken host logger must never break a backup/restore
+            // operation) — this single boot-time warning is the only signal
+            // an integrator gets that the audit trail is not being recorded.
+            try {
+                ($this->logger)(
+                    '[BackupRestore] ActivityLogs\ActivityLogger class not found — audit logging is disabled for all backup/restore/remote-server operations until the sibling module is autoloadable (see doc/INTEGRATION-GUIDE.md)',
+                    'WARNING'
+                );
+            } catch (\Throwable) {
+                // A broken host logger must never break construction.
+            }
             return;
         }
 

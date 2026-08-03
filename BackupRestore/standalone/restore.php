@@ -1500,6 +1500,11 @@ function stripDefinerFromSqlFile(string $filePath): bool
  * Reads the file line-by-line to avoid memory issues with large dumps.
  * Handles DELIMITER directives for triggers, routines, and events.
  *
+ * Kept in sync manually with BackupRestore\Exec\PhpHelper::mysqlImport() —
+ * the standalone script cannot depend on the framework autoloader. Same
+ * control flow and variable naming; deliberately does NOT use mb_strimwidth()
+ * like the library does (see below).
+ *
  * @param array $creds Database credentials
  * @param string $database Target database name
  * @param string $sqlFilePath Path to SQL file
@@ -1523,7 +1528,7 @@ function phpImportSql(array $creds, string $database, string $sqlFilePath): arra
 
         $delimiter = ';';
         $currentStatement = '';
-        $errors = [];
+        $error = null;
 
         while (($line = fgets($handle)) !== false) {
             $trimmedLine = trim($line);
@@ -1553,30 +1558,53 @@ function phpImportSql(array $creds, string $database, string $sqlFilePath): arra
                     try {
                         $pdo->exec($stmt);
                     } catch (PDOException $e) {
-                        // Log but continue (matching mysql CLI behavior)
-                        $errors[] = $e->getMessage();
+                        // Abort at the first failure — matches the native path's
+                        // actual behavior (`mysql db < dump.sql` without --force
+                        // aborts on the first error by default); continuing would
+                        // waste time on a dump that can no longer import cleanly.
+                        $error = $e->getMessage();
                     }
                 }
 
                 $currentStatement = '';
+
+                if ($error !== null) {
+                    break;
+                }
             }
         }
 
-        // Handle remaining statement
+        // Handle remaining statement — explicitly skipped once a statement has
+        // already failed above, not merely relying on the buffer being empty.
         $remaining = trim($currentStatement);
-        if ($remaining !== '' && !isCommentOnly($remaining)) {
+        if ($error === null && $remaining !== '' && !isCommentOnly($remaining)) {
             try {
                 $pdo->exec($remaining);
             } catch (PDOException $e) {
-                $errors[] = $e->getMessage();
+                $error = $e->getMessage();
             }
         }
 
         fclose($handle);
 
-        // Restore session variables
-        $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-        $pdo->exec("SET UNIQUE_CHECKS = @OLD_UNIQUE_CHECKS");
+        // Restore session variables — must still run even after an abort above,
+        // since this connection may be cached/reused by a later caller. Own
+        // try/catch so a secondary failure here can't overwrite the real error.
+        try {
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+            $pdo->exec("SET UNIQUE_CHECKS = @OLD_UNIQUE_CHECKS");
+        } catch (PDOException) {
+            // Best-effort session cleanup; $error (if set) is the real failure.
+        }
+
+        if ($error !== null) {
+            // No mb_strimwidth() here (unlike the library): this script uses no
+            // mb_* function anywhere and ext-mbstring is not declared as a
+            // dependency — the break-glass script must not gain a hard mbstring
+            // requirement on its failure path, on the exact minimal-host tier it
+            // exists for. Plain substr() truncation is sufficient for a log line.
+            return ['success' => false, 'error' => 'SQL import failed: ' . substr($error, 0, 200)];
+        }
 
         return ['success' => true, 'error' => null];
     } catch (Exception $e) {
@@ -1766,6 +1794,15 @@ function cleanupDir(string $dir): void
     foreach ($entries as $entry) {
         if ($entry === '.' || $entry === '..') continue;
         $path = $dir . '/' . $entry;
+        // Checked before is_dir(): is_dir() follows symlinks, so a symlink left
+        // inside an extracted (untrusted) archive tree pointing outside $dir
+        // would otherwise be recursed INTO and its target's real contents
+        // deleted. Removing the link itself is always correct regardless of
+        // what it points to. Mirrors BackupRestore\Fs::removeDirectory().
+        if (is_link($path)) {
+            unlink($path);
+            continue;
+        }
         is_dir($path) ? cleanupDir($path) : unlink($path);
     }
     rmdir($dir);

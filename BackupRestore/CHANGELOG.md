@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-08-03
+
+| Category | Description |
+|----------|--------------|
+| Security | Fixed a bug where restoring a corrupted or malicious backup could delete files outside the intended restore area |
+| Security | Restore/backup audit trail no longer fails silently when the audit logging module is missing |
+| Security | On hosts without shell access, a failed database restore now stops immediately instead of wasting time on an already-broken backup file |
+| Security | The disaster-recovery restore script no longer reports a database restore as successful when it actually failed |
+| Changed  | Simplified internal foreign-key handling during partial database restores |
+
+### Security
+- Fixed a bug in the restore cleanup process where a specially crafted or corrupted backup archive could cause files outside the intended restore folder to be deleted — both right after a restore and during the scheduled cleanup of old restore files (#8).
+- The backup/restore audit trail no longer silently stops recording without warning when the audit logging module isn't available — a clear warning is now logged instead (#8).
+- On hosts without shell access (the fallback mode used on some shared hosting), a database restore that hits a broken statement now stops right away instead of continuing to process the rest of an already-failed backup file — avoiding wasted time that could otherwise let the restore process get killed by the server before it can safely undo its changes (#9).
+- The standalone disaster-recovery restore script now correctly reports a database restore as failed when it actually failed on hosts without shell access — previously it could continue past the error silently and claim the restore succeeded (#9).
+
+### Changed
+- Simplified the internal foreign-key handling code used during partial database restores, reducing duplicated logic and the risk of future inconsistencies (#8).
+
 ## [0.1.1] - 2026-08-01
 
 | Category | Description |

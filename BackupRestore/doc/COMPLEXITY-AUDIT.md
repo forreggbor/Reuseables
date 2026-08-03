@@ -66,10 +66,12 @@ Top recommendation: Introduce a BackupOps interface behind ShellHelper/PhpHelper
 **Effort:** high
 
 ### [COUPLING] FK-capture/rebuild logic and base-table enumeration duplicated repeatedly inside RestoreEngine
-**File:** FK-capture 3× (`1098-1131`, `1142-1170`, `1407-1440`), FK-rebuild DDL 3× (`1271-1290`, `1297-1317`, `1623-1648`), base-table SELECT ~11×
+**Status:** FK-capture/rebuild duplication resolved 2026-08-03 (v0.1.2) — see `CHANGELOG.md`. Base-table `SELECT` enumeration (~11×) is still open.
+**File:** FK-capture 3× (was `1098-1131`, `1142-1170`, `1407-1440`), FK-rebuild DDL 3× (was `1271-1290`, `1297-1317`, `1623-1648`) — line numbers pre-refactor, now replaced by shared helpers; base-table SELECT ~11× (still duplicated, line numbers shift with the above)
 **Problem:** The same `information_schema` query and DDL-building logic copied 3-11 times. A DDL quirk fix (e.g. a MariaDB-specific edge case) must be applied by hand in every copy — high risk in destructive code.
-**Suggestion:** `queryForeignKeys()`, `buildFkRebuildSql()`, `listBaseTables()` shared helpers.
-**Effort:** medium
+**Resolution (FK part):** Extracted `queryExternalInboundForeignKeys()`, `queryOutboundForeignKeys()`, `mapForeignKeyRows()`, `foreignKeyOnClause()`, `foreignKeyDropStatement()`, `foreignKeyAddStatement()` as shared private/static helpers in `RestoreEngine.php`. Pure extraction, no behavior change — verified via `php -l`, manual before/after comparison of all 3 call sites, and a live symlink-safety regression check added to `tests/harness.php`; the full DB-backed harness itself was not re-run as part of this change (verify before relying on it in production).
+**Suggestion (base-table part, still open):** `listBaseTables()` shared helper for the remaining ~11 `SELECT table_name FROM information_schema.tables ...` call sites.
+**Effort:** medium (FK part: done) / low-medium (remaining base-table part)
 
 ### [LENGTH]/[COMPLEXITY] transferToRemote (166 lines, ~16 decisions) and createBackupLocked (213 lines, ~17 decisions)
 **File:** `src/RemoteService.php:431-597`, `src/BackupEngine.php:288-501`

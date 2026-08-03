@@ -935,7 +935,7 @@ class PhpHelper
 
             $delimiter = ';';
             $currentStatement = '';
-            $errors = [];
+            $error = null;
 
             while (($line = fgets($handle)) !== false) {
                 $trimmedLine = trim($line);
@@ -965,42 +965,58 @@ class PhpHelper
                         try {
                             $pdo->exec($stmt);
                         } catch (\PDOException $e) {
-                            // Log but continue (matching mysql CLI behavior)
-                            $errors[] = $e->getMessage();
-                            Logger::log("[PhpHelper] SQL import statement failed: " . mb_strimwidth($e->getMessage(), 0, 200), 'WARNING');
+                            // Abort at the first failure — this is what actually
+                            // matches the native path's behavior: `mysql db <
+                            // dump.sql` (no --force) aborts on the first error by
+                            // default. Continuing here would burn the execution-time
+                            // budget a constrained host (this fallback's whole
+                            // reason to exist) may not have, on a dump that can no
+                            // longer import cleanly anyway.
+                            $error = $e->getMessage();
+                            Logger::log("[PhpHelper] SQL import statement failed: " . mb_strimwidth($e->getMessage(), 0, 200), 'ERROR');
                         }
                     }
 
                     $currentStatement = '';
+
+                    if ($error !== null) {
+                        break;
+                    }
                 }
             }
 
-            // Handle remaining statement
+            // Handle remaining statement — explicitly skipped once a statement has
+            // already failed above (not merely relying on the buffer being empty),
+            // so this can never re-execute the statement that just failed.
             $remaining = trim($currentStatement);
-            if ($remaining !== '' && !self::isCommentOnly($remaining)) {
+            if ($error === null && $remaining !== '' && !self::isCommentOnly($remaining)) {
                 try {
                     $pdo->exec($remaining);
                 } catch (\PDOException $e) {
-                    $errors[] = $e->getMessage();
+                    $error = $e->getMessage();
                 }
             }
 
             fclose($handle);
 
-            // Restore session variables
-            $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-            $pdo->exec("SET UNIQUE_CHECKS = @OLD_UNIQUE_CHECKS");
+            // Restore session variables — must still run even after an abort above:
+            // createPdoConnection() caches this connection (self::$pdoCache), and a
+            // later caller (e.g. the in-place restore's rollback re-import) may
+            // reuse it. Own try/catch so a secondary failure here can't propagate
+            // through the outer catch below and overwrite the real SQL error.
+            try {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+                $pdo->exec("SET UNIQUE_CHECKS = @OLD_UNIQUE_CHECKS");
+            } catch (\PDOException) {
+                // Best-effort session cleanup; $error (if set) is the real failure.
+            }
 
-            // Fail-fast: any per-statement failure means the import did not complete
-            // cleanly. Report failure (matching the shell path's non-zero exit-code
-            // semantics) so the caller triggers rollback instead of dropping the
-            // pre-restore _bak_* originals on a partially-imported database.
-            if (!empty($errors)) {
-                $summary = mb_strimwidth($errors[0], 0, 200);
-                Logger::log("[PhpHelper] SQL import FAILED with " . count($errors) . " error(s); first: " . $summary, 'ERROR');
+            if ($error !== null) {
+                $summary = mb_strimwidth($error, 0, 200);
+                Logger::log("[PhpHelper] SQL import FAILED: " . $summary, 'ERROR');
                 return [
                     'success' => false,
-                    'error'   => 'SQL import failed with ' . count($errors) . ' error(s); first: ' . $summary,
+                    'error'   => 'SQL import failed: ' . $summary,
                 ];
             }
 

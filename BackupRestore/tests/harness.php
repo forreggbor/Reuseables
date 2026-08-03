@@ -421,6 +421,175 @@ if ($standaloneBackup['success']) {
 }
 
 // ---------------------------------------------------------------------
+// PHP fallback import (exec() unavailable) — fail-fast (issue #9)
+// ---------------------------------------------------------------------
+
+section('PHP fallback import (exec() unavailable) — fail-fast');
+
+// Root credentials, shaped exactly as PhpHelper::createPdoConnection() expects.
+// Reused verbatim (same expression) for both mysqlImport() and mysqlQuery()
+// below so both hit the same PhpHelper::$pdoCache entry.
+$ffCreds = $facadeConfig['db_credentials'];
+
+// Scratch DB name deliberately OUTSIDE the "{$dbName}_" namespace: the
+// leftover-temp-database assertion in the atomic-restore section above
+// (`SHOW DATABASES LIKE '{$dbName}\_%'`) would otherwise flag a database
+// left behind by an aborted run of *this* section as a bogus atomic-restore
+// leak on the next harness run.
+$ffDbName = 'br_ffprobe_' . bin2hex(random_bytes(4));
+$adminPdo->exec("CREATE DATABASE IF NOT EXISTS `{$ffDbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+try {
+    // A — direct library call: stop-at-first-error regression guard.
+    $ffSqlPath = $scratchRoot . '/ff_probe.sql';
+    file_put_contents($ffSqlPath, implode("\n", [
+        'CREATE TABLE br_ff_probe (id INT PRIMARY KEY);',
+        'INSERT INTO this_table_does_not_exist_xyz (col) VALUES (1);',
+        'CREATE TABLE br_ff_marker (id INT PRIMARY KEY);',
+    ]) . "\n");
+
+    $ffImportResult = BackupRestore\Exec\PhpHelper::mysqlImport($ffCreds, $ffDbName, $ffSqlPath);
+    check('PHP-fallback import: reports failure on a bad statement', $ffImportResult['success'] === false, json_encode($ffImportResult));
+    check('PHP-fallback import: error names the failing statement', str_contains($ffImportResult['error'] ?? '', 'this_table_does_not_exist_xyz'), $ffImportResult['error'] ?? '');
+
+    $ffCheckPdo = rootPdo($dbHost, $dbPort, $dbUser, $dbPass, $ffDbName);
+    $ffProbeExists = (bool) $ffCheckPdo->query("SHOW TABLES LIKE 'br_ff_probe'")->fetchColumn();
+    $ffMarkerExists = (bool) $ffCheckPdo->query("SHOW TABLES LIKE 'br_ff_marker'")->fetchColumn();
+    check('PHP-fallback import: statement before the failure executed', $ffProbeExists);
+    check('PHP-fallback import: statement after the failure did NOT execute (early-stop proof)', !$ffMarkerExists);
+
+    $ffFkResult = BackupRestore\Exec\PhpHelper::mysqlQuery('SELECT @@SESSION.foreign_key_checks', $ffCreds, $ffDbName);
+    check(
+        'PHP-fallback import: session variables restored on the cached connection',
+        $ffFkResult['success'] === true && (int) ($ffFkResult['rows'][0][0] ?? -1) === 1,
+        json_encode($ffFkResult)
+    );
+
+    // A2 — positive control (do not skip): a legitimate dump must still import.
+    $ffRealBackup = $engine->createBackup(['type' => 'database', 'note' => 'php-fallback positive control']);
+    check('PHP-fallback import: positive-control backup created', $ffRealBackup['success'], $ffRealBackup['error'] ?? '');
+
+    if ($ffRealBackup['success']) {
+        $ffExtractDir = $scratchRoot . '/ff_real_extract';
+        mkdir($ffExtractDir, 0777, true);
+        $ffArchivePath = $engine->getBackupDir() . '/' . $ffRealBackup['filename'];
+        exec('tar -xzf ' . escapeshellarg($ffArchivePath) . ' -C ' . escapeshellarg($ffExtractDir));
+        $ffRealSqlPath = glob($ffExtractDir . '/database/*.sql')[0] ?? null;
+
+        if ($ffRealSqlPath !== null) {
+            // Matches the real RestoreEngine path, which always strips DEFINER
+            // clauses before either mysqlImport() implementation sees the file.
+            BackupRestore\Exec\ExecHelper::stripDefinerFromFile($ffRealSqlPath);
+            $ffRealImportResult = BackupRestore\Exec\PhpHelper::mysqlImport($ffCreds, $ffDbName, $ffRealSqlPath);
+            check('PHP-fallback import: legitimate dump still imports successfully', $ffRealImportResult['success'], $ffRealImportResult['error'] ?? '');
+        } else {
+            check('PHP-fallback import: positive-control setup', false, 'could not locate extracted SQL dump');
+        }
+    }
+} finally {
+    try {
+        $adminPdo->exec("DROP DATABASE IF EXISTS `{$ffDbName}`");
+    } catch (\Throwable) {
+        // best-effort cleanup
+    }
+}
+
+// B — standalone subprocess (reinstated per plan-critique round 2/3): forces
+// PHP-fallback mode via `disable_functions`, and sidesteps the separate,
+// tracked ShellHelper-vs-PharData archive-format incompatibility (Follow-up
+// issue A) by repacking with PhpHelper::tarCreateGz() instead of shell tar.
+$ffStandaloneBackup = $engine->createBackup(['type' => 'database', 'note' => 'php-fallback standalone test']);
+if ($ffStandaloneBackup['success']) {
+    $ffStandaloneArchivePath = $engine->getBackupDir() . '/' . $ffStandaloneBackup['filename'];
+    $ffStandaloneRow = $engine->getBackup($ffStandaloneBackup['backup_id']);
+    $ffDisableFunctions = 'exec,shell_exec,system,passthru,proc_open,popen';
+
+    // Corrupted-archive negative case.
+    $ffCorruptWorkDir = $scratchRoot . '/ff_standalone_corrupt_work';
+    mkdir($ffCorruptWorkDir, 0777, true);
+    exec('tar -xzf ' . escapeshellarg($ffStandaloneArchivePath) . ' -C ' . escapeshellarg($ffCorruptWorkDir));
+    $ffCorruptSqlPath = glob($ffCorruptWorkDir . '/database/*.sql')[0] ?? null;
+
+    if ($ffCorruptSqlPath !== null) {
+        $ffCorruptContent = file_get_contents($ffCorruptSqlPath);
+        $ffCorruptContent = preg_replace('/(CREATE TABLE `backups`.*?;\n)/s', '$1' . "\nINSERT INTO this_table_does_not_exist_xyz (col) VALUES (1);\n", $ffCorruptContent, 1);
+        file_put_contents($ffCorruptSqlPath, $ffCorruptContent);
+
+        $ffCorruptRepacked = $scratchRoot . '/ff_standalone_corrupt.tgz';
+        $ffRepackResult = BackupRestore\Exec\PhpHelper::tarCreateGz($ffCorruptRepacked, $ffCorruptWorkDir);
+        check('PHP-fallback standalone: corrupted-archive repack succeeds', $ffRepackResult['success'], $ffRepackResult['error'] ?? '');
+
+        if ($ffRepackResult['success']) {
+            $ffCorruptCmd = sprintf(
+                'php -d disable_functions=%s %s --file=%s --token=%s --db-host=%s --db-port=%d --db-user=%s --db-pass=%s --db-name=%s 2>&1',
+                $ffDisableFunctions,
+                escapeshellarg(__DIR__ . '/../standalone/restore.php'),
+                escapeshellarg($ffCorruptRepacked),
+                escapeshellarg($ffStandaloneRow->restore_token),
+                escapeshellarg($dbHost),
+                $dbPort,
+                escapeshellarg($dbUser),
+                escapeshellarg($dbPass),
+                escapeshellarg($dbName)
+            );
+            $ffCorruptOutput = [];
+            $ffCorruptReturnCode = 0;
+            exec($ffCorruptCmd, $ffCorruptOutput, $ffCorruptReturnCode);
+            $ffCorruptOutputText = implode("\n", $ffCorruptOutput);
+            check(
+                'PHP-fallback standalone: corrupted import correctly reported as failure',
+                $ffCorruptReturnCode !== 0 && str_contains($ffCorruptOutputText, 'Failed to import dump'),
+                $ffCorruptOutputText
+            );
+            check(
+                'PHP-fallback standalone: corrupted run did not falsely report success',
+                !str_contains($ffCorruptOutputText, 'Restore completed successfully'),
+                $ffCorruptOutputText
+            );
+        }
+    } else {
+        check('PHP-fallback standalone: corrupted-archive test setup', false, 'could not locate extracted SQL dump');
+    }
+
+    // Clean-archive positive control — proves the repack-and-forced-PHP-mode
+    // machinery itself isn't what's failing. Extracted fresh (not reusing the
+    // corrupted work dir above, whose dump was mutated in place).
+    $ffCleanWorkDir = $scratchRoot . '/ff_standalone_clean_work';
+    mkdir($ffCleanWorkDir, 0777, true);
+    exec('tar -xzf ' . escapeshellarg($ffStandaloneArchivePath) . ' -C ' . escapeshellarg($ffCleanWorkDir));
+
+    $ffCleanRepacked = $scratchRoot . '/ff_standalone_clean.tgz';
+    $ffCleanRepackResult = BackupRestore\Exec\PhpHelper::tarCreateGz($ffCleanRepacked, $ffCleanWorkDir);
+    check('PHP-fallback standalone: clean-archive repack succeeds', $ffCleanRepackResult['success'], $ffCleanRepackResult['error'] ?? '');
+
+    if ($ffCleanRepackResult['success']) {
+        $ffCleanCmd = sprintf(
+            'php -d disable_functions=%s %s --file=%s --token=%s --db-host=%s --db-port=%d --db-user=%s --db-pass=%s --db-name=%s 2>&1',
+            $ffDisableFunctions,
+            escapeshellarg(__DIR__ . '/../standalone/restore.php'),
+            escapeshellarg($ffCleanRepacked),
+            escapeshellarg($ffStandaloneRow->restore_token),
+            escapeshellarg($dbHost),
+            $dbPort,
+            escapeshellarg($dbUser),
+            escapeshellarg($dbPass),
+            escapeshellarg($dbName)
+        );
+        $ffCleanOutput = [];
+        $ffCleanReturnCode = 0;
+        exec($ffCleanCmd, $ffCleanOutput, $ffCleanReturnCode);
+        $ffCleanOutputText = implode("\n", $ffCleanOutput);
+        check(
+            'PHP-fallback standalone: clean import (positive control) succeeds',
+            $ffCleanReturnCode === 0 && str_contains($ffCleanOutputText, 'Restore completed successfully'),
+            $ffCleanOutputText
+        );
+    }
+} else {
+    check('PHP-fallback standalone test setup', false, 'backup creation failed');
+}
+
+// ---------------------------------------------------------------------
 // Security regression checks (from the 2026-07-12 /security-review pass)
 // ---------------------------------------------------------------------
 
@@ -445,6 +614,31 @@ if ($tarBuildRc === 0) {
     $zipSlipResult = BackupRestore\Exec\ExecHelper::tarExtract($maliciousArchive, $zipSlipDest);
     check('Zip-slip: tarExtract() refuses a ../-escaping archive member', $zipSlipResult['success'] === false, json_encode($zipSlipResult));
     check('Zip-slip: no file written outside the destination directory', !file_exists(dirname($zipSlipDest) . '/escape.txt'));
+}
+
+section('Security: Fs::removeDirectory() does not follow a symlink out of the tree');
+
+// Regression for a confirmed arbitrary-file-deletion bug: a backup archive is
+// untrusted input (SFTP pull, break-glass upload, restoreFromPath()), and tar
+// extraction preserves symlink archive members as real filesystem symlinks.
+// Fs::removeDirectory() (used to clean up extracted restore workdirs, both
+// right after a restore and via BackupEngine::cleanupTempFiles()'s unattended
+// 24h sweep) previously used is_dir() to decide whether to recurse — which
+// FOLLOWS symlinks — so a symlink left inside the workdir pointing outside it
+// caused the target directory's real contents to be deleted.
+$symlinkVictimDir = $scratchRoot . '/symlink_victim';
+$symlinkWorkDir = $scratchRoot . '/symlink_workdir';
+mkdir($symlinkVictimDir, 0777, true);
+mkdir($symlinkWorkDir . '/database', 0777, true);
+file_put_contents($symlinkVictimDir . '/important_file.txt', 'must survive cleanup');
+symlink($symlinkVictimDir, $symlinkWorkDir . '/database/escape_link');
+
+BackupRestore\Fs::removeDirectory($symlinkWorkDir);
+
+check('Fs::removeDirectory(): symlinked-to file outside the tree survives', file_exists($symlinkVictimDir . '/important_file.txt'));
+check('Fs::removeDirectory(): the workdir itself is still fully removed', !is_dir($symlinkWorkDir));
+if (is_dir($symlinkVictimDir)) {
+    exec('rm -rf ' . escapeshellarg($symlinkVictimDir));
 }
 
 section('Security: DDL identifier injection (backtick in table name) safely quoted');

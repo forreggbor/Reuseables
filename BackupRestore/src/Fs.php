@@ -53,6 +53,20 @@ final class Fs
             }
 
             $path = $dir . '/' . $entry;
+
+            // A symlink to a directory must be checked BEFORE is_dir() — is_dir()
+            // follows symlinks, so without this check a symlink placed inside an
+            // extracted (untrusted) archive tree pointing outside $dir would be
+            // recursed INTO and its target's real contents deleted. Removing the
+            // link itself (never following it) is always correct regardless of
+            // what it points to.
+            if (is_link($path)) {
+                if (!unlink($path)) {
+                    Logger::log("[Fs] Failed to remove symlink: {$path}", 'WARNING');
+                }
+                continue;
+            }
+
             if (is_dir($path)) {
                 self::removeDirectory($path);
             } elseif (!unlink($path)) {
