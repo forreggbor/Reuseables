@@ -23,11 +23,17 @@ The license server supports two ways of granting features to a license, and **bo
 collapse into the same flat shape** that LicenseModule consumes — a host writes **one** gating
 style regardless of which mode a given license actually uses:
 
-1. **Tier-based.** The tier itself carries its own JSON list of feature keys, and tiers are
-   hierarchical (a higher tier's feature list already includes the lower tier's — the server
-   resolves this, LicenseModule never re-derives a hierarchy). Additional addons — tier-dependent
-   or tier-independent — each carry their own `feature_key` and layer on top. A tier's feature key
-   may or may not have a corresponding addon object.
+1. **Tier-based.** The tier itself carries its own JSON list of feature keys. Per package, the
+   server resolves this either cumulatively (`tier_inheritance: "inherited"` — a higher tier's
+   feature list already includes every lower tier's) or independently (`"standalone"` — each tier
+   is its own self-contained feature set); either way LicenseModule never re-derives a hierarchy,
+   it only ever consumes the server's already-resolved flat feature list, so a host writing gating
+   against `hasFeature()`/`allows()` needs no awareness of which mode a given package uses. The
+   server sends `package.tier_inheritance` in the `verify` response, but `LicenseValidator`
+   currently does not parse it into the package data — it is not exposed by `getPackage()` or any
+   other method. Additional addons — tier-dependent or tier-independent — each carry their own
+   `feature_key` and layer on top. A tier's feature key may or may not have a corresponding addon
+   object.
 2. **Tier-less / addon-only.** A tier object still exists (slug/name/level may be present, e.g. a
    placeholder tier) but contributes **no** feature keys of its own — only the selected standalone
    addons' feature keys populate the resolved feature set. `getTier()` can legitimately return an
@@ -101,7 +107,7 @@ never by leaving the license's data empty.
 | `getAddons()` | `array` of `{feature_key,name,slug,description}` | Full addon rows, for display. |
 | `getFeatureKeys()` | `string[]` | The authoritative flat enabled-feature set. |
 | `hasFeature(string $key)` | `bool` | General-purpose gating — see above. |
-| `getPackage()` | `?array{id,name,slug}` | API-only; not shown on the admin page. |
+| `getPackage()` | `?array{id,name,slug}` | API-only; not shown on the admin page. The server's `tier_inheritance` field (see "Two license modes" above) is not currently parsed into this array. |
 | `allows(array $requirement)` | `bool` | Composed requirement — see contract below. |
 
 `requireTierLevel()` is a **pure predicate** — it does not enforce, block, or redirect anything. It

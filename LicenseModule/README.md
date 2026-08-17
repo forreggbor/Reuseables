@@ -181,6 +181,8 @@ $addonRows = $license->getAddons();         // full rows: feature_key, name, slu
 // Package information, if the license has one (API-only — renderAdminPage() does
 // not currently display it)
 $package = $license->getPackage();  // ['id' => 1, 'name' => 'Pro Suite', 'slug' => 'pro-suite'] or null
+// Note: the server also sends package.tier_inheritance (see below) but the parser currently
+// drops it — getPackage() does not expose it.
 
 // Composed requirement — deny-by-default: an empty, unrecognized, or multi-key
 // requirement always evaluates to false
@@ -438,7 +440,8 @@ The module expects the license server to return responses in this format:
     "package": {
       "id": 1,
       "name": "Pro Suite",
-      "slug": "pro-suite"
+      "slug": "pro-suite",
+      "tier_inheritance": "inherited"
     },
     "tier": {
       "slug": "pro",
@@ -458,6 +461,13 @@ The module expects the license server to return responses in this format:
   }
 }
 ```
+
+`package.tier_inheritance` (`"inherited"` or `"standalone"`) reflects whether the server resolves
+this package's tiers cumulatively or independently — see the "Two license modes" section below.
+The `features` array is always the server's final, already-resolved flat feature set either way, so
+this field is informational only. It is currently **not parsed** by `LicenseValidator` and is not
+exposed by `getPackage()` or any other method — documented here for completeness in case a future
+version starts surfacing it.
 
 When a license is in grace period, the server returns `"valid": true` with `"status": "grace"`, `"in_grace_period": true` and `"grace_expires_at": "2026-02-15 00:00:00"`.
 
