@@ -5,6 +5,27 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-08-17
+
+| Category | Description |
+|----------|-------------|
+| Changed  | Admin interface no longer requires Bootstrap — works the same in any project, with or without it |
+| Changed  | Manual upload panel and the update/changelog dialogs now use native browser components |
+| Changed  | Maintenance page shown during an install no longer loads anything from an external website |
+| Fixed    | A handful of interface messages that always appeared in English now respect the selected language |
+
+### Changed
+
+- **No more Bootstrap dependency** — the patch management screen (update list, install dialog, changelog viewer, manual upload) now ships its own self-contained styling instead of relying on Bootstrap and Bootstrap Icons being present in the host application. The interface looks and behaves the same either way.
+- **Manual upload panel and dialogs use native browser components** — no visible change in behavior; installing an update, viewing details, and browsing changelogs all work as before.
+- **Maintenance page is fully self-contained** — the page shown to end users while a patch is installing no longer fetches anything from an external website, so it keeps working even if that site is unreachable. Projects integrating the module need to add its accompanying stylesheet during setup (see the integration guide).
+
+### Fixed
+
+- **A few messages were always shown in English** — "no update available", a generic connection error, the roll-back confirmation, and the per-update success message ignored the selected language. All now translate correctly (closes [#14](https://gitea.patrikmol.com/PatrikMol/Reuseables/issues/14)).
+
+---
+
 ## [2.6.2] - 2026-08-01
 
 | Category | Description |

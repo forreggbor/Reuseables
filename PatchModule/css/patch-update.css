@@ -1,38 +1,720 @@
 /**
  * PatchModule Admin UI — patch-update.css
- * Patch management UI styles. Requires Bootstrap 5 + Bootstrap Icons.
+ * Self-contained vanilla stylesheet. No Bootstrap, no external dependency.
+ * All selectors are scoped under .patch-root to avoid collisions with host
+ * styles (a host may load its own, real Bootstrap for its own admin chrome).
  */
 
 /* ─── Custom Properties ─────────────────────────────────────── */
 :root {
     --patch-color-success:       #198754;
     --patch-color-primary:       #0d6efd;
+    --patch-color-primary-hover: #0b5ed7;
     --patch-color-danger:        #dc3545;
+    --patch-color-warning:       #664d03;
+    --patch-color-warning-bg:    #fff3cd;
+    --patch-color-warning-border:#ffecb5;
+    --patch-color-info:          #055160;
+    --patch-color-info-bg:       #cff4fc;
+    --patch-color-info-border:   #b6effb;
+    --patch-color-dark:          #212529;
     --patch-color-muted:         #6c757d;
     --patch-color-muted-light:   #adb5bd;
     --patch-border-color:        #dee2e6;
     --patch-border-radius:       0.375rem;
     --patch-border-radius-lg:    0.5rem;
     --patch-bg-light:            #f8f9fa;
+    --patch-bg-body:             #ffffff;
     --patch-bg-success-subtle:   #d1e7dd;
     --patch-border-success:      #badbcc;
     --patch-bg-active-row:       #e7f1ff;
     --patch-bg-completed-row:    #f0faf4;
     --patch-bg-failed-row:       #fdf0f0;
     --patch-separator-color:     #f0f0f0;
+    --patch-font:                -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --patch-font-mono:           'Courier New', monospace;
+    --patch-code-color:          #d63384;
+    --patch-text:                #212529;
+    --patch-shadow:              0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
-/* ─── Modal Header ───────────────────────────────────────────── */
-.patch-modal-header {
-    background: linear-gradient(135deg, var(--patch-color-primary), #0b5ed7);
+/* ═══════════════════════════════════════════════════════════════
+   Self-contained component layer (no Bootstrap dependency)
+   Everything below is scoped to .patch-root — the four elements that
+   carry it (#patch-mount, #patchUpdateBanner, and both <dialog>s) each
+   set the class on themselves, since the module has no single wrapper
+   that contains all of them at once.
+
+   This base/reset/generic-component layer is placed BEFORE the more
+   specific component rules further down in this file (Version Cards,
+   Update Toast, etc. — historically the first rules in this file, kept
+   in place below rather than reshuffled) on purpose: at equal
+   specificity CSS resolves ties by source order, so e.g.
+   .patch-update-toast's `color: #fff` must come after .patch-root's
+   base `color: var(--patch-text)` to win on the same element (the toast
+   carries both classes). Reset-then-components is also just the
+   conventional order for a stylesheet like this one.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Reset & base typography ────────────────────────────────── */
+.patch-root,
+.patch-root *,
+.patch-root *::before,
+.patch-root *::after {
+    box-sizing: border-box;
+}
+
+.patch-root {
+    font-family: var(--patch-font);
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--patch-text);
+}
+
+.patch-root button,
+.patch-root input,
+.patch-root select,
+.patch-root textarea {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+}
+
+.patch-root h1, .patch-root h2, .patch-root h3,
+.patch-root h4, .patch-root h5, .patch-root h6 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.patch-root p { margin-top: 0; margin-bottom: 1rem; }
+.patch-root p:last-child { margin-bottom: 0; }
+
+.patch-root ul, .patch-root ol {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    padding-left: 2rem;
+}
+
+.patch-root hr {
+    margin: 1rem 0;
+    color: inherit;
+    border: 0;
+    border-top: 1px solid var(--patch-border-color);
+    opacity: .25;
+}
+
+.patch-root code {
+    font-family: var(--patch-font-mono);
+    font-size: 0.875em;
+    color: var(--patch-code-color);
+    word-wrap: break-word;
+}
+
+.patch-root a {
+    color: var(--patch-color-primary);
+    text-decoration: underline;
+}
+
+.patch-root a:hover {
+    color: var(--patch-color-primary-hover);
+}
+
+.patch-root table {
+    border-collapse: collapse;
+}
+
+.patch-root svg {
+    vertical-align: middle;
+}
+
+.patch-root input[type="file"]::file-selector-button {
+    font: inherit;
+    color: var(--patch-text);
+    background: var(--patch-bg-light);
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius);
+    padding: 0.375rem 0.75rem;
+    margin-right: 0.75rem;
+    cursor: pointer;
+}
+
+.patch-root input[type="file"]::file-selector-button:hover {
+    background: var(--patch-border-color);
+}
+
+/* ─── Icons ───────────────────────────────────────────────────── */
+.patch-icon {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+    vertical-align: -0.125em;
+    flex-shrink: 0;
+}
+
+/* ─── Utilities (deliberately minimal — semantic component classes
+   are preferred over rebuilding a Bootstrap-style utility set) ─── */
+.patch-hidden       { display: none !important; }
+.patch-text-muted   { color: var(--patch-color-muted); }
+.patch-text-danger  { color: var(--patch-color-danger); }
+.patch-text-success { color: var(--patch-color-success); }
+.patch-text-primary { color: var(--patch-color-primary); }
+.patch-small        { font-size: 0.875em; }
+.patch-mono          { font-family: var(--patch-font-mono); }
+
+/* ─── Page header (index.php title row) ──────────────────────── */
+.patch-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+/* ─── Meta row (modal file size / released-at line) ──────────── */
+.patch-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    color: var(--patch-color-muted);
+    font-size: 0.875rem;
+}
+
+.patch-meta > .patch-meta-push { margin-left: auto; font-weight: 600; }
+
+/* ─── Version grid (replaces Bootstrap row/col-6) ────────────── */
+.patch-version-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 480px) {
+    .patch-version-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Buttons ─────────────────────────────────────────────────── */
+.patch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 400;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    user-select: none;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--patch-border-radius);
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    transition: color .15s ease-in-out, background-color .15s ease-in-out, border-color .15s ease-in-out;
+}
+
+.patch-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.patch-btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: var(--patch-border-radius);
+}
+
+.patch-btn-primary {
     color: #fff;
-    border-bottom: none;
+    background: var(--patch-color-primary);
+    border-color: var(--patch-color-primary);
+}
+.patch-btn-primary:hover:not(:disabled) {
+    background: var(--patch-color-primary-hover);
+    border-color: var(--patch-color-primary-hover);
 }
 
-.patch-modal-header .btn-close {
-    filter: invert(1);
+.patch-btn-secondary {
+    color: #fff;
+    background: var(--patch-color-muted);
+    border-color: var(--patch-color-muted);
 }
+.patch-btn-secondary:hover:not(:disabled) {
+    background: #5c636a;
+    border-color: #565e64;
+}
+
+.patch-btn-light {
+    color: var(--patch-color-dark);
+    background: #f8f9fa;
+    border-color: #f8f9fa;
+}
+.patch-btn-light:hover:not(:disabled) {
+    background: #d3d4d5;
+    border-color: #c6c7c8;
+}
+
+.patch-btn-outline-primary {
+    color: var(--patch-color-primary);
+    border-color: var(--patch-color-primary);
+}
+.patch-btn-outline-primary:hover:not(:disabled) {
+    color: #fff;
+    background: var(--patch-color-primary);
+}
+
+.patch-btn-outline-secondary {
+    color: var(--patch-color-muted);
+    border-color: var(--patch-border-color);
+}
+.patch-btn-outline-secondary:hover:not(:disabled) {
+    color: var(--patch-color-dark);
+    background: var(--patch-bg-light);
+}
+
+.patch-btn-outline-danger {
+    color: var(--patch-color-danger);
+    border-color: var(--patch-color-danger);
+}
+.patch-btn-outline-danger:hover:not(:disabled) {
+    color: #fff;
+    background: var(--patch-color-danger);
+}
+
+/* Close (X) button — replaces Bootstrap's .btn-close data-URI SVG */
+.patch-btn-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: var(--patch-border-radius);
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+}
+.patch-btn-close:hover { opacity: 1; }
+.patch-btn-close .patch-icon { width: 0.9rem; height: 0.9rem; }
+
+/* ─── Badges ──────────────────────────────────────────────────── */
+.patch-badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: var(--patch-border-radius);
+}
+
+.patch-badge-primary   { background: var(--patch-color-primary); }
+.patch-badge-secondary { background: var(--patch-color-muted); }
+.patch-badge-success   { background: var(--patch-color-success); }
+.patch-badge-danger    { background: var(--patch-color-danger); }
+.patch-badge-warning   { background: #ffc107; color: var(--patch-color-warning); }
+.patch-badge-info      { background: #0dcaf0; color: var(--patch-color-info); }
+.patch-badge-dark      { background: var(--patch-color-dark); }
+.patch-badge-light     { background: var(--patch-bg-light); color: var(--patch-color-muted); border: 1px solid var(--patch-border-color); }
+.patch-badge-obsolete  { text-decoration: line-through; }
+
+/* ─── Alerts ──────────────────────────────────────────────────── */
+.patch-alert {
+    position: relative;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--patch-border-radius);
+}
+.patch-alert:last-child { margin-bottom: 0; }
+
+.patch-alert-warning {
+    color: var(--patch-color-warning);
+    background: var(--patch-color-warning-bg);
+    border-color: var(--patch-color-warning-border);
+}
+
+.patch-alert-success {
+    color: #0f5132;
+    background: var(--patch-bg-success-subtle);
+    border-color: var(--patch-border-success);
+}
+
+.patch-alert-danger {
+    color: #842029;
+    background: #f8d7da;
+    border-color: #f5c2c7;
+}
+
+/* ─── Cards ───────────────────────────────────────────────────── */
+.patch-card {
+    background: var(--patch-bg-body);
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius);
+    margin-bottom: 1.5rem;
+}
+.patch-card:last-child { margin-bottom: 0; }
+
+.patch-card-header {
+    padding: 0.75rem 1rem;
+    background: var(--patch-bg-light);
+    border-bottom: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius) var(--patch-border-radius) 0 0;
+    font-weight: 600;
+}
+
+.patch-card-body {
+    padding: 1rem;
+}
+.patch-card-body-flush { padding: 0; }
+
+/* ─── Tables ──────────────────────────────────────────────────── */
+.patch-table-responsive {
+    overflow-x: auto;
+}
+
+.patch-table {
+    width: 100%;
+    margin-bottom: 0;
+    color: var(--patch-text);
+    vertical-align: middle;
+    border-collapse: collapse;
+}
+
+.patch-table th,
+.patch-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--patch-border-color);
+    text-align: left;
+}
+
+.patch-table thead th {
+    background: var(--patch-bg-light);
+    font-weight: 600;
+    border-bottom-width: 2px;
+}
+
+.patch-table tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.patch-table .patch-table-end { text-align: right; }
+
+.patch-row-obsolete {
+    background: var(--patch-bg-light);
+    color: var(--patch-color-muted);
+}
+
+/* ─── Forms ───────────────────────────────────────────────────── */
+.patch-form-group {
+    margin-bottom: 1rem;
+}
+
+.patch-label {
+    display: inline-block;
+    margin-bottom: 0.375rem;
+    font-weight: 600;
+}
+
+.patch-input {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    background: var(--patch-bg-body);
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius);
+}
+
+.patch-input:focus {
+    outline: 0;
+    border-color: var(--patch-color-primary);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.patch-form-text {
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+    color: var(--patch-color-muted);
+}
+
+.patch-form-check {
+    display: block;
+    min-height: 1.5rem;
+    padding-left: 1.5em;
+    margin-bottom: 0.125rem;
+}
+
+.patch-form-check-input {
+    float: left;
+    margin-left: -1.5em;
+    width: 1em;
+    height: 1em;
+    margin-top: 0.25em;
+}
+
+.patch-form-check-label {
+    cursor: pointer;
+}
+
+.patch-field-error {
+    display: none;
+    margin-top: 0.25rem;
+    font-size: 0.875em;
+    color: var(--patch-color-danger);
+}
+
+.patch-invalid {
+    border-color: var(--patch-color-danger);
+}
+.patch-invalid ~ .patch-field-error {
+    display: block;
+}
+
+/* ─── Progress ────────────────────────────────────────────────── */
+.patch-progress {
+    display: flex;
+    height: 1rem;
+    overflow: hidden;
+    background: var(--patch-bg-light);
+    border-radius: var(--patch-border-radius);
+}
+
+.patch-progress-bar {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    color: #fff;
+    text-align: center;
+    white-space: nowrap;
+    background: var(--patch-color-primary);
+    transition: width .3s ease, background-color .3s ease;
+}
+
+.patch-progress-bar.patch-striped {
+    background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent);
+    background-size: 1rem 1rem;
+}
+
+.patch-progress-bar.patch-animated {
+    animation: patch-progress-stripes 1s linear infinite;
+}
+
+@keyframes patch-progress-stripes {
+    from { background-position: 1rem 0; }
+    to   { background-position: 0 0; }
+}
+
+.patch-progress-bar.patch-bg-success { background: var(--patch-color-success); }
+.patch-progress-bar.patch-bg-danger  { background: var(--patch-color-danger); }
+
+/* ─── Spinner ─────────────────────────────────────────────────── */
+.patch-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    vertical-align: -0.125em;
+    border: 0.15em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: patch-spin 0.75s linear infinite;
+}
+
+/* ─── Details / accordion (native <details>, replaces Bootstrap accordion) ─── */
+.patch-details {
+    border: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.patch-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--patch-bg-light);
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+}
+
+.patch-summary::-webkit-details-marker {
+    display: none;
+}
+
+.patch-summary .patch-icon-chevron {
+    margin-left: auto;
+    transition: transform .15s ease;
+}
+
+.patch-details[open] .patch-summary .patch-icon-chevron {
+    transform: rotate(180deg);
+}
+
+.patch-details-body {
+    padding: 1rem;
+    border-top: 1px solid var(--patch-border-color);
+}
+
+/* ─── Dialog (native <dialog>, replaces Bootstrap modal) ─────── */
+.patch-dialog {
+    padding: 0;
+    border: 0;
+    max-width: 500px;
+    width: calc(100% - 2rem);
+    max-height: calc(100dvh - 3rem);
+    background: var(--patch-bg-body);
+    color: var(--patch-text);
+    border-radius: var(--patch-border-radius-lg);
+    box-shadow: var(--patch-shadow);
+}
+
+.patch-dialog-lg {
+    max-width: 800px;
+}
+
+/* [open] scoping is mandatory — an unconditional display here would
+   defeat the UA's `dialog:not([open]) { display: none }` rule. */
+.patch-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.patch-dialog::backdrop {
+    /* Literal color, not var() — ::backdrop custom-property inheritance
+       is unsupported in some browsers still in the field. */
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.patch-dialog-header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, var(--patch-color-primary), var(--patch-color-primary-hover));
+    color: #fff;
+    border-radius: var(--patch-border-radius-lg) var(--patch-border-radius-lg) 0 0;
+}
+
+.patch-dialog-header.patch-dialog-header-plain {
+    background: none;
+    color: inherit;
+    border-bottom: 1px solid var(--patch-border-color);
+    border-radius: var(--patch-border-radius-lg) var(--patch-border-radius-lg) 0 0;
+}
+
+.patch-dialog-title {
+    margin: 0;
+    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.patch-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 1.25rem;
+    overflow-y: auto;
+}
+
+.patch-dialog-footer {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--patch-border-color);
+}
+
+/* Scroll-lock while any module dialog is open — native <dialog> does not
+   lock body scroll the way Bootstrap's modal did. */
+html:has(.patch-dialog[open]) {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+}
+
+/* A <dialog> opened with showModal() renders in the browser's top layer,
+   which ignores z-index entirely — hide the toast while any dialog is
+   open so it cannot end up rendered behind one. */
+html:has(.patch-dialog[open]) .patch-update-toast {
+    display: none;
+}
+
+/* ─── Unified markdown content (release notes + changelog modal) ─── */
+.patch-md {
+    font-size: 0.875rem;
+}
+
+.patch-md h1, .patch-md h2, .patch-md h3,
+.patch-md h4, .patch-md h5, .patch-md h6 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+.patch-md h1:first-child, .patch-md h2:first-child, .patch-md h3:first-child,
+.patch-md h4:first-child, .patch-md h5:first-child, .patch-md h6:first-child {
+    margin-top: 0;
+}
+
+.patch-md h3 { font-size: 1.15rem; }
+.patch-md h4 { font-size: 1.05rem; }
+.patch-md h5, .patch-md h6 { font-size: 0.95rem; }
+
+.patch-md p { margin-bottom: 0.75rem; }
+.patch-md hr { margin: 1rem 0; }
+
+.patch-md ul, .patch-md ol {
+    padding-left: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.patch-md table {
+    width: 100%;
+    margin-bottom: 1rem;
+    border: 1px solid var(--patch-border-color);
+}
+
+.patch-md th, .patch-md td {
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--patch-border-color);
+    text-align: left;
+    font-size: 0.875rem;
+}
+
+.patch-md thead th {
+    background: var(--patch-bg-light);
+    font-weight: 600;
+}
+
+.patch-md code {
+    background: var(--patch-bg-active-row);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+}
+
+/* Plain-text (non-HTML) fallback only — the module's markdown renderer
+   emits real block tags, so pre-wrap here would turn its structural
+   newlines into extra blank lines. */
+.patch-md-plain {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Specific components (predate the layer above; kept in place, now
+   correctly overriding it since they come later in source order)
+   ═══════════════════════════════════════════════════════════════ */
 
 /* ─── Version Cards ──────────────────────────────────────────── */
 .patch-version-card {
@@ -63,6 +745,8 @@
 }
 
 /* ─── Release Notes ──────────────────────────────────────────── */
+/* Content is rendered markdown-as-HTML — see .patch-md for the shared
+   block-level styling (headings, tables, lists, code, hr) it needs. */
 .patch-release-notes {
     max-height: 200px;
     overflow-y: auto;
@@ -70,12 +754,14 @@
     border: 1px solid var(--patch-border-color);
     border-radius: var(--patch-border-radius);
     padding: 1rem;
-    font-size: 0.875rem;
-    white-space: pre-wrap;
     word-wrap: break-word;
 }
 
 /* ─── Queue List Container ───────────────────────────────────── */
+#patchQueuePanel {
+    margin-bottom: 1rem;
+}
+
 .patch-queue-list {
     border: 1px solid var(--patch-border-color);
     border-radius: var(--patch-border-radius);
@@ -116,12 +802,6 @@
     flex-shrink: 0;
 }
 
-/* Override Bootstrap's text-* utilities inside queue icons for specificity */
-.patch-queue-icon .text-success { color: var(--patch-color-success) !important; }
-.patch-queue-icon .text-primary  { color: var(--patch-color-primary)  !important; }
-.patch-queue-icon .text-danger   { color: var(--patch-color-danger)   !important; }
-.patch-queue-icon .text-muted    { color: var(--patch-color-muted-light) !important; }
-
 .patch-queue-version {
     font-family: var(--patch-font-mono);
     font-weight: 600;
@@ -145,7 +825,7 @@
 }
 
 /* Spin animation for the active queue row icon */
-.patch-queue-item.queue-active .patch-queue-icon i {
+.patch-queue-item.queue-active .patch-queue-icon .patch-icon {
     animation: patch-spin 1s linear infinite;
 }
 
@@ -198,6 +878,11 @@
     flex-grow: 1;
 }
 
+#patchProgressLabel {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
 /* ─── Spin Animation ─────────────────────────────────────────── */
 @keyframes patch-spin {
     from { transform: rotate(0deg); }
@@ -243,39 +928,10 @@
     outline-offset: 2px;
 }
 
-/* Changelog modal content */
+/* Changelog modal content — layout box only; typography comes from the
+   shared .patch-md class (also applied to this element in the markup),
+   which unifies this with .patch-release-notes instead of duplicating it. */
 .patch-changelog-content {
     max-height: 70vh;
     overflow-y: auto;
 }
-
-.patch-changelog-content h3,
-.patch-changelog-content h4,
-.patch-changelog-content h5 {
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
-}
-
-.patch-changelog-content h3 { font-size: 1.15rem; }
-.patch-changelog-content h4 { font-size: 1.05rem; }
-.patch-changelog-content h5 { font-size: 0.95rem; }
-
-.patch-changelog-content ul {
-    padding-left: 1.25rem;
-    margin-bottom: 0.75rem;
-}
-
-.patch-changelog-content table {
-    width: 100%;
-    margin-bottom: 1rem;
-}
-
-.patch-changelog-content code {
-    background: var(--patch-bg-active-row);
-    padding: 0.1em 0.3em;
-    border-radius: 3px;
-    font-family: var(--patch-font-mono);
-}
-
-.patch-changelog-content p { margin-bottom: 0.75rem; }
-.patch-changelog-content hr { margin: 1rem 0; }

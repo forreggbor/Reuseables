@@ -18,6 +18,7 @@ Framework-agnostic patch management module for PHP applications. Handles checkin
 - **Optional logging** (app log + 6 activity audit events, including rollback outcomes)
 - **Optional CSRF rotation** (`CsrfRotatableInterface`) — module returns fresh token on every mutating response
 - **Shared hosting support** (PharData fallback for tar extraction)
+- **Self-contained admin UI** — vanilla CSS/HTML5/JS, no Bootstrap or any other frontend framework required; safe to drop into any project regardless of what the host's own admin layout uses
 
 ## Requirements
 

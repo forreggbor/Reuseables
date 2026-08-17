@@ -71,7 +71,7 @@ class SimpleMarkdownRenderer
                 }
                 $output .= '</ul>' . "\n";
             } elseif ($state === 'table' && ($tableHeader !== [] || $buffer !== [])) {
-                $output .= '<table class="table table-sm table-bordered">' . "\n";
+                $output .= '<table>' . "\n";
                 if ($tableHeader !== []) {
                     $output .= '<thead><tr>';
                     foreach ($tableHeader as $cell) {

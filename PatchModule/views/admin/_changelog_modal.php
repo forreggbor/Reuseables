@@ -1,9 +1,12 @@
 <?php
+
 /**
  * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
  *
- * Patch Changelog Modal partial — Bootstrap 5 modal for displaying per-version
- * release notes from patch history. Non-static backdrop; user can click outside to dismiss.
+ * Patch Changelog Modal partial — native <dialog> for displaying per-version
+ * release notes from patch history. Not marked no-esc: ESC and clicking
+ * outside the dialog both dismiss it (data-patch-light-dismiss wires the
+ * backdrop click in JS; ESC is native <dialog> behavior, unsuppressed).
  *
  * Once-guard: this partial renders only once per request even if included multiple times.
  *
@@ -11,39 +14,37 @@
  *   $tr (callable) — translator callable
  */
 
+use PatchModule\PatchIcon;
+
 if (!empty($GLOBALS['__PATCH_CHANGELOG_MODAL_RENDERED'])) {
     return;
 }
 $GLOBALS['__PATCH_CHANGELOG_MODAL_RENDERED'] = true;
 ?>
-<div class="modal fade" id="patchChangelogModal" tabindex="-1"
-     aria-labelledby="patchChangelogModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
+<dialog id="patchChangelogModal" class="patch-root patch-dialog patch-dialog-lg"
+        aria-labelledby="patchChangelogModalLabel" data-patch-light-dismiss>
 
-            <!-- Header -->
-            <div class="modal-header">
-                <h5 class="modal-title" id="patchChangelogModalLabel">
-                    <i class="bi bi-journal-text me-2"></i><?= htmlspecialchars($tr('TEXT_HEADING_PATCH_CHANGELOG')) ?><span id="patchChangelogVersion" class="ms-2 text-muted font-monospace"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"
-                        aria-label="<?= htmlspecialchars($tr('TEXT_BUTTON_CLOSE')) ?>"></button>
-            </div>
+    <!-- Header -->
+    <div class="patch-dialog-header patch-dialog-header-plain">
+        <h5 class="patch-dialog-title" id="patchChangelogModalLabel">
+            <?= PatchIcon::svg('journal-text') ?><?= htmlspecialchars($tr('TEXT_HEADING_PATCH_CHANGELOG')) ?><span id="patchChangelogVersion" class="patch-text-muted patch-mono" style="margin-left: 0.5rem;"></span>
+        </h5>
+        <button type="button" class="patch-btn-close" data-patch-dismiss
+                aria-label="<?= htmlspecialchars($tr('TEXT_BUTTON_CLOSE')) ?>"><?= PatchIcon::svg('x-lg') ?></button>
+    </div>
 
-            <!-- Body -->
-            <div class="modal-body">
-                <div id="patchChangelogContent" class="patch-changelog-content" style="display: none;"></div>
-                <div id="patchChangelogEmpty" class="text-muted">
-                    <?= htmlspecialchars($tr('TEXT_LABEL_NO_RELEASE_NOTES')) ?>
-                </div>
-            </div>
+    <!-- Body -->
+    <div class="patch-dialog-body">
+        <div id="patchChangelogContent" class="patch-changelog-content patch-md patch-hidden"></div>
+        <div id="patchChangelogEmpty" class="patch-text-muted">
+            <?= htmlspecialchars($tr('TEXT_LABEL_NO_RELEASE_NOTES')) ?>
+        </div>
+    </div>
 
-            <!-- Footer -->
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary"
-                        data-bs-dismiss="modal"><?= htmlspecialchars($tr('TEXT_BUTTON_CLOSE')) ?></button>
-            </div>
+    <!-- Footer -->
+    <div class="patch-dialog-footer">
+        <button type="button" class="patch-btn patch-btn-secondary"
+                data-patch-dismiss><?= htmlspecialchars($tr('TEXT_BUTTON_CLOSE')) ?></button>
+    </div>
 
-        </div><!-- /modal-content -->
-    </div><!-- /modal-dialog -->
-</div><!-- /patchChangelogModal -->
+</dialog><!-- /patchChangelogModal -->

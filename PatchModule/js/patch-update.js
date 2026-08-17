@@ -38,9 +38,34 @@ if (typeof showNotification !== 'function') {
     };
 }
 
+/**
+ * Open a <dialog> element by ID via showModal().
+ *
+ * Guards against the InvalidStateError a second showModal() call throws on
+ * an already-open dialog — native <dialog> differs from Bootstrap's
+ * bootstrap.Modal#show(), which was a silent no-op when already shown.
+ *
+ * @param {string} id
+ * @returns {HTMLDialogElement|null}
+ */
+function openPatchDialog(id) {
+    var d = document.getElementById(id);
+    if (d && !d.open) { d.showModal(); }
+    return d;
+}
+
 const PatchUpdate = {
-    /** @type {bootstrap.Modal|null} Modal instance */
-    modal: null,
+    /** @type {Object<string, string>} Icon name => full <svg> markup, from data-icons */
+    icons: {},
+
+    /**
+     * Look up a pre-rendered icon by name.
+     * @param {string} name
+     * @returns {string} <svg> markup, or '' if not present in data-icons
+     */
+    icon: function (name) {
+        return this.icons[name] || '';
+    },
 
     /** @type {string|null} Progress polling token */
     progressToken: null,
@@ -104,6 +129,7 @@ const PatchUpdate = {
         if (!mount) return;
         this.baseUrl     = (mount.dataset.baseUrl || '').replace(/\/$/, '');
         this.csrfToken   = mount.dataset.csrfToken || '';
+        this.icons       = JSON.parse(mount.dataset.icons       || '{}');
         this.stepLabels  = JSON.parse(mount.dataset.stepLabels  || '{}');
         this.queueLabels = JSON.parse(mount.dataset.queueLabels || '{}');
         this.errorLabels = JSON.parse(mount.dataset.errorLabels || '{}');
@@ -121,7 +147,7 @@ const PatchUpdate = {
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data.available) {
-                    showNotification('No update available', 'info');
+                    showNotification(PatchUpdate.i18n.checkNoUpdates || 'No update available', 'info');
                     return;
                 }
 
@@ -143,13 +169,10 @@ const PatchUpdate = {
                 PatchUpdate.switchState('details');
 
                 // Show modal
-                if (!PatchUpdate.modal) {
-                    PatchUpdate.modal = new bootstrap.Modal(document.getElementById('patchUpdateModal'));
-                }
-                PatchUpdate.modal.show();
+                openPatchDialog('patchUpdateModal');
             })
             .catch(function () {
-                showNotification('Failed to load update details', 'error');
+                showNotification(PatchUpdate.i18n.genericError || 'Request failed. Please try again.', 'error');
             });
     },
 
@@ -190,11 +213,7 @@ const PatchUpdate = {
                 PatchUpdate.updateInstallButton();
                 PatchUpdate.switchState('details');
 
-                if (!PatchUpdate.modal) {
-                    var modalEl = document.getElementById('patchUpdateModal');
-                    if (modalEl) { PatchUpdate.modal = new bootstrap.Modal(modalEl); }
-                }
-                if (PatchUpdate.modal) { PatchUpdate.modal.show(); }
+                openPatchDialog('patchUpdateModal');
             })
             .catch(function () {
                 showNotification(PatchUpdate.i18n.genericError || 'Request failed.', 'error');
@@ -212,15 +231,15 @@ const PatchUpdate = {
 
         // File size
         var sizeEl = document.getElementById('patchFileSize');
-        sizeEl.innerHTML = '<i class="bi bi-file-earmark-zip me-1"></i>' + PatchUpdate.formatFileSize(patch.file_size || 0);
+        sizeEl.innerHTML = PatchUpdate.icon('file-earmark-zip') + PatchUpdate.formatFileSize(patch.file_size || 0);
 
         // Release date
         var dateEl = document.getElementById('patchReleasedAt');
         if (patch.released_at) {
             var d = new Date(patch.released_at);
-            dateEl.innerHTML = '<i class="bi bi-calendar3 me-1"></i>' + d.toLocaleDateString();
+            dateEl.innerHTML = PatchUpdate.icon('calendar3') + d.toLocaleDateString();
         } else {
-            dateEl.innerHTML = '<i class="bi bi-calendar3 me-1"></i>-';
+            dateEl.innerHTML = PatchUpdate.icon('calendar3') + '-';
         }
 
         // Release notes
@@ -230,7 +249,7 @@ const PatchUpdate = {
         } else if (patch.release_notes) {
             notesEl.textContent = patch.release_notes;
         } else {
-            notesEl.innerHTML = '<p class="text-muted">' + escapeHtml(PatchUpdate.i18n.noReleaseNotes || 'No release notes available') + '</p>';
+            notesEl.innerHTML = '<p class="patch-text-muted">' + escapeHtml(PatchUpdate.i18n.noReleaseNotes || 'No release notes available') + '</p>';
         }
 
         // Update counter (e.g. "Update 1 of 3")
@@ -239,9 +258,9 @@ const PatchUpdate = {
             counterEl.textContent = (PatchUpdate.i18n.updateXofN || 'Update %d of %d')
                 .replace('%d', this.currentPatchIndex + 1)
                 .replace('%d', this.totalPatches);
-            counterEl.style.display = '';
+            counterEl.classList.remove('patch-hidden');
         } else {
-            counterEl.style.display = 'none';
+            counterEl.classList.add('patch-hidden');
         }
     },
 
@@ -255,11 +274,11 @@ const PatchUpdate = {
         var list = document.getElementById('patchQueueList');
 
         if (this.totalPatches <= 1) {
-            panel.style.display = 'none';
+            panel.classList.add('patch-hidden');
             return;
         }
 
-        panel.style.display = '';
+        panel.classList.remove('patch-hidden');
         list.innerHTML = '';
 
         for (var i = 0; i < this.patches.length; i++) {
@@ -330,15 +349,15 @@ const PatchUpdate = {
     getQueueIcon: function (status) {
         switch (status) {
             case 'installed':
-                return '<i class="bi bi-check-circle-fill text-success"></i>';
+                return '<span class="patch-text-success">' + PatchUpdate.icon('check-circle-fill') + '</span>';
             case 'installing':
-                return '<i class="bi bi-arrow-repeat text-primary"></i>';
+                return '<span class="patch-text-primary">' + PatchUpdate.icon('arrow-repeat') + '</span>';
             case 'failed':
-                return '<i class="bi bi-x-circle-fill text-danger"></i>';
+                return '<span class="patch-text-danger">' + PatchUpdate.icon('x-circle-fill') + '</span>';
             case 'next':
-                return '<i class="bi bi-arrow-right-circle text-primary"></i>';
+                return '<span class="patch-text-primary">' + PatchUpdate.icon('arrow-right-circle') + '</span>';
             default:
-                return '<i class="bi bi-circle text-muted"></i>';
+                return '<span class="patch-text-muted">' + PatchUpdate.icon('circle') + '</span>';
         }
     },
 
@@ -352,7 +371,7 @@ const PatchUpdate = {
         if (this.totalPatches > 1) {
             var label = (PatchUpdate.i18n.installAll || 'Install all %d updates')
                 .replace('%d', this.totalPatches);
-            btn.innerHTML = '<i class="bi bi-arrow-up-circle me-1"></i>' + escapeHtml(label);
+            btn.innerHTML = PatchUpdate.icon('arrow-up-circle') + escapeHtml(label);
         }
     },
 
@@ -405,7 +424,7 @@ const PatchUpdate = {
                     return;
                 }
                 var banner = document.getElementById('patchUpdateBanner');
-                if (banner) { banner.style.display = 'none'; }
+                if (banner) { banner.classList.add('patch-hidden'); }
             })
             .catch(function () {
                 showNotification(PatchUpdate.i18n.genericError || 'Request failed.', 'error');
@@ -419,8 +438,11 @@ const PatchUpdate = {
         this.switchState('password');
         var passInput = document.getElementById('patchPassword');
         passInput.value = '';
-        passInput.classList.remove('is-invalid');
-        setTimeout(function () { passInput.focus(); }, 300);
+        passInput.classList.remove('patch-invalid');
+        passInput.removeAttribute('aria-invalid');
+        // No .fade transition to outlast (Bootstrap's was 300ms) — focus
+        // on the next frame instead of an arbitrary timeout.
+        requestAnimationFrame(function () { passInput.focus(); });
     },
 
     /**
@@ -434,15 +456,17 @@ const PatchUpdate = {
      * Verify sysadmin password
      */
     verifyPassword: function () {
-        var password = document.getElementById('patchPassword').value;
+        var passInput = document.getElementById('patchPassword');
+        var password = passInput.value;
         if (!password) {
-            document.getElementById('patchPassword').classList.add('is-invalid');
+            passInput.classList.add('patch-invalid');
+            passInput.setAttribute('aria-invalid', 'true');
             return;
         }
 
         var btn = document.getElementById('patchVerifyBtn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>...';
+        btn.innerHTML = '<span class="patch-spinner"></span>...';
 
         fetch(PatchUpdate.baseUrl + '/verify-password', {
             method: 'POST',
@@ -455,9 +479,10 @@ const PatchUpdate = {
             .then(PatchUpdate.parseResponse)
             .then(function (result) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-shield-lock me-1"></i>' + escapeHtml(btn.getAttribute('data-original-text') || 'Confirm');
+                btn.innerHTML = PatchUpdate.icon('shield-lock') + escapeHtml(btn.getAttribute('data-original-text') || 'Confirm');
                 if (!result.ok) {
-                    document.getElementById('patchPassword').classList.add('is-invalid');
+                    passInput.classList.add('patch-invalid');
+                    passInput.setAttribute('aria-invalid', 'true');
                     document.getElementById('patchPasswordError').textContent = result.errorMessage || 'Invalid password';
                     return;
                 }
@@ -537,7 +562,7 @@ const PatchUpdate = {
      * @param {boolean} createBackup - Whether a DB backup step will run
      */
     setupInstallUI: function (currentPatch, createBackup) {
-        document.getElementById('patchModalCloseBtn').style.display = 'none';
+        document.getElementById('patchModalCloseBtn').classList.add('patch-hidden');
         this.switchState('progress');
 
         if (this.totalPatches > 1) {
@@ -547,7 +572,7 @@ const PatchUpdate = {
                 .replace('%d', this.currentPatchIndex + 1)
                 .replace('%d', this.totalPatches);
             progressLabel.textContent = labelText + ': v' + currentPatch.version;
-            progressLabel.style.display = '';
+            progressLabel.classList.remove('patch-hidden');
         }
 
         var steps = ['preflight_checks'];
@@ -560,10 +585,10 @@ const PatchUpdate = {
 
         var bar = document.getElementById('patchProgressBar');
         bar.style.width = '0%';
-        bar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+        bar.className = 'patch-progress-bar patch-striped patch-animated';
 
-        document.getElementById('patchResultSuccess').style.display = 'none';
-        document.getElementById('patchResultError').style.display = 'none';
+        document.getElementById('patchResultSuccess').classList.add('patch-hidden');
+        document.getElementById('patchResultError').classList.add('patch-hidden');
     },
 
     /**
@@ -598,31 +623,31 @@ const PatchUpdate = {
      * @param {string} nextVersion - Version of the next patch
      */
     showNextPrompt: function (nextVersion) {
-        document.getElementById('patchModalCloseBtn').style.display = '';
+        document.getElementById('patchModalCloseBtn').classList.remove('patch-hidden');
 
         // Show success for current patch
         var successEl = document.getElementById('patchResultSuccess');
         var currentPatch = this.patches[this.currentPatchIndex];
         document.getElementById('patchSuccessMessage').textContent =
-            'v' + currentPatch.version + ' installed successfully';
-        successEl.style.display = 'block';
+            (PatchUpdate.i18n.versionInstalled || 'v%s installed successfully').replace('%s', currentPatch.version);
+        successEl.classList.remove('patch-hidden');
 
         // Update progress bar to 100%
         var bar = document.getElementById('patchProgressBar');
         bar.style.width = '100%';
-        bar.classList.remove('progress-bar-animated');
-        bar.classList.add('bg-success');
+        bar.classList.remove('patch-animated');
+        bar.classList.add('patch-bg-success');
 
         // Show "Install next" button
         var nextBtn = document.getElementById('patchNextBtn');
         var nextLabel = (PatchUpdate.i18n.installNext || 'Install next: v%s')
             .replace('%s', nextVersion);
         document.getElementById('patchNextBtnLabel').textContent = nextLabel;
-        nextBtn.style.display = '';
+        nextBtn.classList.remove('patch-hidden');
 
         // Also show reload button as alternative
         var reloadBtn = document.getElementById('patchReloadBtn');
-        reloadBtn.style.display = '';
+        reloadBtn.classList.remove('patch-hidden');
 
         // Mark next patch in queue as "next"
         for (var i = this.currentPatchIndex + 1; i < this.patches.length; i++) {
@@ -645,8 +670,8 @@ const PatchUpdate = {
         }
 
         // Hide buttons
-        document.getElementById('patchNextBtn').style.display = 'none';
-        document.getElementById('patchReloadBtn').style.display = 'none';
+        document.getElementById('patchNextBtn').classList.add('patch-hidden');
+        document.getElementById('patchReloadBtn').classList.add('patch-hidden');
 
         // Start installing next patch
         this.startInstall();
@@ -717,7 +742,7 @@ const PatchUpdate = {
             div.className = 'patch-step';
             div.id = 'patch-step-' + stepId;
             div.innerHTML =
-                '<span class="patch-step-icon"><i class="bi bi-circle"></i></span>' +
+                '<span class="patch-step-icon">' + PatchUpdate.icon('circle') + '</span>' +
                 '<span class="patch-step-label">' + escapeHtml(label) + '</span>';
 
             container.appendChild(div);
@@ -739,16 +764,16 @@ const PatchUpdate = {
 
             switch (step.status) {
                 case 'completed':
-                    iconEl.innerHTML = '<i class="bi bi-check-circle-fill"></i>';
+                    iconEl.innerHTML = PatchUpdate.icon('check-circle-fill');
                     break;
                 case 'active':
-                    iconEl.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+                    iconEl.innerHTML = PatchUpdate.icon('arrow-repeat');
                     break;
                 case 'failed':
-                    iconEl.innerHTML = '<i class="bi bi-x-circle-fill"></i>';
+                    iconEl.innerHTML = PatchUpdate.icon('x-circle-fill');
                     break;
                 default:
-                    iconEl.innerHTML = '<i class="bi bi-circle"></i>';
+                    iconEl.innerHTML = PatchUpdate.icon('circle');
                     break;
             }
         }
@@ -772,13 +797,13 @@ const PatchUpdate = {
         bar.style.width = percent + '%';
 
         if (steps.every(function (s) { return s.status === 'completed'; })) {
-            bar.classList.remove('progress-bar-animated');
-            bar.classList.add('bg-success');
+            bar.classList.remove('patch-animated');
+            bar.classList.add('patch-bg-success');
         }
 
         if (steps.some(function (s) { return s.status === 'failed'; })) {
-            bar.classList.remove('progress-bar-animated');
-            bar.classList.add('bg-danger');
+            bar.classList.remove('patch-animated');
+            bar.classList.add('patch-bg-danger');
         }
     },
 
@@ -788,7 +813,7 @@ const PatchUpdate = {
      * @param {string} [errorMsg] - Error message on failure
      */
     showResult: function (success, errorMsg) {
-        document.getElementById('patchModalCloseBtn').style.display = '';
+        document.getElementById('patchModalCloseBtn').classList.remove('patch-hidden');
 
         if (success) {
             var successEl = document.getElementById('patchResultSuccess');
@@ -801,22 +826,22 @@ const PatchUpdate = {
                 messageEl.textContent = allDoneMsg;
             }
 
-            successEl.style.display = 'block';
-            document.getElementById('patchReloadBtn').style.display = '';
-            document.getElementById('patchNextBtn').style.display = 'none';
+            successEl.classList.remove('patch-hidden');
+            document.getElementById('patchReloadBtn').classList.remove('patch-hidden');
+            document.getElementById('patchNextBtn').classList.add('patch-hidden');
 
             // Update progress bar to 100%
             var bar = document.getElementById('patchProgressBar');
             bar.style.width = '100%';
-            bar.classList.remove('progress-bar-animated');
-            bar.classList.add('bg-success');
+            bar.classList.remove('patch-animated');
+            bar.classList.add('patch-bg-success');
         } else {
-            document.getElementById('patchResultError').style.display = 'block';
+            document.getElementById('patchResultError').classList.remove('patch-hidden');
             document.getElementById('patchErrorMessage').textContent = errorMsg || 'Unknown error';
 
             // Show reload button
-            document.getElementById('patchReloadBtn').style.display = '';
-            document.getElementById('patchNextBtn').style.display = 'none';
+            document.getElementById('patchReloadBtn').classList.remove('patch-hidden');
+            document.getElementById('patchNextBtn').classList.add('patch-hidden');
         }
     },
 
@@ -830,16 +855,16 @@ const PatchUpdate = {
             var s = states[i];
             var stateEl = document.getElementById('patchState' + s.charAt(0).toUpperCase() + s.slice(1));
             var footerEl = document.getElementById('patchFooter' + s.charAt(0).toUpperCase() + s.slice(1));
-            if (stateEl) stateEl.style.display = (s === state) ? '' : 'none';
-            if (footerEl) footerEl.style.display = (s === state) ? '' : 'none';
+            if (stateEl) stateEl.classList.toggle('patch-hidden', s !== state);
+            if (footerEl) footerEl.classList.toggle('patch-hidden', s !== state);
         }
 
         // Reset result messages only when entering progress state
         if (state === 'progress') {
-            document.getElementById('patchResultSuccess').style.display = 'none';
-            document.getElementById('patchResultError').style.display = 'none';
-            document.getElementById('patchReloadBtn').style.display = 'none';
-            document.getElementById('patchNextBtn').style.display = 'none';
+            document.getElementById('patchResultSuccess').classList.add('patch-hidden');
+            document.getElementById('patchResultError').classList.add('patch-hidden');
+            document.getElementById('patchReloadBtn').classList.add('patch-hidden');
+            document.getElementById('patchNextBtn').classList.add('patch-hidden');
         }
     },
 
@@ -879,7 +904,7 @@ const PatchUpdate = {
      * @param {number} id - patch_history record ID to roll back
      */
     rollback: function (id) {
-        if (!window.confirm('Roll back this patch?')) return;
+        if (!window.confirm(PatchUpdate.i18n.confirmRollback || 'Roll back this patch?')) return;
         fetch(PatchUpdate.baseUrl + '/rollback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': PatchUpdate.csrfToken },
@@ -1038,11 +1063,7 @@ const PatchUpload = {
         PatchUpdate.updateInstallButton();
         PatchUpdate.switchState('details');
 
-        if (!PatchUpdate.modal) {
-            var modalEl = document.getElementById('patchUpdateModal');
-            if (modalEl) { PatchUpdate.modal = new bootstrap.Modal(modalEl); }
-        }
-        if (PatchUpdate.modal) { PatchUpdate.modal.show(); }
+        openPatchDialog('patchUpdateModal');
 
         this.reset();
     },
@@ -1087,12 +1108,12 @@ const PatchUpload = {
 
     showProgress: function () {
         var wrap = document.getElementById('patchUploadProgressWrap');
-        if (wrap) { wrap.classList.remove('d-none'); }
+        if (wrap) { wrap.classList.remove('patch-hidden'); }
     },
 
     hideProgress: function () {
         var wrap = document.getElementById('patchUploadProgressWrap');
-        if (wrap) { wrap.classList.add('d-none'); }
+        if (wrap) { wrap.classList.add('patch-hidden'); }
         this.setProgress(0);
     },
 
@@ -1107,7 +1128,7 @@ const PatchUpload = {
         var el = document.getElementById('patchUploadStatus');
         if (!el) return;
         el.textContent = text;
-        el.classList.toggle('d-none', text === '');
+        el.classList.toggle('patch-hidden', text === '');
     }
 };
 
@@ -1118,9 +1139,6 @@ const PatchUpload = {
  * Reuses PatchUpdate's baseUrl, csrfToken, and parseResponse helpers.
  */
 const PatchChangelog = {
-    /** @type {bootstrap.Modal|null} */
-    modal: null,
-
     /**
      * Open the changelog modal for a given patch history record.
      *
@@ -1137,15 +1155,12 @@ const PatchChangelog = {
 
         // Reset state: show empty-state while loading
         if (versionEl) versionEl.textContent = version ? ' v' + version : '';
-        contentEl.style.display = 'none';
+        contentEl.classList.add('patch-hidden');
         contentEl.innerHTML     = '';
-        emptyEl.style.display   = '';
+        emptyEl.classList.remove('patch-hidden');
         emptyEl.textContent     = PatchUpdate.i18n.noReleaseNotes || '';
 
-        if (!this.modal) {
-            this.modal = new bootstrap.Modal(modalEl);
-        }
-        this.modal.show();
+        openPatchDialog('patchChangelogModal');
 
         fetch(PatchUpdate.baseUrl + '/details/' + id, {
             headers: { 'Accept': 'application/json', 'X-CSRF-Token': PatchUpdate.csrfToken }
@@ -1162,9 +1177,9 @@ const PatchChangelog = {
                 var html = result.data && result.data.release_notes_html;
                 if (html) {
                     // HTML is pre-rendered and sanitised server-side by SimpleMarkdownRenderer
-                    contentEl.innerHTML     = html;
-                    contentEl.style.display = '';
-                    emptyEl.style.display   = 'none';
+                    contentEl.innerHTML = html;
+                    contentEl.classList.remove('patch-hidden');
+                    emptyEl.classList.add('patch-hidden');
                 } else {
                     emptyEl.textContent = PatchUpdate.i18n.noReleaseNotes || '';
                 }
@@ -1178,6 +1193,23 @@ const PatchChangelog = {
 document.addEventListener('DOMContentLoaded', function () {
     PatchUpdate.init();
     PatchUpload.init();
+
+    // ESC suppression on dialogs marked data-patch-no-esc — replaces Bootstrap's
+    // data-bs-keyboard="false". Blocks ESC unconditionally (matching today's
+    // behavior exactly: the update modal was never ESC-dismissable, not only
+    // while an install is actually running).
+    document.querySelectorAll('dialog[data-patch-no-esc]').forEach(function (d) {
+        d.addEventListener('cancel', function (e) { e.preventDefault(); });
+    });
+
+    // Backdrop click-to-dismiss on dialogs marked data-patch-light-dismiss —
+    // native <dialog> has no built-in light-dismiss; Bootstrap's non-static
+    // modal did, so this restores it for the changelog dialog specifically.
+    document.querySelectorAll('dialog[data-patch-light-dismiss]').forEach(function (d) {
+        d.addEventListener('click', function (e) {
+            if (e.target === d) d.close();
+        });
+    });
 
     // Password input Enter key
     var passInput = document.getElementById('patchPassword');
@@ -1245,6 +1277,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (changelogBtn) {
             var historyId = parseInt(changelogBtn.dataset.id || '0', 10);
             if (historyId > 0) PatchChangelog.open(historyId, changelogBtn.dataset.version || '');
+        }
+
+        // Dialog dismiss buttons — replaces Bootstrap's data-bs-dismiss="modal"
+        var dismissEl = e.target.closest('[data-patch-dismiss]');
+        if (dismissEl) {
+            var dialogToClose = dismissEl.closest('dialog');
+            if (dialogToClose && dialogToClose.open) dialogToClose.close();
         }
     });
 });

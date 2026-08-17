@@ -47,6 +47,7 @@ return [
     'TEXT_MESSAGE_PATCH_INSTALLED'               => 'Update installed successfully.',
     'TEXT_MESSAGE_PATCH_ROLLED_BACK'             => 'Changes have been rolled back.',
     'TEXT_PATCH_BACKUP_RECOMMENDED'              => 'Creating a backup is recommended so you can restore the previous state if something goes wrong.',
+    'TEXT_PATCH_CONFIRM_ROLLBACK'                => 'Roll back this patch?',
     'TEXT_PATCH_CREATE_BACKUP_BEFORE'            => 'Create backup before update',
     'TEXT_PATCH_DISMISS'                         => 'Dismiss',
     'TEXT_PATCH_DISMISS_ALL'                     => 'Dismiss all',
@@ -123,6 +124,7 @@ return [
     'TEXT_PATCH_UPDATE_X_OF_N'                   => 'Update %d of %d',
     'TEXT_PATCH_UPDATES_AVAILABLE'               => '%d updates available (v%s → v%s)',
     'TEXT_PATCH_VERIFY_PASSWORD'                 => 'Enter your password to authorize the update.',
+    'TEXT_PATCH_VERSION_INSTALLED'               => 'v%s installed successfully',
     'TEXT_PATCH_VIEW_DETAILS'                    => 'View details',
     'TEXT_PATCH_WARNING_VERSION_GAP'             => 'Version %s is available between your current version and the uploaded version. Installing without it may cause issues. Do you want to continue anyway?',
 ];

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
  *
@@ -20,6 +21,7 @@
  */
 
 use PatchModule\PatchHistoryStatus;
+use PatchModule\PatchIcon;
 
 /** @var callable  $tr */
 /** @var string    $baseUrl */
@@ -34,7 +36,7 @@ use PatchModule\PatchHistoryStatus;
 
 // ─── Status badge helper ─────────────────────────────────────────────────────
 /**
- * Return Bootstrap badge HTML for a patch history status value.
+ * Return badge HTML for a patch history status value.
  *
  * @param string   $status  Raw status value from patch_history
  * @param callable $tr      Translator callable
@@ -44,185 +46,110 @@ if (!function_exists('patchStatusBadge')) {
     function patchStatusBadge(string $status, callable $tr): string
     {
         $map = [
-            PatchHistoryStatus::AVAILABLE   => ['bg-secondary', 'TEXT_PATCH_HISTORY_STATUS_AVAILABLE'],
-            PatchHistoryStatus::DOWNLOADING => ['bg-info',      'TEXT_PATCH_HISTORY_STATUS_DOWNLOADING'],
-            PatchHistoryStatus::INSTALLING  => ['bg-warning',   'TEXT_PATCH_HISTORY_STATUS_INSTALLING'],
-            PatchHistoryStatus::COMPLETED   => ['bg-success',   'TEXT_PATCH_HISTORY_STATUS_COMPLETED'],
-            PatchHistoryStatus::FAILED      => ['bg-danger',    'TEXT_PATCH_HISTORY_STATUS_FAILED'],
-            PatchHistoryStatus::OBSOLETE    => ['bg-secondary text-decoration-line-through', 'TEXT_PATCH_HISTORY_STATUS_OBSOLETE'],
-            PatchHistoryStatus::ROLLED_BACK => ['bg-dark',      'TEXT_PATCH_HISTORY_STATUS_ROLLED_BACK'],
+            PatchHistoryStatus::AVAILABLE   => ['patch-badge-secondary', 'TEXT_PATCH_HISTORY_STATUS_AVAILABLE'],
+            PatchHistoryStatus::DOWNLOADING => ['patch-badge-info',      'TEXT_PATCH_HISTORY_STATUS_DOWNLOADING'],
+            PatchHistoryStatus::INSTALLING  => ['patch-badge-warning',   'TEXT_PATCH_HISTORY_STATUS_INSTALLING'],
+            PatchHistoryStatus::COMPLETED   => ['patch-badge-success',   'TEXT_PATCH_HISTORY_STATUS_COMPLETED'],
+            PatchHistoryStatus::FAILED      => ['patch-badge-danger',    'TEXT_PATCH_HISTORY_STATUS_FAILED'],
+            PatchHistoryStatus::OBSOLETE    => ['patch-badge-secondary patch-badge-obsolete', 'TEXT_PATCH_HISTORY_STATUS_OBSOLETE'],
+            PatchHistoryStatus::ROLLED_BACK => ['patch-badge-dark',      'TEXT_PATCH_HISTORY_STATUS_ROLLED_BACK'],
         ];
 
-        [$cls, $key] = $map[$status] ?? ['bg-secondary', 'TEXT_PATCH_HISTORY_STATUS_AVAILABLE'];
+        [$cls, $key] = $map[$status] ?? ['patch-badge-secondary', 'TEXT_PATCH_HISTORY_STATUS_AVAILABLE'];
 
-        return '<span class="badge ' . htmlspecialchars($cls) . '">'
+        return '<span class="patch-badge ' . htmlspecialchars($cls) . '">'
             . htmlspecialchars($tr($key))
             . '</span>';
     }
 }
 ?>
 <div id="patch-mount"
-     data-base-url="<?= htmlspecialchars($baseUrl) ?>"
-     data-csrf-token="<?= htmlspecialchars($csrfToken) ?>"
-     data-current-version="<?= htmlspecialchars($currentVersion) ?>"
-     data-step-labels='<?= htmlspecialchars(json_encode([
-         'preflight_checks'    => $tr('TEXT_PATCH_STEP_PREFLIGHT'),
-         'create_backup'       => $tr('TEXT_PATCH_STEP_BACKUP'),
-         'download_patch'      => $tr('TEXT_PATCH_STEP_DOWNLOAD'),
-         'extract_patch'       => $tr('TEXT_PATCH_STEP_EXTRACT'),
-         'execute_migration'   => $tr('TEXT_PATCH_STEP_MIGRATION'),
-         'copy_files'          => $tr('TEXT_PATCH_STEP_COPY_FILES'),
-         'remove_files'        => $tr('TEXT_PATCH_STEP_REMOVE_FILES'),
-         'update_version'      => $tr('TEXT_PATCH_STEP_UPDATE_VERSION'),
-         'verify_installation' => $tr('TEXT_PATCH_STEP_VERIFY'),
-         'cleanup'             => $tr('TEXT_PATCH_STEP_CLEANUP'),
-     ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
-     data-queue-labels='<?= htmlspecialchars(json_encode([
-         'next'       => $tr('TEXT_PATCH_STATUS_NEXT'),
-         'pending'    => $tr('TEXT_PATCH_STATUS_PENDING'),
-         'installing' => $tr('TEXT_PATCH_STATUS_INSTALLING'),
-         'installed'  => $tr('TEXT_PATCH_STATUS_INSTALLED'),
-         'failed'     => $tr('TEXT_PATCH_STATUS_FAILED'),
-     ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
-     data-error-labels='<?= htmlspecialchars(json_encode([
-         'invalid_archive'                    => $tr('TEXT_PATCH_ERROR_INVALID_ARCHIVE'),
-         'invalid_manifest_path'              => $tr('TEXT_PATCH_ERROR_INVALID_MANIFEST_PATH'),
-         'invalid_manifest_schema'            => $tr('TEXT_PATCH_ERROR_INVALID_MANIFEST_SCHEMA'),
-         'install_in_progress'                => $tr('TEXT_PATCH_ERROR_INSTALL_IN_PROGRESS'),
-         'network_error'                      => $tr('TEXT_PATCH_ERROR_NETWORK_ERROR'),
-         'rate_limited'                       => $tr('TEXT_PATCH_ERROR_RATE_LIMITED'),
-         'signing_unavailable'                => $tr('TEXT_PATCH_ERROR_SIGNING_UNAVAILABLE'),
-         'server_error'                       => $tr('TEXT_PATCH_ERROR_SERVER_ERROR'),
-         'not_recently_verified'              => $tr('TEXT_PATCH_ERROR_NOT_RECENTLY_VERIFIED'),
-         'package_mismatch'                   => $tr('TEXT_PATCH_ERROR_PACKAGE_MISMATCH'),
-         'invalid_license'                    => $tr('TEXT_PATCH_ERROR_INVALID_LICENSE'),
-         'license_expired'                    => $tr('TEXT_PATCH_ERROR_LICENSE_EXPIRED'),
-         'license_ip_mismatch'                => $tr('TEXT_PATCH_ERROR_LICENSE_IP_MISMATCH'),
-         'license_revoked'                    => $tr('TEXT_PATCH_ERROR_LICENSE_REVOKED'),
-         'verification_failed'                => $tr('TEXT_PATCH_ERROR_VERIFICATION_FAILED'),
-         'upload_failed'                      => $tr('TEXT_PATCH_ERROR_UPLOAD_FAILED'),
-         'upload_invalid_archive'             => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_ARCHIVE'),
-         'upload_invalid_manifest'            => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_MANIFEST'),
-         'upload_invalid_mime'                => $tr('TEXT_PATCH_ERROR_UPLOAD_INVALID_MIME'),
-         'upload_too_large'                   => $tr('TEXT_PATCH_ERROR_UPLOAD_TOO_LARGE'),
-         'upload_version_already_installed'   => $tr('TEXT_PATCH_ERROR_UPLOAD_VERSION_ALREADY_INSTALLED'),
-         'upload_version_downgrade'           => $tr('TEXT_PATCH_ERROR_UPLOAD_VERSION_DOWNGRADE'),
-     ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
-     data-i18n='<?= htmlspecialchars(json_encode([
-         'updateXofN'     => $tr('TEXT_PATCH_UPDATE_X_OF_N'),
-         'installAll'     => $tr('TEXT_BUTTON_INSTALL_ALL_UPDATES'),
-         'installNext'    => $tr('TEXT_BUTTON_INSTALL_NEXT'),
-         'allDone'        => $tr('TEXT_MESSAGE_ALL_PATCHES_DONE'),
-         'noReleaseNotes' => $tr('TEXT_LABEL_NO_RELEASE_NOTES'),
-         'checkNoUpdates' => $tr('TEXT_MESSAGE_PATCH_CHECK_NO_UPDATES'),
-         'checkFound'     => $tr('TEXT_MESSAGE_PATCH_CHECK_FOUND'),
-         'checkFailed'    => $tr('TEXT_MESSAGE_PATCH_CHECK_FAILED'),
-         'genericError'        => $tr('TEXT_PATCH_ERROR_REQUEST_FAILED'),
-         'changelogLoadFailed' => $tr('TEXT_MESSAGE_CHANGELOG_LOAD_FAILED'),
-     ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
-     data-upload-i18n='<?= htmlspecialchars(json_encode([
-         'uploading'        => $tr('TEXT_MANUAL_UPLOAD_UPLOADING'),
-         'badge'            => $tr('TEXT_MANUAL_UPLOAD_BADGE'),
-         'versionGapConfirm' => $tr('TEXT_PATCH_WARNING_VERSION_GAP', '%s'),
-     ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'>
+     class="patch-root"
+     <?php include __DIR__ . '/_mount_data.php'; ?>>
 
 <?php if ($disabled): ?>
-    <div class="alert alert-warning mb-4" role="alert">
-        <i class="bi bi-exclamation-triangle me-2"></i>
+    <div class="patch-alert patch-alert-warning" role="alert">
+        <?= PatchIcon::svg('exclamation-triangle') ?>
         <?= htmlspecialchars($disabledReason) ?>
     </div>
 <?php endif; ?>
 
     <!-- Page header -->
-    <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="patch-page-header">
         <div>
-            <h4 class="mb-1"><?= htmlspecialchars($tr('TEXT_HEADING_PATCH_MANAGEMENT')) ?></h4>
-            <span class="badge bg-secondary">
+            <h4><?= htmlspecialchars($tr('TEXT_HEADING_PATCH_MANAGEMENT')) ?></h4>
+            <span class="patch-badge patch-badge-secondary">
                 <?= htmlspecialchars($tr('TEXT_LABEL_CURRENT_VERSION')) ?>:
                 v<?= htmlspecialchars($currentVersion) ?>
             </span>
         </div>
         <?php if (!$disabled): ?>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="patchCheckUpdatesBtn">
-                <i class="bi bi-arrow-clockwise me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_CHECK_PATCH')) ?>
+            <button type="button" class="patch-btn patch-btn-outline-primary patch-btn-sm" id="patchCheckUpdatesBtn">
+                <?= PatchIcon::svg('arrow-clockwise') ?><?= htmlspecialchars($tr('TEXT_ACTION_CHECK_PATCH')) ?>
             </button>
         <?php endif; ?>
     </div>
 
-    <!-- Manual upload accordion — collapsed by default, works without remote connectivity -->
-    <div class="accordion mb-4" id="patchManualUploadAccordion">
-        <div class="accordion-item">
-            <h2 class="accordion-header">
-                <button class="accordion-button collapsed"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#patchManualUploadCollapse"
-                        aria-expanded="false"
-                        aria-controls="patchManualUploadCollapse">
-                    <i class="bi bi-upload me-2"></i><?= htmlspecialchars($tr('TEXT_HEADING_MANUAL_UPLOAD')) ?>
-                </button>
-            </h2>
-            <div id="patchManualUploadCollapse"
-                 class="accordion-collapse collapse"
-                 data-bs-parent="#patchManualUploadAccordion">
-                <div class="accordion-body">
-                    <p class="text-muted mb-3"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_DESCRIPTION')) ?></p>
-                    <div class="alert alert-warning" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_TRUST_WARNING')) ?>
-                    </div>
-                    <form id="patchUploadForm"
-                          data-action="<?= htmlspecialchars($baseUrl . '/upload') ?>">
-                        <div class="mb-3">
-                            <label for="patchUploadFile" class="form-label fw-semibold">
-                                <?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE')) ?>
-                            </label>
-                            <input type="file" class="form-control" id="patchUploadFile" accept=".tgz" required>
-                            <div class="form-text"><?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE_HINT')) ?></div>
-                        </div>
-                        <div class="d-none mb-3" id="patchUploadProgressWrap">
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                     role="progressbar"
-                                     style="width: 0%"
-                                     id="patchUploadProgressBar"
-                                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                        <div class="d-none small text-muted mb-3" id="patchUploadStatus"></div>
-                        <button type="submit" class="btn btn-primary" id="patchUploadSubmitBtn">
-                            <i class="bi bi-upload me-1"></i><?= htmlspecialchars($tr('TEXT_BUTTON_UPLOAD_PATCH')) ?>
-                        </button>
-                    </form>
-                </div>
+    <!-- Manual upload — native <details>, collapsed by default, works without remote connectivity -->
+    <details class="patch-details">
+        <summary class="patch-summary">
+            <?= PatchIcon::svg('upload') ?><?= htmlspecialchars($tr('TEXT_HEADING_MANUAL_UPLOAD')) ?>
+            <?= PatchIcon::svg('chevron-down', 'patch-icon-chevron') ?>
+        </summary>
+        <div class="patch-details-body">
+            <p class="patch-text-muted"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_DESCRIPTION')) ?></p>
+            <div class="patch-alert patch-alert-warning" role="alert">
+                <?= PatchIcon::svg('exclamation-triangle-fill') ?><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_TRUST_WARNING')) ?>
             </div>
+            <form id="patchUploadForm"
+                  data-action="<?= htmlspecialchars($baseUrl . '/upload') ?>">
+                <div class="patch-form-group">
+                    <label for="patchUploadFile" class="patch-label">
+                        <?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE')) ?>
+                    </label>
+                    <input type="file" class="patch-input" id="patchUploadFile" accept=".tgz" required>
+                    <div class="patch-form-text"><?= htmlspecialchars($tr('TEXT_LABEL_PATCH_FILE_HINT')) ?></div>
+                </div>
+                <div class="patch-hidden patch-form-group" id="patchUploadProgressWrap">
+                    <div class="patch-progress">
+                        <div class="patch-progress-bar patch-striped patch-animated"
+                             role="progressbar"
+                             style="width: 0%"
+                             id="patchUploadProgressBar"
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+                <div class="patch-hidden patch-small patch-text-muted patch-form-group" id="patchUploadStatus"></div>
+                <button type="submit" class="patch-btn patch-btn-primary" id="patchUploadSubmitBtn">
+                    <?= PatchIcon::svg('upload') ?><?= htmlspecialchars($tr('TEXT_BUTTON_UPLOAD_PATCH')) ?>
+                </button>
+            </form>
         </div>
-    </div>
+    </details>
 
     <!-- Available patches card -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="bi bi-download me-2"></i><?= htmlspecialchars($tr('TEXT_HEADING_AVAILABLE_PATCHES')) ?>
-                <?php if (!empty($patches)): ?>
-                    <span class="badge bg-primary ms-2"><?= count($patches) ?></span>
-                <?php endif; ?>
-            </h5>
+    <div class="patch-card">
+        <div class="patch-card-header">
+            <?= PatchIcon::svg('download') ?><?= htmlspecialchars($tr('TEXT_HEADING_AVAILABLE_PATCHES')) ?>
+            <?php if (!empty($patches)): ?>
+                <span class="patch-badge patch-badge-primary"><?= count($patches) ?></span>
+            <?php endif; ?>
         </div>
-        <div class="card-body p-0">
+        <div class="patch-card-body patch-card-body-flush">
             <?php if (empty($patches)): ?>
-                <p class="text-muted p-3 mb-0">
-                    <i class="bi bi-check-circle me-1 text-success"></i>
+                <p class="patch-text-muted" style="padding: 1rem;">
+                    <?= PatchIcon::svg('check-circle', 'patch-text-success') ?>
                     <?= htmlspecialchars($tr('TEXT_ERROR_NO_PATCH_AVAILABLE')) ?>
                 </p>
             <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+                <div class="patch-table-responsive">
+                    <table class="patch-table">
+                        <thead>
                             <tr>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_NEW_VERSION')) ?></th>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_RELEASED_AT')) ?></th>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_FILE_SIZE')) ?></th>
-                                <th class="text-end"><?= htmlspecialchars($tr('TEXT_LABEL_ACTIONS')) ?></th>
+                                <th class="patch-table-end"><?= htmlspecialchars($tr('TEXT_LABEL_ACTIONS')) ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -237,29 +164,29 @@ if (!function_exists('patchStatusBadge')) {
                                 ?>
                                 <tr>
                                     <td>
-                                        <span class="fw-semibold font-monospace">v<?= $patchVersion ?></span>
+                                        <span class="patch-mono" style="font-weight: 600;">v<?= $patchVersion ?></span>
                                         <?php if ($isUploaded): ?>
-                                            <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_BADGE')) ?></span>
+                                            <span class="patch-badge patch-badge-secondary"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_BADGE')) ?></span>
                                         <?php endif; ?>
                                         <?php if (!$isInstallable): ?>
-                                            <span class="badge bg-light text-muted border ms-1"><?= htmlspecialchars($tr('TEXT_LABEL_QUEUED_PATCH')) ?></span>
+                                            <span class="patch-badge patch-badge-light"><?= htmlspecialchars($tr('TEXT_LABEL_QUEUED_PATCH')) ?></span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-muted small"><?= $patchDate !== '' ? $patchDate : '—' ?></td>
-                                    <td class="text-muted small"><?= $patchSize > 0 ? number_format($patchSize / 1024 / 1024, 1) . ' MB' : '—' ?></td>
-                                    <td class="text-end">
+                                    <td class="patch-text-muted patch-small"><?= $patchDate !== '' ? $patchDate : '—' ?></td>
+                                    <td class="patch-text-muted patch-small"><?= $patchSize > 0 ? number_format($patchSize / 1024 / 1024, 1) . ' MB' : '—' ?></td>
+                                    <td class="patch-table-end">
                                         <button type="button"
-                                                class="btn btn-sm btn-outline-secondary me-1 patch-details-btn"
+                                                class="patch-btn patch-btn-sm patch-btn-outline-secondary patch-details-btn"
                                                 data-patch-id="<?= $patchId ?>"
                                                 data-patch-version="<?= $patchVersion ?>">
-                                            <i class="bi bi-info-circle me-1"></i><?= htmlspecialchars($tr('TEXT_PATCH_VIEW_DETAILS')) ?>
+                                            <?= PatchIcon::svg('info-circle') ?><?= htmlspecialchars($tr('TEXT_PATCH_VIEW_DETAILS')) ?>
                                         </button>
                                         <?php if ($isInstallable): ?>
                                             <button type="button"
-                                                    class="btn btn-sm btn-primary patch-install-btn"
+                                                    class="patch-btn patch-btn-sm patch-btn-primary patch-install-btn"
                                                     data-patch-id="<?= $patchId ?>"
                                                     data-patch-version="<?= $patchVersion ?>">
-                                                <i class="bi bi-arrow-up-circle me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_INSTALL_PATCH')) ?>
+                                                <?= PatchIcon::svg('arrow-up-circle') ?><?= htmlspecialchars($tr('TEXT_ACTION_INSTALL_PATCH')) ?>
                                             </button>
                                         <?php endif; ?>
                                     </td>
@@ -273,28 +200,26 @@ if (!function_exists('patchStatusBadge')) {
     </div>
 
     <!-- Patch history card -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="bi bi-clock-history me-2"></i><?= htmlspecialchars($tr('TEXT_HEADING_PATCH_HISTORY')) ?>
-            </h5>
+    <div class="patch-card">
+        <div class="patch-card-header">
+            <?= PatchIcon::svg('clock-history') ?><?= htmlspecialchars($tr('TEXT_HEADING_PATCH_HISTORY')) ?>
         </div>
-        <div class="card-body p-0">
+        <div class="patch-card-body patch-card-body-flush">
             <?php if (empty($history)): ?>
-                <p class="text-muted p-3 mb-0">
+                <p class="patch-text-muted" style="padding: 1rem;">
                     <?= htmlspecialchars($tr('TEXT_MESSAGE_NO_PATCH_HISTORY')) ?>
                 </p>
             <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+                <div class="patch-table-responsive">
+                    <table class="patch-table">
+                        <thead>
                             <tr>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_VERSION')) ?></th>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_PREVIOUS_VERSION')) ?></th>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_STATUS')) ?></th>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_INSTALLED_AT')) ?></th>
                                 <th><?= htmlspecialchars($tr('TEXT_LABEL_INSTALLED_BY')) ?></th>
-                                <th class="text-end"><?= htmlspecialchars($tr('TEXT_LABEL_ACTIONS')) ?></th>
+                                <th class="patch-table-end"><?= htmlspecialchars($tr('TEXT_LABEL_ACTIONS')) ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -311,34 +236,34 @@ if (!function_exists('patchStatusBadge')) {
                                 $canRollback        = $recStatus === PatchHistoryStatus::COMPLETED;
                                 $isObsolete         = $recStatus === PatchHistoryStatus::OBSOLETE;
                                 ?>
-                                <tr<?= $isObsolete ? ' class="table-secondary"' : '' ?>>
-                                    <td class="fw-semibold font-monospace">v<?= $recVersion ?></td>
-                                    <td class="text-muted font-monospace">
+                                <tr<?= $isObsolete ? ' class="patch-row-obsolete"' : '' ?>>
+                                    <td class="patch-mono" style="font-weight: 600;">v<?= $recVersion ?></td>
+                                    <td class="patch-text-muted patch-mono">
                                         <?= $recPrevVersion !== '-' ? 'v' . $recPrevVersion : '-' ?>
                                     </td>
                                     <td>
                                         <?= patchStatusBadge($recStatus, $tr) ?>
                                         <?php if (($record['patch_server_id'] ?? null) === null): ?>
-                                            <span class="badge bg-secondary ms-1"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_BADGE')) ?></span>
+                                            <span class="patch-badge patch-badge-secondary"><?= htmlspecialchars($tr('TEXT_MANUAL_UPLOAD_BADGE')) ?></span>
                                         <?php endif; ?>
                                         <?php if ($recStatus === 'failed' && $recErrorMsg !== ''): ?>
-                                            <span class="d-block text-danger small mt-1"><?= $recErrorMsg ?></span>
+                                            <span class="patch-text-danger patch-small" style="display: block; margin-top: 0.25rem;"><?= $recErrorMsg ?></span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-muted small"><?= $recInstalledAt ?></td>
-                                    <td class="text-muted small"><?= $recInstalledByName ?></td>
-                                    <td class="text-end">
+                                    <td class="patch-text-muted patch-small"><?= $recInstalledAt ?></td>
+                                    <td class="patch-text-muted patch-small"><?= $recInstalledByName ?></td>
+                                    <td class="patch-table-end">
                                         <button type="button"
-                                                class="btn btn-sm btn-outline-secondary patch-changelog-btn"
+                                                class="patch-btn patch-btn-sm patch-btn-outline-secondary patch-changelog-btn"
                                                 data-id="<?= $recordId ?>"
                                                 data-version="<?= $recVersion ?>">
-                                            <i class="bi bi-journal-text me-1"></i><?= htmlspecialchars($tr('TEXT_BUTTON_SHOW_CHANGELOG')) ?>
+                                            <?= PatchIcon::svg('journal-text') ?><?= htmlspecialchars($tr('TEXT_BUTTON_SHOW_CHANGELOG')) ?>
                                         </button>
                                         <?php if ($canRollback): ?>
                                             <button type="button"
-                                                    class="btn btn-sm btn-outline-danger ms-1 patch-rollback-btn"
+                                                    class="patch-btn patch-btn-sm patch-btn-outline-danger patch-rollback-btn"
                                                     data-id="<?= $recordId ?>">
-                                                <i class="bi bi-arrow-counterclockwise me-1"></i><?= htmlspecialchars($tr('TEXT_ACTION_ROLLBACK_PATCH')) ?>
+                                                <?= PatchIcon::svg('arrow-counterclockwise') ?><?= htmlspecialchars($tr('TEXT_ACTION_ROLLBACK_PATCH')) ?>
                                             </button>
                                         <?php endif; ?>
                                     </td>

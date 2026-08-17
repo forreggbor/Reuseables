@@ -39,7 +39,10 @@ one sidebar entry + one toast notification include.
 ## 1. Prerequisites
 
 - PHP 8.1+ with extensions: `pdo`, `pdo_mysql`, `curl`, `phar`, `openssl`
-- Bootstrap 5 + Bootstrap Icons already loaded in the admin layout
+- No frontend framework required — the module ships self-contained vanilla
+  CSS/JS and has no dependency on Bootstrap or any other library. If your
+  admin layout already uses Bootstrap for its own chrome, that's fine too;
+  the module's styles are scoped under `.patch-root` and won't collide with it.
 - A writable temp directory (e.g. `storage/temp/`)
 - The project's existing auth system must expose: current user's sysadmin
   status, password verification, and the current user's ID
@@ -529,7 +532,6 @@ if ($isSysadmin && $module->isAvailable()['enabled']) {
 <li class="nav-item">
     <a class="nav-link <?= $activeSection === 'patch-management' ? 'active' : '' ?>"
        href="/admin/patch-management">
-        <i class="bi bi-arrow-up-circle me-2"></i>
         <?= __('TEXT_NAV_PATCH_MANAGEMENT') ?>
         <?php if ($patchCount > 0): ?>
             <span class="badge bg-primary ms-auto"><?= $patchCount ?></span>
@@ -538,6 +540,11 @@ if ($isSysadmin && $module->isAvailable()['enabled']) {
 </li>
 <?php endif; ?>
 ```
+
+This snippet is your own sidebar markup (`nav-item`/`nav-link`/`badge` are your
+admin layout's classes, not the module's) — style it however your layout
+already does. The module itself no longer requires Bootstrap or Bootstrap
+Icons for anything under `#patch-mount` / `#patchUpdateBanner`.
 
 ---
 
@@ -653,27 +660,37 @@ and can be called multiple times — each call returns an equivalent closure.
 
 ## 10. Step 9: Assets
 
-Add the module's CSS and JS to your admin layout. Both files must be served
-from your public directory. Either symlink them or copy them to `public/`:
+Add the module's CSS and JS to your admin layout, plus a separate stylesheet
+for the standalone maintenance page. All three files must be served from your
+public directory. Either symlink them or copy them to `public/`:
 
 ```bash
-cp lib/PatchModule/css/patch-update.css public/css/patch-update.css
-cp lib/PatchModule/js/patch-update.js   public/js/patch-update.js
+cp lib/PatchModule/css/patch-update.css      public/css/patch-update.css
+cp lib/PatchModule/css/patch-maintenance.css public/css/patch-maintenance.css
+cp lib/PatchModule/js/patch-update.js        public/js/patch-update.js
 ```
 
-In your admin layout:
+In your admin layout — order relative to your own CSS/JS (Bootstrap or
+otherwise) does not matter; the module's styles are scoped under
+`.patch-root` and its script has no dependency on any other library:
 
 ```html
-<!-- In <head> (after Bootstrap CSS): -->
+<!-- In <head>: -->
 <link rel="stylesheet" href="/css/patch-update.css?v=<?= APP_VERSION ?>">
 
-<!-- Before </body> (after Bootstrap JS): -->
+<!-- Before </body>: -->
 <script src="/js/patch-update.js?v=<?= APP_VERSION ?>"></script>
 ```
 
-The JS file has no global side-effects during load. It initializes by reading
-`data-*` attributes from `#patch-mount` or `#patchUpdateBanner` on
-`DOMContentLoaded`.
+`public/css/patch-maintenance.css` needs no `<link>` of your own — it's
+referenced directly by `views/maintenance.php` (see "Maintenance page" below)
+at the conventional path `/css/patch-maintenance.css`. Override that path with
+a `$cssUrl` variable passed to `renderView('maintenance', [...])` if your
+public directory layout differs.
+
+The `patch-update.js` file has no global side-effects during load. It
+initializes by reading `data-*` attributes from `#patch-mount` or
+`#patchUpdateBanner` on `DOMContentLoaded`.
 
 #### Host notification bridge (required for toasts)
 
@@ -702,7 +719,9 @@ if (typeof window.showNotification !== 'function') {
 ### CSP
 
 No `unsafe-inline` is required. The module ships no inline `<script>` or
-`<style>` blocks. A strict `Content-Security-Policy` is fully compatible:
+`<style>` blocks and no third-party CDN references anywhere, including on
+the standalone maintenance page. A strict `Content-Security-Policy` is fully
+compatible:
 
 ```
 Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self';
@@ -929,6 +948,26 @@ Run through these after integration before considering it complete.
 - [ ] Admin page passes `script-src 'self'` — no console errors about
      `unsafe-inline` or `unsafe-eval`
 
+**Styling (self-contained CSS/JS — no Bootstrap dependency)**
+- [ ] Block `cdn.jsdelivr.net` / any CDN in devtools request blocking, reload
+     the admin page — layout, buttons, badges, tables, and the modal still
+     render correctly (nothing was silently relying on a host's own Bootstrap)
+- [ ] "View details" / "Install" opens a native `<dialog>` — focus moves
+     inside it, and Tab does not escape to the page behind it
+- [ ] While an install is running, ESC and clicking outside the dialog do
+     **not** close it
+- [ ] On the changelog dialog specifically, ESC **and** clicking outside
+     **do** close it
+- [ ] Entering a wrong password shows the inline error message (this is the
+     easiest thing to silently break in a Bootstrap → vanilla CSS port)
+- [ ] Manual upload section is a native `<details>/<summary>` — opens/closes
+     with mouse and keyboard (Enter/Space) alike
+- [ ] Release notes and the changelog modal render markdown tables with
+     visible cell borders/padding, not bare unstyled text
+- [ ] Create the maintenance flag file by hand, load a frontend URL with the
+     maintenance stylesheet blocked in devtools — the page stays readable
+     (plain but not broken)
+
 ---
 
 ## 14. Troubleshooting
@@ -942,7 +981,7 @@ the rotated token.
 **Stuck progress file**
 If a PHP-FPM process was killed mid-install, a `patch_progress_*.json` file
 may remain in `temp_path`. The file is safe to delete manually. The maintenance
-flag (`maintenance.flag` in the module's temp path) may also need to be
+flag (`.patch_maintenance` in the module's temp path) may also need to be
 removed.
 
 **Maintenance flag not cleared**

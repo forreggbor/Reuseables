@@ -5,6 +5,27 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.7.0] - 2026-08-17
+
+| Kategória | Leírás |
+|-----------|--------|
+| Módosítva | Az admin felület mostantól nem igényel Bootstrapet — bármely projektben ugyanúgy működik, azzal vagy anélkül |
+| Módosítva | A kézi feltöltés panel és a frissítés/változásnapló ablakok natív böngésző-komponenseket használnak |
+| Módosítva | A telepítés közben megjelenő karbantartási oldal többé nem tölt be semmit külső weboldalról |
+| Javítva   | Néhány felületi üzenet, ami mindig angolul jelent meg, mostantól a kiválasztott nyelvet követi |
+
+### Módosítva
+
+- **Megszűnt a Bootstrap-függőség** — a patch-kezelő felület (frissítés-lista, telepítő ablak, változásnapló-nézet, kézi feltöltés) mostantól saját, önálló stílusokkal rendelkezik ahelyett, hogy a host alkalmazásban jelen lévő Bootstrapre és Bootstrap Icons-ra támaszkodna. A felület kinézete és viselkedése mindkét esetben ugyanaz.
+- **A kézi feltöltés panel és az ablakok natív böngésző-komponenseket használnak** — látható viselkedésbeli változás nincs; a frissítés telepítése, a részletek megtekintése és a változásnaplók böngészése ugyanúgy működik, mint eddig.
+- **A karbantartási oldal teljesen önálló** — a patch telepítése közben a felhasználóknak megjelenő oldal többé nem tölt be semmit külső weboldalról, így akkor is működik, ha az az oldal nem elérhető. A modult integráló projekteknek a beüzemelés során hozzá kell adniuk a hozzá tartozó stíluslapot (lásd az integrációs útmutatót).
+
+### Javítva
+
+- **Néhány üzenet mindig angolul jelent meg** — a "nincs elérhető frissítés", egy általános kapcsolati hiba, a visszaállítás megerősítő kérdése és a frissítésenkénti sikerüzenet nem követte a kiválasztott nyelvet. Mindegyik mostantól helyesen fordítva jelenik meg (lezárja: [#14](https://gitea.patrikmol.com/PatrikMol/Reuseables/issues/14)).
+
+---
+
 ## [2.6.2] - 2026-08-01
 
 | Kategória | Leírás |

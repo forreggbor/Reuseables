@@ -47,6 +47,7 @@ return [
     'TEXT_MESSAGE_PATCH_INSTALLED'               => 'A frissítés sikeresen telepítve.',
     'TEXT_MESSAGE_PATCH_ROLLED_BACK'             => 'A módosítások visszaállításra kerültek.',
     'TEXT_PATCH_BACKUP_RECOMMENDED'              => 'Javasolt a biztonsági mentés készítése, hogy hiba esetén visszaállítható legyen a korábbi állapot.',
+    'TEXT_PATCH_CONFIRM_ROLLBACK'                => 'Visszaállítod ezt a patchet?',
     'TEXT_PATCH_CREATE_BACKUP_BEFORE'            => 'Biztonsági mentés készítése a frissítés előtt',
     'TEXT_PATCH_DISMISS'                         => 'Elvetés',
     'TEXT_PATCH_DISMISS_ALL'                     => 'Összes elvetése',
@@ -123,6 +124,7 @@ return [
     'TEXT_PATCH_UPDATE_X_OF_N'                   => 'Frissítés %d / %d',
     'TEXT_PATCH_UPDATES_AVAILABLE'               => '%d frissítés elérhető (v%s → v%s)',
     'TEXT_PATCH_VERIFY_PASSWORD'                 => 'Add meg a jelszavad a frissítés engedélyezéséhez.',
+    'TEXT_PATCH_VERSION_INSTALLED'               => 'v%s sikeresen telepítve',
     'TEXT_PATCH_VIEW_DETAILS'                    => 'Részletek',
     'TEXT_PATCH_WARNING_VERSION_GAP'             => 'A jelenlegi és a feltöltött verzió között elérhető a %s verzió. Ha ezt kihagyod, problémák léphetnek fel. Biztosan folytatni akarod?',
 ];
