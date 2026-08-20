@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UiKit — Dev Test</title>
+    <link rel="stylesheet" href="../css/uikit.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            background: #f0f2f5;
+            color: #222;
+            margin: 0;
+            padding: 24px;
+        }
+        h1 { font-size: 18px; margin: 0 0 4px; }
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            background: #e6f4ea;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+            border-radius: 4px;
+            padding: 2px 8px;
+            margin-bottom: 20px;
+        }
+        .panel {
+            background: #fff;
+            border: 1px solid #dde1e7;
+            border-radius: 6px;
+            padding: 16px;
+            max-width: 480px;
+        }
+        .panel-title { font-size: 12px; font-weight: 600; color: #888; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+        /* Scoped to .btn-row so these demo-trigger styles never leak into
+           buttons rendered by UiKit components themselves (e.g. the confirm
+           dialog's own Cancel/Confirm buttons). */
+        .btn-row button {
+            font: inherit;
+            padding: 8px 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .btn-row button:hover { background: #f5f5f5; }
+        .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .collapse-toggle { font: inherit; padding: 8px 14px; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; display: block; margin: 4px 0; }
+        .collapse-toggle .chevron { display: inline-block; transition: transform 0.2s; }
+        .collapse-toggle.collapsed .chevron { transform: rotate(0deg); }
+        .collapse-toggle:not(.collapsed) .chevron { transform: rotate(90deg); }
+    </style>
+</head>
+<body>
+    <h1>UiKit — Dev Test</h1>
+    <div class="badge">standalone, no host project involved</div>
+
+    <div class="panel">
+        <p class="panel-title">Toast</p>
+        <div class="btn-row">
+            <button data-type="success">success</button>
+            <button data-type="error">error</button>
+            <button data-type="warning">warning</button>
+            <button data-type="info">info</button>
+            <button data-type="">unknown type (falls back to info)</button>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Confirm dialog</p>
+        <div class="btn-row">
+            <button id="dlgDefault">default</button>
+            <button id="dlgDanger">danger</button>
+            <button id="dlgCustomLabels">custom title/labels</button>
+            <button id="dlgWithInput">with input (Enter-to-confirm test)</button>
+            <button id="dlgAllowHtml">allowHtml</button>
+        </div>
+        <p id="dlgResult" style="margin: 8px 0 0; color: #666;"></p>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Tooltip (hover or Tab-focus each button)</p>
+        <div class="btn-row">
+            <button data-bs-toggle="tooltip" title="Default placement (top)">top (default)</button>
+            <button data-bs-toggle="tooltip" data-bs-placement="bottom" title="Bottom placement">bottom</button>
+            <button data-bs-toggle="tooltip" data-bs-placement="left" title="Left placement">left</button>
+            <button data-bs-toggle="tooltip" data-bs-placement="right" title="Right placement">right</button>
+            <button id="dynamicTooltipHost">add dynamic trigger below</button>
+        </div>
+        <div id="dynamicTooltipTarget" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Collapse (plain toggle, chevron listens for show/hide.bs.collapse)</p>
+        <button class="collapse-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#plainCollapse" aria-expanded="false">
+            <i class="chevron">&#9656;</i> Toggle me
+        </button>
+        <div id="plainCollapse" class="collapse" style="border:1px solid #ddd; padding:8px; margin-top:8px;">
+            Plain collapse content. This element had <code>class="collapse"</code> in the markup
+            already, matching the ~85 existing sites in the host project.
+        </div>
+
+        <p class="panel-title" style="margin-top: 16px;">Accordion (data-bs-parent — opening one closes the others)</p>
+        <div id="demoAccordion">
+            <button class="collapse-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#accItem1">Item 1</button>
+            <div id="accItem1" class="collapse" data-bs-parent="#demoAccordion" style="border:1px solid #ddd; padding:8px; margin:4px 0;">Content 1</div>
+            <button class="collapse-toggle collapsed" data-bs-toggle="collapse" data-bs-target="#accItem2">Item 2</button>
+            <div id="accItem2" class="collapse" data-bs-parent="#demoAccordion" style="border:1px solid #ddd; padding:8px; margin:4px 0;">Content 2</div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Dropdown</p>
+        <div class="dropdown" style="display:inline-block;">
+            <button class="collapse-toggle" data-bs-toggle="dropdown" aria-expanded="false">Menu ▾</button>
+            <ul class="dropdown-menu" style="list-style:none; padding:4px 0; margin:0; border:1px solid #ccc; background:#fff; border-radius:4px;">
+                <li><a href="#" style="display:block; padding:6px 16px; color:#212529; text-decoration:none;">Action 1</a></li>
+                <li><a href="#" style="display:block; padding:6px 16px; color:#212529; text-decoration:none;">Action 2</a></li>
+            </ul>
+        </div>
+        <div class="dropdown" style="display:inline-block; margin-left:16px;">
+            <button class="collapse-toggle" data-bs-toggle="dropdown" aria-expanded="false">Right-aligned ▾</button>
+            <ul class="dropdown-menu dropdown-menu-end" style="list-style:none; padding:4px 0; margin:0; border:1px solid #ccc; background:#fff; border-radius:4px;">
+                <li><a href="#" style="display:block; padding:6px 16px; color:#212529; text-decoration:none;">Right item</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Tabs</p>
+        <div style="border-bottom:1px solid #ccc; display:flex; gap:4px;">
+            <button class="collapse-toggle active" data-bs-toggle="tab" data-bs-target="#tabA" aria-selected="true">Tab A</button>
+            <button class="collapse-toggle" data-bs-toggle="tab" data-bs-target="#tabB" aria-selected="false">Tab B</button>
+        </div>
+        <div class="tab-content" style="padding:8px 0;">
+            <div id="tabA" class="tab-pane fade show active">Content A</div>
+            <div id="tabB" class="tab-pane fade">Content B</div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Popover (manual trigger, matches the one real caller)</p>
+        <button id="popBtn" class="collapse-toggle" title="Info">Show info popover</button>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Offcanvas</p>
+        <button class="collapse-toggle" data-bs-toggle="offcanvas" data-bs-target="#demoOffcanvas">Open offcanvas</button>
+        <div id="demoOffcanvas" class="offcanvas offcanvas-start" tabindex="-1">
+            <div class="offcanvas-header" style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #ddd;">
+                <h5 class="offcanvas-title" style="margin:0;">Panel title</h5>
+                <button type="button" class="collapse-toggle" data-bs-dismiss="offcanvas">×</button>
+            </div>
+            <div class="offcanvas-body" style="padding:12px;">Offcanvas content.</div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 16px;">
+        <p class="panel-title">Modal (bootstrap.Modal-compatible API)</p>
+        <div class="btn-row">
+            <button id="modalOpenBtn">open (JS call)</button>
+            <button data-bs-toggle="modal" data-bs-target="#demoModal">open (declarative)</button>
+            <button id="modalStaticOpenBtn">open static-backdrop (backdrop-click shakes, doesn't close; Escape still closes it)</button>
+        </div>
+        <p id="modalResult" style="margin: 8px 0 0; color: #666;"></p>
+        <div id="demoModal" class="modal fade" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content" style="background:#fff;border:1px solid #ccc;border-radius:6px;">
+                    <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #ddd;">
+                        <h5 class="modal-title" style="margin:0;">Demo modal</h5>
+                        <button type="button" class="collapse-toggle" data-bs-dismiss="modal">×</button>
+                    </div>
+                    <div class="modal-body" style="padding:16px;">Modal body content. Backdrop click / Escape / dismiss button all close it.</div>
+                    <div class="modal-footer" style="padding:12px 16px;border-top:1px solid #ddd;text-align:right;">
+                        <button type="button" class="collapse-toggle" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="staticModal" class="modal fade" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog">
+                <div class="modal-content" style="background:#fff;border:1px solid #ccc;border-radius:6px;">
+                    <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #ddd;">
+                        <h5 class="modal-title" style="margin:0;">Static backdrop</h5>
+                        <button type="button" class="collapse-toggle" data-bs-dismiss="modal">×</button>
+                    </div>
+                    <div class="modal-body" style="padding:16px;">Backdrop click only "shakes" this dialog (doesn't close it) — × / Close button / Escape all still close it, matching Bootstrap's own <code>backdrop:"static"</code> semantics (only backdrop-click is blocked, not Escape).</div>
+                    <div class="modal-footer" style="padding:12px 16px;border-top:1px solid #ddd;text-align:right;">
+                        <button type="button" class="collapse-toggle" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/uikit.js"></script>
+    <script src="../js/ui-toast.js"></script>
+    <script src="../js/ui-dialog.js"></script>
+    <script src="../js/ui-tooltip.js"></script>
+    <script src="../js/ui-collapse.js"></script>
+    <script src="../js/ui-dropdown.js"></script>
+    <script src="../js/ui-tabs.js"></script>
+    <script src="../js/ui-popover.js"></script>
+    <script src="../js/ui-offcanvas.js"></script>
+    <script src="../js/ui-modal.js"></script>
+    <script>
+        document.getElementById('demoModal').addEventListener('shown.bs.modal', function () {
+            document.getElementById('modalResult').textContent = 'shown.bs.modal fired at ' + new Date().toLocaleTimeString();
+        });
+        document.getElementById('demoModal').addEventListener('hidden.bs.modal', function () {
+            document.getElementById('modalResult').textContent = 'hidden.bs.modal fired at ' + new Date().toLocaleTimeString();
+        });
+        document.getElementById('modalOpenBtn').addEventListener('click', function () {
+            UiKit.Modal.getOrCreateInstance(document.getElementById('demoModal')).show();
+        });
+        document.getElementById('modalStaticOpenBtn').addEventListener('click', function () {
+            UiKit.Modal.getOrCreateInstance(document.getElementById('staticModal')).show();
+        });
+    </script>
+    <script>
+        document.getElementById('popBtn').addEventListener('click', function () {
+            this.setAttribute('data-bs-content', '<strong>Popover</strong> body, set via <code>data-bs-content</code>.');
+            UiKit.popover.toggle(this);
+        });
+    </script>
+    <script>
+        document.getElementById('dynamicTooltipHost').addEventListener('click', function () {
+            var target = document.getElementById('dynamicTooltipTarget');
+            var btn = document.createElement('button');
+            btn.setAttribute('data-bs-toggle', 'tooltip');
+            btn.setAttribute('title', 'Added at ' + new Date().toLocaleTimeString() + ' — no init call needed');
+            btn.textContent = 'dynamically added trigger';
+            target.innerHTML = '';
+            target.appendChild(btn);
+        });
+    </script>
+    <script>
+        document.querySelectorAll('[data-type]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                UiKit.toast('Test message — ' + (btn.dataset.type || 'unknown') + ' — ' + new Date().toLocaleTimeString(), btn.dataset.type);
+            });
+        });
+
+        function logResult(text) {
+            document.getElementById('dlgResult').textContent = text;
+        }
+
+        document.getElementById('dlgDefault').addEventListener('click', function () {
+            UiKit.confirm({ message: 'Are you sure?', onConfirm: function () { logResult('confirmed (default)'); } });
+        });
+        document.getElementById('dlgDanger').addEventListener('click', function () {
+            UiKit.confirm({ message: 'This cannot be undone.', danger: true, confirmText: 'Delete', onConfirm: function () { logResult('confirmed (danger)'); } });
+        });
+        document.getElementById('dlgCustomLabels').addEventListener('click', function () {
+            UiKit.confirm({ message: 'Custom-labelled dialog.', title: 'Heads up', confirmText: 'Yes, do it', cancelText: 'No thanks', onConfirm: function () { logResult('confirmed (custom labels)'); } });
+        });
+        document.getElementById('dlgWithInput').addEventListener('click', function () {
+            UiKit.confirm({
+                message: 'Enter a quantity, then press Enter (should submit without clicking Confirm):<br><input id="qtyInput" type="number" value="3" style="margin-top:8px;display:block;">',
+                allowHtml: true,
+                onConfirm: function () { logResult('confirmed with input value: ' + document.getElementById('qtyInput').value); }
+            });
+        });
+        document.getElementById('dlgAllowHtml').addEventListener('click', function () {
+            UiKit.confirm({ message: '<strong>Bold</strong> and <em>italic</em> HTML.', allowHtml: true, onConfirm: function () { logResult('confirmed (allowHtml)'); } });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,524 @@
+/**
+ * UiKit — shared component styles.
+ *
+ * All rules are scoped under `.uik-*` class names and `--uik-*` custom
+ * properties, each with a built-in fallback value — a host page never has
+ * to define anything for this file to render correctly, and nothing here
+ * targets or depends on a host CSS framework's class names.
+ */
+
+/* ===== Toast ===== */
+
+.uik-toast-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    padding: var(--uik-toast-container-padding, 1rem);
+    z-index: var(--uik-toast-z-index, 99999);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    pointer-events: none;
+}
+
+.uik-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 300px;
+    max-width: 500px;
+    padding: 1rem;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+
+.uik-toast--success { background: #198754; color: #fff; }
+.uik-toast--error   { background: #dc3545; color: #fff; }
+.uik-toast--warning { background: #ffc107; color: #000; }
+.uik-toast--info    { background: #0dcaf0; color: #000; }
+
+.uik-toast__icon {
+    flex: 0 0 auto;
+    width: 1.25em;
+    height: 1.25em;
+    fill: currentColor;
+}
+
+.uik-toast__body {
+    flex: 1 1 auto;
+    line-height: 1.4;
+}
+
+.uik-toast__close {
+    flex: 0 0 auto;
+    width: 1em;
+    height: 1em;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: currentColor;
+    opacity: 0.5;
+    cursor: pointer;
+}
+
+.uik-toast__close:hover,
+.uik-toast__close:focus-visible {
+    opacity: 1;
+}
+
+.uik-toast__close-icon {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
+.uik-toast--showing {
+    animation: uik-toast-slide-in 0.3s ease-out;
+}
+
+.uik-toast--hide {
+    animation: uik-toast-slide-out 0.3s ease-in forwards;
+}
+
+@keyframes uik-toast-slide-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes uik-toast-slide-out {
+    from { transform: translateX(0);    opacity: 1; }
+    to   { transform: translateX(100%); opacity: 0; }
+}
+
+/* ===== Confirm dialog ===== */
+
+.uik-dialog {
+    box-sizing: border-box;
+    width: calc(100% - 2rem);
+    max-width: var(--uik-dialog-max-width, 500px);
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    font-family: inherit;
+    color: #212529;
+    z-index: var(--uik-dialog-z-index, 99998);
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.uik-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.uik-dialog--opening {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+.uik-dialog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-radius: 8px 8px 0 0;
+}
+
+.uik-dialog__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 500;
+}
+
+.uik-dialog__title-icon {
+    flex: 0 0 auto;
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: currentColor;
+}
+
+.uik-dialog__close {
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    opacity: 0.5;
+    cursor: pointer;
+}
+
+.uik-dialog__close:hover,
+.uik-dialog__close:focus-visible {
+    opacity: 1;
+}
+
+.uik-dialog__close-icon {
+    width: 100%;
+    height: 100%;
+    fill: currentColor;
+}
+
+.uik-dialog__body {
+    padding: 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.uik-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-top: 1px solid #dee2e6;
+}
+
+.uik-dialog__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+.uik-dialog__btn-icon {
+    width: 1em;
+    height: 1em;
+    fill: currentColor;
+}
+
+.uik-dialog__btn--cancel {
+    background: #6c757d;
+    border-color: #6c757d;
+    color: #fff;
+}
+
+.uik-dialog__btn--cancel:hover,
+.uik-dialog__btn--cancel:focus-visible {
+    background: #5c636a;
+    border-color: #565e64;
+}
+
+.uik-dialog__btn--confirm {
+    background: #0d6efd;
+    color: #fff;
+}
+
+.uik-dialog__btn--confirm:hover,
+.uik-dialog__btn--confirm:focus-visible {
+    background: #0b5ed7;
+}
+
+.uik-dialog__btn--confirm.uik-dialog__btn--danger {
+    background: #dc3545;
+}
+
+.uik-dialog__btn--confirm.uik-dialog__btn--danger:hover,
+.uik-dialog__btn--confirm.uik-dialog__btn--danger:focus-visible {
+    background: #bb2d3b;
+}
+
+/* ===== Tooltip ===== */
+
+.uik-tooltip {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: var(--uik-tooltip-z-index, 1080);
+    display: none;
+    opacity: 0;
+    pointer-events: none;
+    font-family: inherit;
+    transition: opacity 0.1s;
+}
+
+.uik-tooltip--shown {
+    display: block;
+}
+
+.uik-tooltip--visible {
+    opacity: 1;
+}
+
+.uik-tooltip__inner {
+    max-width: 200px;
+    padding: 0.25rem 0.5rem;
+    background: #000;
+    color: #fff;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    text-align: center;
+    border-radius: 6px;
+}
+
+.uik-tooltip__arrow {
+    position: absolute;
+    width: 0.8rem;
+    height: 0.4rem;
+}
+
+.uik-tooltip__arrow::before {
+    content: "";
+    position: absolute;
+    border: 0.4rem solid transparent;
+}
+
+.uik-tooltip--top .uik-tooltip__arrow {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.uik-tooltip--top .uik-tooltip__arrow::before {
+    border-top-color: #000;
+    border-bottom-width: 0;
+}
+
+.uik-tooltip--bottom .uik-tooltip__arrow {
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) rotate(180deg);
+}
+
+.uik-tooltip--bottom .uik-tooltip__arrow::before {
+    border-top-color: #000;
+    border-bottom-width: 0;
+}
+
+.uik-tooltip--left .uik-tooltip__arrow {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+}
+
+.uik-tooltip--left .uik-tooltip__arrow::before {
+    border-top-color: #000;
+    border-bottom-width: 0;
+}
+
+.uik-tooltip--right .uik-tooltip__arrow {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%) rotate(90deg);
+}
+
+.uik-tooltip--right .uik-tooltip__arrow::before {
+    border-top-color: #000;
+    border-bottom-width: 0;
+}
+
+/* ===== Collapse =====
+   Class names are the pre-existing markup/CSS convention across the host
+   codebase (~85 sites) — see ui-collapse.js's docblock for why these are
+   reused rather than replaced with a `.uik-*` name. */
+
+.collapse:not(.show) {
+    display: none;
+}
+
+.collapsing {
+    height: 0;
+    overflow: hidden;
+    transition: height 0.35s ease;
+}
+
+/* ===== Dropdown =====
+   Minimal structural rules only (display toggle + positioning context) —
+   while Bootstrap CSS is still loaded (removed in a later phase of #431) it
+   fully styles `.dropdown-menu`/`.dropdown-item` colors, borders, shadows;
+   see ui-dropdown.js's docblock for why class names are reused as-is. */
+
+.dropdown {
+    position: relative;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: var(--uik-dropdown-z-index, 1000);
+    display: none;
+    min-width: 10rem;
+    margin: 0.125rem 0 0;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-menu-end {
+    left: auto;
+    right: 0;
+}
+
+/* ===== Tabs =====
+   Structural rules only — visual nav-link/tab-pane styling currently comes
+   from Bootstrap CSS (still loaded); see ui-tabs.js's docblock. */
+
+.tab-content > .tab-pane {
+    display: none;
+}
+
+.tab-content > .active {
+    display: block;
+}
+
+.tab-pane.fade {
+    transition: opacity 0.15s linear;
+    opacity: 0;
+}
+
+.tab-pane.fade.show {
+    opacity: 1;
+}
+
+/* ===== Popover =====
+   Structural rules only — visual .popover/.popover-header/.popover-body
+   styling currently comes from Bootstrap CSS (still loaded); see
+   ui-popover.js's docblock. Same DOM structure Bootstrap Popover uses, so
+   that CSS applies unmodified. */
+
+.popover {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: var(--uik-popover-z-index, 1070);
+    display: none;
+    max-width: 276px;
+}
+
+/* ===== Offcanvas =====
+   Structural rules only — visual styling (background, borders) currently
+   comes from Bootstrap CSS/host CSS (still loaded); see ui-offcanvas.js's
+   docblock. */
+
+.offcanvas {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: var(--uik-offcanvas-z-index, 1045);
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    visibility: hidden;
+    background: #fff;
+    transition: transform 0.3s ease-in-out;
+}
+
+.offcanvas-start {
+    left: 0;
+    width: 320px;
+    transform: translateX(-100%);
+}
+
+.offcanvas.showing,
+.offcanvas.show {
+    visibility: visible;
+}
+
+.offcanvas.show:not(.hiding) {
+    transform: none;
+}
+
+.offcanvas-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--uik-offcanvas-backdrop-z-index, 1040);
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* ===== Modal =====
+   Structural rules only (display toggle, positioning, backdrop, fade
+   transform) — visual .modal-content/.modal-header/.modal-footer styling
+   (background, borders, radius, padding) currently comes from Bootstrap CSS
+   (still loaded); see ui-modal.js's docblock. Same DOM structure/class names
+   Bootstrap Modal uses, so that CSS applies unmodified, including its own
+   .modal-sm/.modal-lg/.modal-xl/.modal-dialog-centered/.modal-dialog-scrollable
+   variants (not redefined here, so nothing conflicts with them). */
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: var(--uik-modal-z-index, 1055);
+    display: none;
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    outline: 0;
+}
+
+.modal.show {
+    display: block;
+}
+
+.modal-dialog {
+    position: relative;
+    width: auto;
+    margin: 0.5rem;
+    pointer-events: none;
+}
+
+@media (min-width: 576px) {
+    .modal-dialog {
+        max-width: 500px;
+        margin: 1.75rem auto;
+    }
+}
+
+.modal-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    pointer-events: auto;
+    outline: 0;
+}
+
+.modal.fade .modal-dialog {
+    transition: transform 0.15s ease-out;
+    transform: translate(0, -50px);
+}
+
+.modal.show .modal-dialog {
+    transform: none;
+}
+
+.modal.modal-static .modal-dialog {
+    transform: scale(1.02);
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: var(--uik-modal-backdrop-z-index, 1050);
+    width: 100vw;
+    height: 100vh;
+    background-color: #000;
+}
+
+.modal-backdrop.fade {
+    opacity: 0;
+    transition: opacity 0.15s linear;
+}
+
+.modal-backdrop.show {
+    opacity: 0.5;
+}

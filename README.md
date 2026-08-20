@@ -21,6 +21,12 @@
 | [SzamlazzHuAgent](SzamlazzHuAgent/) | Framework-agnostic PHP module for Szamlazz.hu invoice integration                             |
 | [Virtualjog](Virtualjog/)           | Framework-agnostic PHP client for Virtualjog legaltech (documents, cookie consent)            |
 
+## Framework-agnostic frontend components
+
+| Component       | Description                                                                                                                    |
+|-----------------|----------------------------------------------------------------------------------------------------------------------------------|
+| [UiKit](UiKit/) | Zero-dependency vanilla JS/CSS UI component kit (toast, dialog, tooltip, collapse, dropdown, tabs, popover, offcanvas, modal)  |
+
 ## Obsolote components
 
 | Component                           | Description                                                                                   |
