@@ -16,7 +16,7 @@
 | MFA             | 1.0.3   | —           | 1.0.3          | 1.0.3       | —             |
 | PatchModule     | 2.7.2   | 2.7.2       | 2.7.2          | 2.7.2       | —             |
 | SzamlazzHuAgent | 1.4.0   | 1.4.0       | n/a            | n/a         | —             |
-| UiKit           | 0.9.2   | 0.9.2       | —              | —           | —             |
+| UiKit           | 1.00.00 | **0.9.2**   | —              | —           | —             |
 | Virtualjog      | 1.0.0   | 1.0.0       | n/a            | n/a         | —             |
 
 ## Obsolote modules

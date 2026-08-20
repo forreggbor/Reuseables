@@ -5,6 +5,17 @@ All notable changes to UiKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.00.00] - 2026-08-20
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Changed  | Declared production ready — first stable release |
+
+### Changed
+- No functional changes. UiKit is deemed ready for production use after the security hardening, reliability fixes, a11y features, and modal sizing work completed through [0.9.2]; version bumped to mark the first stable release.
+
 ## [0.9.2] - 2026-08-20
 
 ### Summary

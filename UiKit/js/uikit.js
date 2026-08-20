@@ -1,6 +1,6 @@
 /**
  * UiKit — shared core.
- * @version 0.9.2
+ * @version 1.00.00
  *
  * Project-independent: no host globals are read (no #appConfig, no
  * window.CSRF_TOKEN, no __()), no network requests, no dependency on any
