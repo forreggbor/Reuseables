@@ -366,6 +366,14 @@
     right: 0;
 }
 
+/* Added by ui-dropdown.js's adjustPosition() when the menu would otherwise
+   overflow the bottom of the viewport — flips it to open upward. */
+.uik-dropdown-menu--dropup {
+    top: auto;
+    bottom: 100%;
+    margin: 0 0 0.125rem;
+}
+
 /* ===== Tabs =====
    Structural rules only — visual nav-link/tab-pane styling currently comes
    from Bootstrap CSS (still loaded); see ui-tabs.js's docblock. */
@@ -444,12 +452,28 @@
 
 /* ===== Modal =====
    Structural rules only (display toggle, positioning, backdrop, fade
-   transform) — visual .modal-content/.modal-header/.modal-footer styling
-   (background, borders, radius, padding) currently comes from Bootstrap CSS
-   (still loaded); see ui-modal.js's docblock. Same DOM structure/class names
-   Bootstrap Modal uses, so that CSS applies unmodified, including its own
-   .modal-sm/.modal-lg/.modal-xl/.modal-dialog-centered/.modal-dialog-scrollable
-   variants (not redefined here, so nothing conflicts with them). */
+   transform, sizing) — visual .modal-content/.modal-header/.modal-footer
+   styling (background, borders, radius, padding) is expected to come from a
+   Bootstrap-compatible stylesheet the host already loads; see ui-modal.js's
+   docblock. Same DOM structure/class names Bootstrap Modal uses, so that
+   CSS applies unmodified for everything not overridden here.
+   .modal-dialog-centered and .modal-dialog-scrollable are NOT redefined
+   here (a host's Bootstrap-derived CSS handles them unconflicted).
+   .modal-dialog/.modal-sm/.modal-lg/.modal-xl DO get a default max-width
+   below, matching Bootstrap 5's own real values (500/300/800/1140px), plus
+   a min-width defaulting to no floor (0px) — every value is a CSS custom
+   property with that value as its fallback, not a bare px number, so a
+   host can override any of them (globally via `:root`, or scoped to one
+   modal instance via a wrapper class/inline style setting the same
+   property on that instance) without fighting this file's own CSS
+   specificity or load-order — the same pattern already used for
+   `--uik-dialog-max-width` above. Sizing used to be a bare px value this
+   file's own rule always won regardless of host intent, with no min-width
+   at all; that broke two real host needs: a `.modal-lg` meant to match
+   Bootstrap's actual 800px silently rendered at an invented 900px instead,
+   and a specific modal needing a guaranteed minimum width so its own
+   fields don't crowd had no way to ask for one short of editing this
+   file. Both are now host-settable via the custom properties below. */
 
 .modal {
     position: fixed;
@@ -476,9 +500,33 @@
 }
 
 @media (min-width: 576px) {
+    /* Fluid cap (min(94vw, custom-property-with-fallback)) instead of a
+       bare px value, so the dialog never overflows a modest browser window
+       even before any host override is applied, and a host can still
+       widen/narrow a specific size class without being capped past 94vw.
+       min-width mirrors the same pattern, defaulting to no floor (0px) —
+       a host that needs one for a specific modal (e.g. to stop its own
+       labels/fields from crowding) sets e.g. `--uik-modal-lg-min-width`
+       scoped to that modal's own wrapper, without a CSS-specificity fight.
+       Wrapped in the same min(94vw, ...) as max-width so a host-set floor
+       still yields to the viewport instead of forcing horizontal page
+       overflow on a screen too narrow to actually fit it. */
     .modal-dialog {
-        max-width: 500px;
+        max-width: min(94vw, var(--uik-modal-max-width, 500px));
+        min-width: min(94vw, var(--uik-modal-min-width, 0px));
         margin: 1.75rem auto;
+    }
+    .modal-sm {
+        max-width: min(94vw, var(--uik-modal-sm-max-width, 300px));
+        min-width: min(94vw, var(--uik-modal-sm-min-width, 0px));
+    }
+    .modal-lg {
+        max-width: min(94vw, var(--uik-modal-lg-max-width, 800px));
+        min-width: min(94vw, var(--uik-modal-lg-min-width, 0px));
+    }
+    .modal-xl {
+        max-width: min(94vw, var(--uik-modal-xl-max-width, 1140px));
+        min-width: min(94vw, var(--uik-modal-xl-min-width, 0px));
     }
 }
 
@@ -521,4 +569,27 @@
 
 .modal-backdrop.show {
     opacity: 0.5;
+}
+
+/* ===== Reduced motion =====
+   Respects the OS "reduce motion" preference across every animated/
+   transitioned component. A near-zero (not literal 0) duration keeps
+   'animationend'/'transitionend' still firing — js/ui-toast.js's dismiss()
+   fallback timer and the *_MS constants in ui-collapse.js/ui-offcanvas.js/
+   ui-modal.js already check the same media query at runtime, so their
+   JS-driven completion timers stay in step with this instead of finalizing
+   state ~300ms after an animation the user never actually saw. */
+@media (prefers-reduced-motion: reduce) {
+    .uik-toast--showing,
+    .uik-toast--hide,
+    .uik-dialog,
+    .uik-tooltip,
+    .collapsing,
+    .tab-pane.fade,
+    .offcanvas,
+    .modal.fade .modal-dialog,
+    .modal-backdrop.fade {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+    }
 }

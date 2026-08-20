@@ -69,12 +69,22 @@
  * adjustment) — only `<body>` itself gets the padding-right compensation.
  * No true nested-modal stacking support (opening a second modal from inside
  * an already-open one) — the codebase never does this.
+ *
+ * Tab/Shift+Tab is trapped within the modal while open (`trapFocus()`),
+ * matching `bootstrap.Modal`'s own focus-trap behavior — the native
+ * `<dialog>`-based `ui-dialog.js` gets this for free from the browser via
+ * `showModal()`, but this component builds its own modal on a plain element,
+ * so it has to implement the trap itself.
  */
 (function (global) {
     'use strict';
 
     var instances = new WeakMap();
-    var TRANSITION_MS = 150;
+    // Matches the `prefers-reduced-motion` handling in css/uikit.css, which
+    // shortens the actual CSS transition to near-zero — keep this JS-driven
+    // completion timer in step so state doesn't finalize ~150ms after the
+    // (invisible) transition already ended.
+    var TRANSITION_MS = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 150;
 
     function getSelector(el) {
         var sel = el.getAttribute('data-bs-target');
@@ -159,6 +169,10 @@
     }
 
     function onKeydown(e) {
+        if (e.key === 'Tab') {
+            trapFocus(this._element, e);
+            return;
+        }
         if (e.key !== 'Escape') {
             return;
         }
@@ -166,6 +180,38 @@
             this.hide();
         } else {
             triggerBackdropTransition(this);
+        }
+    }
+
+    var FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function getFocusableElements(container) {
+        return Array.prototype.filter.call(container.querySelectorAll(FOCUSABLE_SELECTOR), function (el) {
+            return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+        });
+    }
+
+    // Native <dialog> (ui-dialog.js) gets this for free from the browser via
+    // showModal(); this component builds its own modal on a plain element,
+    // so it has to trap Tab/Shift+Tab itself to actually match bootstrap.
+    // Modal's behavior, which does the same.
+    function trapFocus(container, e) {
+        var focusable = getFocusableElements(container);
+        if (!focusable.length) {
+            e.preventDefault();
+            return;
+        }
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        var active = document.activeElement;
+        if (e.shiftKey) {
+            if (active === first || active === container) {
+                e.preventDefault();
+                last.focus();
+            }
+        } else if (active === last || active === container) {
+            e.preventDefault();
+            first.focus();
         }
     }
 

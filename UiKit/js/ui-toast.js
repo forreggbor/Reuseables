@@ -30,6 +30,7 @@
     var container = null;
     var activeEl = null;
     var hideTimer = null;
+    var DISMISS_FALLBACK_MS = 400; // .uik-toast--hide keyframe is 300ms — see css/uikit.css
 
     function ensureContainer() {
         if (container) {
@@ -44,13 +45,26 @@
     function dismiss(el) {
         el.classList.remove('uik-toast--showing');
         el.classList.add('uik-toast--hide');
-        el.addEventListener('animationend', function onEnd() {
-            el.removeEventListener('animationend', onEnd);
+
+        var done = false;
+        var fallbackTimer;
+        function finish() {
+            if (done) {
+                return;
+            }
+            done = true;
+            el.removeEventListener('animationend', finish);
+            clearTimeout(fallbackTimer);
             el.remove();
             if (activeEl === el) {
                 activeEl = null;
             }
-        });
+        }
+        el.addEventListener('animationend', finish);
+        // Fallback: if the slide-out animation never fires 'animationend' (host
+        // CSS overrides/disables animations, an ancestor goes display:none
+        // mid-transition, etc.), still clean up instead of leaking the element.
+        fallbackTimer = setTimeout(finish, DISMISS_FALLBACK_MS);
     }
 
     /**

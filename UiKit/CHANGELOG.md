@@ -5,6 +5,82 @@ All notable changes to UiKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-08-20
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Added    | Modal sizing: host-overridable `min-width` floor, alongside the existing `max-width` override |
+
+### Added
+- `css/uikit.css` — `.modal-dialog`/`.modal-sm`/`.modal-lg`/`.modal-xl` now also accept a `min-width` override (`--uik-modal-min-width`, `--uik-modal-sm-min-width`, `--uik-modal-lg-min-width`, `--uik-modal-xl-min-width`), mirroring [0.9.1]'s `max-width` custom properties, defaulting to no floor (`0px`) — no modal is forced wider than before unless a host opts in. [0.9.1] removed the previous invented `.modal-lg` min-width floor without adding a replacement mechanism, which turned out to be a real gap: a specific host modal (flagged from another session working directly in JupitERP, tracing back to that host's own issue #438) needs a guaranteed minimum width so its fields don't crowd, and had no way to ask for one short of editing this file. The floor is wrapped in the same `min(94vw, ...)` as `max-width` so a host-set floor still yields to the viewport instead of forcing horizontal page overflow on a screen too narrow to fit it. Verified live: a 700px floor on a 320px viewport degrades to ~94vw with no page overflow; the same floor on a wide viewport, applied to the base `.modal-dialog` (default `max-width` 500px), correctly wins to 700px, matching the CSS spec's own min-width-over-max-width precedence.
+
+## [0.9.1] - 2026-08-20
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | Modal sizing (`.modal-dialog`/`.modal-sm`/`.modal-lg`/`.modal-xl`) always overrode a host's own width, with no way to opt out |
+| Fixed    | `.modal-lg` used an invented 900px cap instead of Bootstrap 5's real 800px |
+
+### Fixed
+- `css/uikit.css` — `.modal-dialog`/`.modal-sm`/`.modal-lg`/`.modal-xl` `max-width` are now CSS custom properties with a fallback (`--uik-modal-max-width`, `--uik-modal-sm-max-width`, `--uik-modal-lg-max-width`, `--uik-modal-xl-max-width`), the same pattern already used for `--uik-dialog-max-width`. Previously these were bare px values in a rule that — by this file's own documented design ("this file always loads last, its own rule wins regardless") — always won over a host's own `.modal-dialog`/`.modal-lg`/`.modal-xl` sizing, with no override mechanism short of a higher-specificity selector. A real host rule (`app.css`'s `.modal-image-80 .modal-dialog`) only survived because it happened to be higher-specificity; a host targeting the bare class would have silently lost. A host can now override sizing globally (`:root { --uik-modal-lg-max-width: ...; }`) or scoped to one modal instance (setting the same property on that modal's wrapper), without fighting specificity or load order.
+- `css/uikit.css` — `.modal-lg`'s fallback was `900px`, an invented value that never matched Bootstrap 5's real default (`800px`, confirmed against JupitERP's own extracted-Bootstrap `framework.css`, whose `--bs-modal-width` for `.modal-lg` is `800px`) — a real mismatch given this module's own stated goal of being "drop-in `bootstrap.Modal`-compatible". Fixed to `800px`; **visible behavior change** for any host page's `.modal-lg` instances (100px narrower) — 36 files in JupitERP alone use `.modal-lg`. Also removed the invented `min-width: min(94vw, 700px)` floor on `.modal-lg` (not a real Bootstrap convention). Added `.modal-sm` (`300px` fallback, matching Bootstrap) — previously entirely absent from `uikit.css`, silently relying on whatever host CSS happened to still define it.
+
+## [0.9.0] - 2026-08-20
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Added    | Modal/Offcanvas: Tab/Shift+Tab focus trap while open |
+| Added    | Offcanvas: auto-focus on open |
+| Added    | Dropdown: viewport-edge clamping (auto right-align / flip upward) |
+| Added    | `prefers-reduced-motion` support across every animated component |
+| Added    | Tabs: roving tabindex + Left/Right/Home/End (Up/Down for vertical) keyboard navigation |
+
+### Added
+- `js/ui-modal.js` / `js/ui-offcanvas.js` — Tab/Shift+Tab is now trapped within the panel while open (`trapFocus()`), matching `bootstrap.Modal`'s and `bootstrap.Offcanvas`'s own focus-trap behavior. The native `<dialog>`-based `ui-dialog.js` already got this for free from the browser via `showModal()`; these two build their own panel on a plain element, so they didn't have it until now. Verified live: focusing the last focusable element and dispatching Tab wraps focus back to the first (and Shift+Tab from the first wraps to the last).
+- `js/ui-offcanvas.js` — the panel itself is now focused once fully shown (requires `tabindex="-1"` on the panel, same markup requirement `bootstrap.Offcanvas` already has), matching Bootstrap's own behavior; previously nothing was auto-focused on open.
+- `js/ui-dropdown.js` — `adjustPosition()` now keeps an opened menu from rendering off the right or bottom edge of the viewport: adds `dropdown-menu-end` itself when it would overflow the right edge (tracked via `data-uik-auto-end` so an explicitly-set `dropdown-menu-end` in the markup is never touched or removed), and a new `uik-dropdown-menu--dropup` class (`css/uikit.css`) when it would overflow the bottom edge, flipping it to open upward. Still no Popper-style collision detection/auto-flip-to-opposite-side — this only prevents rendering off-screen, same simplification already documented, and the same "just stay on screen" approach already shipped for `ui-popover.js`/`ui-tooltip.js` in 0.8.2. Verified live: a dropdown forced near the bottom-right corner of the viewport gets both classes and renders fully on-screen.
+- `css/uikit.css` — a single `prefers-reduced-motion: reduce` media query now shortens every animation/transition across the toast, dialog, tooltip, collapse, tabs, offcanvas, and modal/backdrop to a near-zero (not literal 0, so `animationend`/`transitionend` still fire) duration. The JS-driven completion timers in `ui-collapse.js`/`ui-offcanvas.js`/`ui-modal.js` (`TRANSITION_MS`) now check the same media query at runtime and drop to 0 too, so state no longer finalizes ~300ms after an animation the user never actually saw.
+- `js/ui-tabs.js` — full roving-tabindex + arrow-key navigation, per the ARIA APG Tabs Pattern and matching `bootstrap.Tab`'s own keyboard behavior: only the active tab in a tablist is `tabindex="0"` (Tab-reachable), every other tab is `tabindex="-1"`; Left/Right (or Up/Down when the tablist has `aria-orientation="vertical"`) and Home/End move focus to and activate the target tab. A one-time init pass on script load sets the initial tabindex state for every existing tab (tabs aren't added dynamically anywhere in the host codebase, so no re-init hook was needed). This closes the "known simplification" stated since [0.6.0]. Verified live: arrow-right from the initially-active tab moves focus, activates the target tab and pane, and swaps the tabindex values correctly.
+
+## [0.8.2] - 2026-08-20
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | Popover/tooltip could render partly off-screen near a viewport edge |
+
+### Fixed
+- `js/ui-popover.js` / `js/ui-tooltip.js` — `position()` computed the panel's `left`/`top` purely from the trigger element's own rect (centered on it, offset by placement), with no clamping to the viewport bounds. A trigger close enough to an edge relative to the panel's own rendered width/height could push it partly or fully off-screen — reproduced with `0_test/test.html`'s popover demo, which rendered 20px past the left edge of a 1905px-wide window. Fixed with a shared `clampToViewport()` helper (`EDGE_GAP` = 8px) added to both files, applied after the placement-based position is computed — the panel still follows its trigger dynamically in the normal case; the clamp only nudges it when the computed position would otherwise render outside the viewport, matching the same "no Popper-style auto-flip, just stay on-screen" simplification already documented for `ui-dropdown.js`. Verified live: moving the trigger to different positions confirms the panel keeps following it (not pinned to a fixed edge), and only the near-edge case gets clamped.
+- `0_test/test.html` — added demo-only box styling (background/border/shadow) for `.popover`/`.popover-header`/`.popover-body` and hover/active styling for `.dropdown-item`, matching the same pattern already used for `.btn-row button:hover`. `css/uikit.css` deliberately ships no visual styling for either (see its own comments above `.dropdown-menu`/`.popover`) — real host pages get it from their own still-loaded CSS, but this standalone harness intentionally loads nothing else, so the demo needs its own. Not a UiKit component change — this was misread as a possible component bug, investigated, and confirmed to be a harness-only gap (verified against JupitERP's live `framework.css`).
+
+## [0.8.1] - 2026-08-20
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | Toast could leak in the DOM forever if its dismiss animation never fired |
+| Fixed    | Collapse: a hide() call during a show() transition was silently dropped |
+| Fixed    | Offcanvas: could not reopen a panel while it was still closing |
+| Fixed    | Dialog: a second confirm() call while one was open threw instead of reconfiguring |
+| Fixed    | Offcanvas: an `href="#"` trigger threw instead of failing gracefully |
+| Fixed    | Popover/Collapse: some public API calls threw on a null/undefined element argument |
+
+### Fixed
+- `js/ui-toast.js` — `dismiss()` relied solely on the `animationend` event to remove the toast element; if the slide-out animation never fires (host CSS disables/overrides animations, an ancestor goes `display:none` mid-transition), the element leaked in the DOM indefinitely, since `.uik-toast--hide` has no static (non-animated) hidden state. Added a 400ms fallback `setTimeout` that performs the same cleanup if `animationend` doesn't fire first. Verified live: with animations disabled via an injected stylesheet, the toast is still present at 100ms and correctly removed by 500ms.
+- `js/ui-collapse.js` — `show()`/`hide()`/`toggle()` did not guard against being re-invoked while a previous transition was still in flight. `isShown()` only reflects the settled `.show` class, not the transitional `.collapsing` state, so calling `hide()` while a `show()`'s 350ms timer was still pending returned early and silently dropped the hide request; conversely, overlapping un-cancelled `setTimeout` callbacks from two interleaved calls could finalize the wrong class state and double-fire `show.bs.collapse`/`hide.bs.collapse`. Fixed with a per-element pending-timer registry (`WeakMap`) cleared at the start of every `show()`/`hide()` call, and guards that now also recognize the `.collapsing` transitional state so an interrupting call takes over instead of no-op'ing or being dropped. Verified live: `show()` then `hide()` mid-transition now ends in the correctly closed state.
+- `js/ui-offcanvas.js` — the same overlapping-timer issue as collapse, plus a stricter symptom: `hide()`'s guard didn't exclude the `.showing` transitional state, and `show()`'s guard still saw the stale `.show` class during a `hide()`'s `.hiding` window, so a panel could not be reopened while it was still closing. Fixed with the same per-element pending-timer pattern as `ui-collapse.js`. Verified live: `show()` → `hide()` → `show()` in rapid succession now ends in the correctly open state.
+- `js/ui-dialog.js` — `confirmDialog()` called `showModal()` unconditionally; per the HTML spec this throws `InvalidStateError` if the `<dialog>` already has the `open` attribute, so a second `UiKit.confirm()` call while one was still showing threw instead of reconfiguring in place as the file's own docblock promised. Fixed by closing the dialog first when `dialogEl.open` is true. Verified live: two back-to-back `confirm()` calls no longer throw, and the second call's message replaces the first's.
+- `js/ui-offcanvas.js` — the click handler's `document.querySelector(sel)` (deriving the panel from `data-bs-target`/`href`) was not wrapped in `try`/`catch`, unlike the identical pattern already guarded in `ui-collapse.js`/`ui-tabs.js`/`ui-modal.js`. An `href="#"` trigger — a common markup convention, and exactly what the sibling components' guard exists for — is an invalid CSS selector and threw a `SyntaxError`. Fixed by wrapping the lookup in `try`/`catch`, matching the sibling components. Verified live: an `href="#"` trigger no longer throws.
+- `js/ui-popover.js` / `js/ui-collapse.js` — `UiKit.popover.show()`/`.toggle()`/`.isShown()` and `UiKit.collapse.toggle()` did not guard against a `null`/`undefined` element argument, unlike `UiKit.collapse.show()`/`.hide()`, `UiKit.offcanvas.show()`/`.hide()`, and `UiKit.tab.show()`, which already do. A caller passing a mistyped/missing element id (e.g. `document.getElementById()` returning `null`) hit an uncaught `TypeError` instead of a predictable no-op. Fixed by adding the same `if (!el) return;` guard consistently across all exported entry points. Verified live: all six now no-op cleanly on `null`.
+
 ## [0.8.0] - 2026-08-19
 
 ### Summary
@@ -12,6 +88,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | Category | Description |
 |----------|--------------|
 | Added    | `UiKit.Modal` — drop-in `bootstrap.Modal`-compatible class |
+| Fixed    | Popover `data-bs-content` no longer renders as HTML by default (XSS hardening) |
+| Fixed    | Popover now supports `data-bs-trigger="focus"` — the field-help-icon popover was silently non-functional since the Bootstrap migration |
+
+### Fixed
+- `js/ui-popover.js` — `data-bs-content` is now rendered as plain text (`textContent`) by default; HTML rendering requires the trigger to also carry `data-bs-html="true"` (Bootstrap Popover's own opt-in convention), matching the same explicit-opt-in pattern as `ui-dialog.js`'s `allowHtml`. Previously the component rendered this attribute as HTML unconditionally with no plain-text mode — a caller populating it from unescaped user-controlled data would have been a direct DOM XSS sink. The one real HTML-content caller in the host codebase (`vat_validation_js.php`) already set `data-bs-trigger="manual"` together with `data-bs-html="true"`, so it is unaffected.
+- `js/ui-popover.js` — added self-initializing delegated `focusin`/`focusout` handling for `data-bs-trigger="focus"` (same pattern as `ui-tooltip.js`). A second real caller (`renderFieldHelpIcon()` in `functions.php`, rendering field-level "?" help-icon buttons) uses this trigger mode; the component previously only supported the programmatic API (matching the one *other* known caller, which manages show/hide itself), so this caller's popover never actually opened since the Bootstrap → UiKit migration. The previous 0.7.0 changelog entry incorrectly described this caller as removed dead code — it was live, just non-functional.
 
 ### Added
 - `js/ui-modal.js` + `css/uikit.css` (structural rules) — `UiKit.Modal`, matching `bootstrap.Modal`'s own constructor signature, static `getInstance()`/`getOrCreateInstance()`, instance `show()`/`hide()`/`toggle()`/`dispose()`/`handleUpdate()`, and `show.bs.modal`/`shown.bs.modal`/`hide.bs.modal`/`hidden.bs.modal`/`hidePrevented.bs.modal` events. Recognizes the same `data-bs-toggle="modal"`/`data-bs-target`/`data-bs-dismiss="modal"`/`data-bs-backdrop`/`data-bs-keyboard` markup convention already used by every existing modal in the host codebase, so a call site migrates with a mechanical `bootstrap.Modal` → `UiKit.Modal` rename and zero markup changes — this is a different, larger-surface strategy than the other components (which each expose their own small API): a general-purpose modal is used for ~166 call sites across ~69 files, many with page-specific form content, so matching Bootstrap's own class shape exactly was far less code than designing and porting each call site to a new bespoke API.

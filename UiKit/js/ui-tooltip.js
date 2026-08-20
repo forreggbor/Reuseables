@@ -56,6 +56,18 @@
         return trigger.getAttribute(CONTENT_ATTR);
     }
 
+    var EDGE_GAP = 8; // minimum distance kept from the viewport edge
+
+    function clampToViewport(value, size, viewportSize) {
+        var max = viewportSize - size - EDGE_GAP;
+        if (max < EDGE_GAP) {
+            // Content wider/taller than the viewport itself — pin to the
+            // start edge rather than producing a negative max.
+            return EDGE_GAP;
+        }
+        return Math.min(Math.max(value, EDGE_GAP), max);
+    }
+
     function position(trigger, placement) {
         var triggerRect = trigger.getBoundingClientRect();
         var tipRect = tooltipEl.getBoundingClientRect();
@@ -78,6 +90,12 @@
                 top = triggerRect.top - tipRect.height - GAP;
                 left = triggerRect.left + triggerRect.width / 2 - tipRect.width / 2;
         }
+
+        // Keep the tooltip fully on-screen — no Popper-style flip/collision
+        // detection, just prevent it from rendering off the edge (matches
+        // the same simplification documented in ui-dropdown.js).
+        left = clampToViewport(left, tipRect.width, window.innerWidth);
+        top = clampToViewport(top, tipRect.height, window.innerHeight);
 
         tooltipEl.style.top = Math.round(top + window.scrollY) + 'px';
         tooltipEl.style.left = Math.round(left + window.scrollX) + 'px';

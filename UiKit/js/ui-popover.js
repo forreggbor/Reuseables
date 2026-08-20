@@ -11,21 +11,37 @@
  * Content source, read fresh on every `show()` call (so updating
  * `data-bs-content` between calls — e.g. a "loading…" placeholder replaced
  * once an AJAX request resolves — works without any extra API):
- *   `title` attribute            → `.popover-header` (plain text)
- *   `data-bs-content` attribute  → `.popover-body` (HTML — the only actual
- *                                   caller in the host codebase always sets
- *                                   HTML content, so there is no plain-text
- *                                   mode here, unlike ui-tooltip.js)
+ *   `title` attribute            → `.popover-header` (plain text, always)
+ *   `data-bs-content` attribute  → `.popover-body` — plain text by default
+ *                                   (`textContent`); rendered as HTML only
+ *                                   when the trigger also carries
+ *                                   `data-bs-html="true"` (Bootstrap
+ *                                   Popover's own opt-in convention).
+ *                                   Security: without this gate, a caller
+ *                                   populating `data-bs-content` from
+ *                                   unescaped user-controlled data would be
+ *                                   a direct DOM XSS sink — same rationale
+ *                                   as `allowHtml` on ui-dialog.js, the
+ *                                   caller must explicitly opt in to HTML
+ *                                   mode and stays responsible for only
+ *                                   passing trusted markup once it does.
  *   `data-bs-placement`          → top/bottom/left/right, default top
  *
- * Only the programmatic API is provided — no click/focus/hover
- * auto-triggering. The one real, currently-working caller in the host
- * codebase (`vat_validation_js.php`) already used `data-bs-trigger="manual"`
- * (i.e. Bootstrap Popover with all auto-triggering turned off) and drove
- * show/hide entirely from its own click handler, so this covers it exactly;
- * a second, `trigger:"focus"`-configured caller (`admin/products/edit.php`)
- * turned out to have no matching trigger markup anywhere on that page at
- * all — dead code, removed rather than ported.
+ * Two trigger modes are supported, matching each real caller in the host
+ * codebase exactly:
+ *   `data-bs-trigger="manual"` — no auto-triggering; the caller drives
+ *     show/hide/toggle itself (`vat_validation_js.php`'s own click handler).
+ *   `data-bs-trigger="focus"`  — self-initializing delegated `focusin`/
+ *     `focusout` listener (same pattern as ui-tooltip.js), opens on focus
+ *     and closes on blur (`renderFieldHelpIcon()` in `functions.php`,
+ *     rendering the field-level "?" help-icon buttons).
+ * No click/hover auto-triggering is implemented — neither real caller needs
+ * it.
+ *
+ * Positioning is plain CSS-rect math, clamped to stay fully within the
+ * viewport — no Popper-style auto-flip to the opposite side near an edge,
+ * just prevented from rendering off-screen (matches the same simplification
+ * documented in ui-dropdown.js).
  */
 (function (global) {
     'use strict';
@@ -54,6 +70,18 @@
         return popoverEl;
     }
 
+    var EDGE_GAP = 8; // minimum distance kept from the viewport edge
+
+    function clampToViewport(value, size, viewportSize) {
+        var max = viewportSize - size - EDGE_GAP;
+        if (max < EDGE_GAP) {
+            // Content wider/taller than the viewport itself — pin to the
+            // start edge rather than producing a negative max.
+            return EDGE_GAP;
+        }
+        return Math.min(Math.max(value, EDGE_GAP), max);
+    }
+
     function position(trigger, placement) {
         var triggerRect = trigger.getBoundingClientRect();
         var popRect = popoverEl.getBoundingClientRect();
@@ -76,11 +104,19 @@
                 top = triggerRect.top - popRect.height - gap;
                 left = triggerRect.left + triggerRect.width / 2 - popRect.width / 2;
         }
+        // Keep the panel fully on-screen — no Popper-style flip/collision
+        // detection (see the module's own "known simplification" elsewhere
+        // in this codebase), just prevent it from rendering off the edge.
+        left = clampToViewport(left, popRect.width, window.innerWidth);
+        top = clampToViewport(top, popRect.height, window.innerHeight);
         popoverEl.style.top = Math.round(top + window.scrollY) + 'px';
         popoverEl.style.left = Math.round(left + window.scrollX) + 'px';
     }
 
     function show(trigger) {
+        if (!trigger) {
+            return;
+        }
         ensurePopoverEl();
         if (currentTrigger && currentTrigger !== trigger) {
             hide(currentTrigger);
@@ -91,7 +127,11 @@
 
         innerHeader.textContent = titleText;
         innerHeader.style.display = titleText ? '' : 'none';
-        innerBody.innerHTML = content;
+        if (trigger.getAttribute('data-bs-html') === 'true') {
+            innerBody.innerHTML = content;
+        } else {
+            innerBody.textContent = content;
+        }
 
         popoverEl.className = 'popover bs-popover-auto uik-popover--' + placement;
         popoverEl.style.display = 'block';
@@ -102,7 +142,7 @@
     }
 
     function hide(trigger) {
-        if (currentTrigger !== trigger) {
+        if (!trigger || currentTrigger !== trigger) {
             return;
         }
         currentTrigger = null;
@@ -113,6 +153,9 @@
     }
 
     function toggle(trigger) {
+        if (!trigger) {
+            return;
+        }
         if (currentTrigger === trigger) {
             hide(trigger);
         } else {
@@ -121,8 +164,25 @@
     }
 
     function isShown(trigger) {
-        return currentTrigger === trigger;
+        return !!trigger && currentTrigger === trigger;
     }
+
+    function findFocusTrigger(el) {
+        return el && el.closest ? el.closest('[data-bs-toggle="popover"][data-bs-trigger="focus"]') : null;
+    }
+
+    document.addEventListener('focusin', function (e) {
+        var trigger = findFocusTrigger(e.target);
+        if (trigger) {
+            show(trigger);
+        }
+    });
+    document.addEventListener('focusout', function (e) {
+        var trigger = findFocusTrigger(e.target);
+        if (trigger) {
+            hide(trigger);
+        }
+    });
 
     global.UiKit = global.UiKit || {};
     global.UiKit.popover = { show: show, hide: hide, toggle: toggle, isShown: isShown };

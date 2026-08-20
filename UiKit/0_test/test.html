@@ -51,6 +51,50 @@
         .collapse-toggle .chevron { display: inline-block; transition: transform 0.2s; }
         .collapse-toggle.collapsed .chevron { transform: rotate(0deg); }
         .collapse-toggle:not(.collapsed) .chevron { transform: rotate(90deg); }
+        /* Demo-only hover/active feedback for .dropdown-item. uikit.css
+           deliberately ships no visual styling for this (see its own
+           comment above .dropdown-menu) — on real host pages that comes
+           from the still-loaded Bootstrap-derived CSS, but this standalone
+           harness intentionally loads nothing else, so it needs its own. */
+        .dropdown-item {
+            display: block;
+            padding: 6px 16px;
+            color: #212529;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .dropdown-item:hover,
+        .dropdown-item:focus-visible {
+            background-color: #f0f2f5;
+        }
+        .dropdown-item.active {
+            background-color: #0d6efd;
+            color: #fff;
+        }
+        /* Demo-only box styling for .popover/.popover-header/.popover-body.
+           uikit.css deliberately ships no visual styling here either (same
+           reason as .dropdown-item above) — real host pages get it from the
+           still-loaded Bootstrap-derived CSS. */
+        .popover {
+            max-width: 260px;
+            background: #fff;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .popover-header {
+            margin: 0;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #f0f2f5;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+            border-radius: 6px 6px 0 0;
+        }
+        .popover-body {
+            padding: 8px 12px;
+            color: #222;
+        }
     </style>
 </head>
 <body>
@@ -116,14 +160,14 @@
         <div class="dropdown" style="display:inline-block;">
             <button class="collapse-toggle" data-bs-toggle="dropdown" aria-expanded="false">Menu ▾</button>
             <ul class="dropdown-menu" style="list-style:none; padding:4px 0; margin:0; border:1px solid #ccc; background:#fff; border-radius:4px;">
-                <li><a href="#" style="display:block; padding:6px 16px; color:#212529; text-decoration:none;">Action 1</a></li>
-                <li><a href="#" style="display:block; padding:6px 16px; color:#212529; text-decoration:none;">Action 2</a></li>
+                <li><a href="#" class="dropdown-item active">Action 1 (active)</a></li>
+                <li><a href="#" class="dropdown-item">Action 2</a></li>
             </ul>
         </div>
         <div class="dropdown" style="display:inline-block; margin-left:16px;">
             <button class="collapse-toggle" data-bs-toggle="dropdown" aria-expanded="false">Right-aligned ▾</button>
             <ul class="dropdown-menu dropdown-menu-end" style="list-style:none; padding:4px 0; margin:0; border:1px solid #ccc; background:#fff; border-radius:4px;">
-                <li><a href="#" style="display:block; padding:6px 16px; color:#212529; text-decoration:none;">Right item</a></li>
+                <li><a href="#" class="dropdown-item">Right item</a></li>
             </ul>
         </div>
     </div>

@@ -12,9 +12,12 @@
  * Fires `hide.bs.tab`/`show.bs.tab`/`hidden.bs.tab`/`shown.bs.tab` on the
  * relevant tab elements, matching Bootstrap Tab's own event names/targets.
  *
- * Known simplification, stated up front: no arrow-key navigation between
- * tabs (Bootstrap's own roving-tabindex keyboard behavior). Activation by
- * click or by calling `.show()` directly both work fully.
+ * Roving tabindex + arrow-key navigation, per the ARIA APG Tabs Pattern and
+ * matching Bootstrap Tab's own keyboard behavior: only the active tab is
+ * Tab-reachable (`tabindex="0"`, every other tab in the same tablist gets
+ * `tabindex="-1"`); Left/Right (or Up/Down when the tablist has
+ * `aria-orientation="vertical"`) and Home/End move focus AND activate the
+ * target tab, matching Bootstrap Tab's automatic-activation model.
  *
  * Coexistence with Bootstrap JS: see ui-collapse.js's docblock — Bootstrap's
  * own Tab also self-initializes a capture-phase document click listener, so
@@ -74,6 +77,7 @@
             fire(prevTab, 'hide.bs.tab');
             prevTab.classList.remove('active');
             prevTab.setAttribute('aria-selected', 'false');
+            prevTab.setAttribute('tabindex', '-1');
         }
         if (prevPane) {
             prevPane.classList.remove('show', 'active');
@@ -82,6 +86,7 @@
         fire(tab, 'show.bs.tab');
         tab.classList.add('active');
         tab.setAttribute('aria-selected', 'true');
+        tab.setAttribute('tabindex', '0');
         pane.classList.add('active');
         pane.getBoundingClientRect(); // force reflow so the fade transition animates
         pane.classList.add('show');
@@ -103,6 +108,69 @@
         e.preventDefault();
         show(tab);
     }, true);
+
+    var TAB_SELECTOR = '[data-bs-toggle="tab"], [data-bs-toggle="pill"], [data-bs-toggle="list"]';
+
+    function getTabsInList(tablist) {
+        return Array.prototype.slice.call(tablist.querySelectorAll(TAB_SELECTOR));
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (bootstrapTabAvailable()) {
+            return;
+        }
+        var current = e.target;
+        if (!current || !isTabToggle(current)) {
+            return;
+        }
+
+        var tablist = current.closest('[role="tablist"]') || current.parentElement;
+        var vertical = tablist && tablist.getAttribute('aria-orientation') === 'vertical';
+        var prevKey = vertical ? 'ArrowUp' : 'ArrowLeft';
+        var nextKey = vertical ? 'ArrowDown' : 'ArrowRight';
+
+        var key = e.key;
+        if (key !== prevKey && key !== nextKey && key !== 'Home' && key !== 'End') {
+            return;
+        }
+
+        var tabs = tablist ? getTabsInList(tablist) : [];
+        if (tabs.length < 2) {
+            return;
+        }
+        var index = tabs.indexOf(current);
+        if (index === -1) {
+            return;
+        }
+
+        var nextIndex;
+        if (key === 'Home') {
+            nextIndex = 0;
+        } else if (key === 'End') {
+            nextIndex = tabs.length - 1;
+        } else if (key === nextKey) {
+            nextIndex = (index + 1) % tabs.length;
+        } else {
+            nextIndex = (index - 1 + tabs.length) % tabs.length;
+        }
+
+        e.preventDefault();
+        tabs[nextIndex].focus();
+        show(tabs[nextIndex]);
+    });
+
+    // Initial roving-tabindex pass: only the already-active tab in each
+    // tablist stays in the natural Tab order, matching what show() then
+    // maintains on every activation. Runs once at load — tabs aren't added
+    // dynamically anywhere in the host codebase (unlike e.g. tooltip
+    // triggers), so a one-time pass is sufficient.
+    document.querySelectorAll(TAB_SELECTOR).forEach(function (tab) {
+        if (tab.classList.contains('active')) {
+            tab.setAttribute('tabindex', '0');
+        } else if (!tab.hasAttribute('tabindex')) {
+            tab.setAttribute('tabindex', '-1');
+        }
+    });
 
     global.UiKit = global.UiKit || {};
     global.UiKit.tab = { show: show };

@@ -120,6 +120,12 @@
             }
         };
 
+        if (dialogEl.open) {
+            // showModal() throws InvalidStateError on an already-open <dialog> —
+            // close first so a second confirm() call while one is showing
+            // reconfigures and reopens in place instead of throwing.
+            dialogEl.close();
+        }
         dialogEl.classList.add('uik-dialog--opening');
         dialogEl.showModal();
         requestAnimationFrame(function () {

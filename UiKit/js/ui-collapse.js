@@ -40,7 +40,20 @@
 (function (global) {
     'use strict';
 
-    var TRANSITION_MS = 350;
+    // Matches the `prefers-reduced-motion` handling in css/uikit.css, which
+    // shortens the actual CSS transition to near-zero — keep this JS-driven
+    // completion timer in step so state doesn't finalize ~350ms after the
+    // (invisible) transition already ended.
+    var TRANSITION_MS = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 350;
+    var pendingTimers = new WeakMap();
+
+    function clearPending(target) {
+        var id = pendingTimers.get(target);
+        if (id) {
+            window.clearTimeout(id);
+            pendingTimers.delete(target);
+        }
+    }
 
     function resolveTarget(trigger) {
         var sel = trigger.getAttribute('data-bs-target') || trigger.getAttribute('href');
@@ -84,9 +97,10 @@
     }
 
     function show(target) {
-        if (!target || isShown(target)) {
+        if (!target || (isShown(target) && !target.classList.contains('collapsing'))) {
             return;
         }
+        clearPending(target);
         hideOthersInAccordion(target);
         fire(target, 'show.bs.collapse');
         target.classList.remove('collapse');
@@ -96,18 +110,21 @@
         target.getBoundingClientRect(); // force reflow so the transition below animates
         target.style.height = height + 'px';
         updateTriggers(target, true);
-        window.setTimeout(function () {
+        var timerId = window.setTimeout(function () {
+            pendingTimers.delete(target);
             target.classList.remove('collapsing');
             target.classList.add('collapse', 'show');
             target.style.height = '';
             fire(target, 'shown.bs.collapse');
         }, TRANSITION_MS);
+        pendingTimers.set(target, timerId);
     }
 
     function hide(target) {
-        if (!target || !isShown(target)) {
+        if (!target || (!isShown(target) && !target.classList.contains('collapsing'))) {
             return;
         }
+        clearPending(target);
         fire(target, 'hide.bs.collapse');
         target.style.height = target.scrollHeight + 'px';
         target.getBoundingClientRect(); // force reflow
@@ -115,15 +132,20 @@
         target.classList.add('collapsing');
         target.style.height = '0px';
         updateTriggers(target, false);
-        window.setTimeout(function () {
+        var timerId = window.setTimeout(function () {
+            pendingTimers.delete(target);
             target.classList.remove('collapsing');
             target.classList.add('collapse');
             target.style.height = '';
             fire(target, 'hidden.bs.collapse');
         }, TRANSITION_MS);
+        pendingTimers.set(target, timerId);
     }
 
     function toggle(target) {
+        if (!target) {
+            return;
+        }
         if (isShown(target)) {
             hide(target);
         } else {
