@@ -98,6 +98,10 @@ data-i18n='<?= htmlspecialchars(json_encode([
     'changelogLoadFailed' => $tr('TEXT_MESSAGE_CHANGELOG_LOAD_FAILED'),
     'confirmRollback'     => $tr('TEXT_PATCH_CONFIRM_ROLLBACK'),
     'versionInstalled'    => $tr('TEXT_PATCH_VERSION_INSTALLED'),
+    'confirmButtonGeneric'=> $tr('TEXT_BUTTON_CONFIRM'),
+    'cancelButton'        => $tr('TEXT_BUTTON_CANCEL'),
+    'rollbackAction'      => $tr('TEXT_ACTION_ROLLBACK_PATCH'),
+    'versionGapWarning'   => $tr('TEXT_HEADING_VERSION_GAP_WARNING'),
 ], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>'
 data-upload-i18n='<?= htmlspecialchars(json_encode([
     'uploading'         => $tr('TEXT_MANUAL_UPLOAD_UPLOADING'),

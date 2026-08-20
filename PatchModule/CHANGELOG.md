@@ -5,6 +5,26 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.2] - 2026-08-20
+
+| Category | Description |
+|----------|-------------|
+| Changed  | Rollback and manual-upload version-gap confirmations now use a styled dialog instead of the browser's native confirm popup |
+
+### Changed
+
+- **Native `window.confirm()` calls replaced with a styled dialog** — the "Roll back this patch?" prompt and the manual-upload version-gap warning now open the module's own native-`<dialog>`-based confirmation modal (header, body, footer, matching the module's existing `.patch-dialog` convention) instead of the browser's plain confirm popup, consistent with the same "confirm() → modal" pattern already applied to UniCMS's own admin interface (UniCMS#21). The rollback confirmation uses a red header (destructive action); the version-gap warning uses an amber header. Closes Reusables#6.
+
+## [2.7.1] - 2026-08-20
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | An emptied migration-tracking table on an existing installation could falsely mark every migration as already applied, permanently hiding real drift |
+
+### Fixed
+
+- **Migration bootstrap now checks whether the database is actually new before assuming it is** — `PatchMigrator` used to treat an empty `patch_migrations` tracking table as proof of a fresh installation and mark every migration as already applied without running them, on the assumption a fresh install's schema files already reflect the latest state. If that table was ever emptied on an *existing* installation instead (e.g. by a partial database restore), this silently and permanently hid any resulting schema drift — the affected migrations could never run again. The bootstrap now also checks whether the rest of the database schema is actually empty before backfilling; if the tracking table is empty but the schema is not, migrations run for real instead (safe, since migrations are required to already be idempotent). Closes Reusables#13.
+
 ## [2.7.0] - 2026-08-17
 
 | Category | Description |

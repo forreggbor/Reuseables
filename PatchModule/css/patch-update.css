@@ -248,6 +248,16 @@
     border-color: #565e64;
 }
 
+.patch-btn-danger {
+    color: #fff;
+    background: var(--patch-color-danger);
+    border-color: var(--patch-color-danger);
+}
+.patch-btn-danger:hover:not(:disabled) {
+    background: #bb2d3b;
+    border-color: #b02a37;
+}
+
 .patch-btn-light {
     color: var(--patch-color-dark);
     background: #f8f9fa;
@@ -605,6 +615,20 @@
     background: linear-gradient(135deg, var(--patch-color-primary), var(--patch-color-primary-hover));
     color: #fff;
     border-radius: var(--patch-border-radius-lg) var(--patch-border-radius-lg) 0 0;
+}
+
+/* Confirm-dialog variants — header color by action type (PatchUpdate.confirmDialog()
+   options.variant), matching UniCMS's own confirm-modal color convention:
+   destructive=red, everything else that still needs a heads-up=amber. */
+.patch-dialog-header.patch-dialog-header-danger {
+    background: var(--patch-color-danger);
+    color: #fff;
+}
+
+.patch-dialog-header.patch-dialog-header-warning {
+    background: var(--patch-color-warning-bg);
+    color: var(--patch-color-warning);
+    border-bottom: 1px solid var(--patch-color-warning-border);
 }
 
 .patch-dialog-header.patch-dialog-header-plain {

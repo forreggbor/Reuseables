@@ -22,8 +22,10 @@ use PatchModule\Contracts\LoggerInterface;
  * via BackupAdapter.
  *
  * Also manages the patch_migrations tracking table: creates it on first use
- * (CREATE TABLE IF NOT EXISTS), backfills from database/migrations/*.sql, and
- * records each applied migration filename with UNIQUE enforcement.
+ * (CREATE TABLE IF NOT EXISTS), backfills from database/migrations/*.sql only
+ * when the schema itself looks genuinely fresh (not just when the tracking
+ * table happens to be empty — see isFreshSchema()/Reusables#13), and records
+ * each applied migration filename with UNIQUE enforcement.
  *
  * @package PatchModule
  */
@@ -140,8 +142,15 @@ class PatchMigrator
     /**
      * Bootstrap the patch_migrations tracking table on first use
      *
-     * Creates the table (idempotent), then backfills from database/migrations/*.sql
-     * if the table is empty. Runs at most once per instance via $bootstrapDone latch.
+     * Creates the table (idempotent). If the table is empty AND the schema looks
+     * genuinely fresh (see isFreshSchema()), backfills from database/migrations/*.sql
+     * on the assumption that a fresh install's schema/*.sql already reflects the
+     * latest state, so migrations would be redundant. If the table is empty but the
+     * schema is NOT fresh (an existing install whose tracking table got wiped), the
+     * backfill is skipped instead — every migration then runs for real via
+     * executeMigrationsDirectory(), which is safe because migrations are required to
+     * be idempotent. See Reusables#13 for the incident that prompted this check.
+     * Runs at most once per instance via $bootstrapDone latch.
      *
      * @throws \RuntimeException if CREATE TABLE fails (e.g. DB user lacks CREATE permission)
      * @return void
@@ -159,6 +168,23 @@ class PatchMigrator
 
             $count = (int) $pdo->query('SELECT COUNT(*) FROM `patch_migrations`')->fetchColumn();
             if ($count > 0) {
+                $this->bootstrapDone = true;
+                return;
+            }
+
+            if (!$this->isFreshSchema($pdo)) {
+                // patch_migrations is empty but the rest of the schema is not — this
+                // is an existing installation whose tracking table was wiped (e.g. a
+                // partial DB restore), not a fresh install. Backfilling here would
+                // falsely mark every migration as applied without their DDL ever
+                // having run, permanently hiding real drift (Reusables#13). Leave the
+                // table empty instead: executeMigrationsDirectory() will run every
+                // migration for real, which is safe because migrations are required
+                // to be idempotent (see CLAUDE.md SQL Migrations rules).
+                $this->log(
+                    'Bootstrap: patch_migrations is empty but the schema is not — skipping backfill, migrations will run for real (Reusables#13)',
+                    'WARNING'
+                );
                 $this->bootstrapDone = true;
                 return;
             }
@@ -193,6 +219,31 @@ class PatchMigrator
             $this->log('Bootstrap failed: ' . $e->getMessage(), 'ERROR');
             throw new \RuntimeException('patch_migrations bootstrap failed: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * Heuristic for "is this a brand-new, empty database" vs. "an existing
+     * installation whose patch_migrations table happens to be empty"
+     *
+     * Checks whether any OTHER base table already exists in the current schema.
+     * Project-agnostic on purpose (this module is used across multiple products
+     * with entirely different schemas) — it can't check for one specific
+     * expected table, only for "is there any schema here at all besides the
+     * tracking table this method just created".
+     *
+     * @param \PDO $pdo
+     * @return bool True if patch_migrations is the only base table present
+     */
+    private function isFreshSchema(\PDO $pdo): bool
+    {
+        $stmt = $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE()
+               AND TABLE_TYPE = 'BASE TABLE'
+               AND TABLE_NAME != 'patch_migrations'"
+        );
+
+        return ((int) $stmt->fetchColumn()) === 0;
     }
 
     /**

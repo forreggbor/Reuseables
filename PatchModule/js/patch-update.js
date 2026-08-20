@@ -900,11 +900,94 @@ const PatchUpdate = {
     },
 
     /**
+     * Show a styled confirmation dialog (native <dialog>, #patchConfirmDialog),
+     * replacing window.confirm(). Falls back to window.confirm() itself if the
+     * partial somehow isn't present in the page (e.g. included from a context
+     * that only renders _banner.php, not the full admin index).
+     *
+     * @param {Object} options
+     * @param {string} options.message - Body text (plain text, not HTML)
+     * @param {string} [options.title] - Header title text
+     * @param {string} [options.confirmText] - Confirm button label (defaults to i18n.confirmButtonGeneric)
+     * @param {'danger'|'warning'} [options.variant] - Header/button color; omit for the default (primary) styling
+     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled/dismissed
+     */
+    confirmDialog: function (options) {
+        options = options || {};
+        return new Promise(function (resolve) {
+            var dialog = document.getElementById('patchConfirmDialog');
+            if (!dialog) {
+                resolve(window.confirm(options.message));
+                return;
+            }
+
+            var header      = document.getElementById('patchConfirmHeader');
+            var titleTextEl = document.getElementById('patchConfirmTitleText');
+            var msgEl       = document.getElementById('patchConfirmMessage');
+            var confirmBtn  = document.getElementById('patchConfirmOkBtn');
+            var cancelText  = document.getElementById('patchConfirmCancelText');
+
+            header.classList.remove('patch-dialog-header-danger', 'patch-dialog-header-warning');
+            if (options.variant === 'danger' || options.variant === 'warning') {
+                header.classList.add('patch-dialog-header-' + options.variant);
+            }
+
+            titleTextEl.textContent = options.title || PatchUpdate.i18n.confirmButtonGeneric || 'Confirm';
+            msgEl.textContent = options.message || '';
+            confirmBtn.textContent = options.confirmText || PatchUpdate.i18n.confirmButtonGeneric || 'Confirm';
+            cancelText.textContent = PatchUpdate.i18n.cancelButton || 'Cancel';
+            confirmBtn.classList.toggle('patch-btn-danger', options.variant === 'danger');
+            confirmBtn.classList.toggle('patch-btn-primary', options.variant !== 'danger');
+
+            var settled = false;
+            function finish(result) {
+                if (settled) { return; }
+                settled = true;
+                confirmBtn.removeEventListener('click', onConfirm);
+                dialog.removeEventListener('close', onClose);
+                resolve(result);
+            }
+            // Order matters: settle (and detach the 'close' listener) BEFORE
+            // calling close() — close() fires 'close' synchronously, and if
+            // onClose ran first it would win the settled-guard race and
+            // resolve false instead of true.
+            function onConfirm() { finish(true); dialog.close(); }
+            // Covers both the Cancel button (data-patch-dismiss, handled by
+            // the existing delegated dismiss listener) and native dismissal
+            // (Escape, backdrop click via data-patch-light-dismiss) — all of
+            // them end up calling dialog.close(), which fires this.
+            function onClose() { finish(false); }
+
+            confirmBtn.addEventListener('click', onConfirm);
+            dialog.addEventListener('close', onClose);
+
+            openPatchDialog('patchConfirmDialog');
+        });
+    },
+
+    /**
      * Roll back a previously installed patch after user confirmation
      * @param {number} id - patch_history record ID to roll back
      */
     rollback: function (id) {
-        if (!window.confirm(PatchUpdate.i18n.confirmRollback || 'Roll back this patch?')) return;
+        PatchUpdate.confirmDialog({
+            message: PatchUpdate.i18n.confirmRollback || 'Roll back this patch?',
+            title: PatchUpdate.i18n.rollbackAction || 'Rollback patch',
+            confirmText: PatchUpdate.i18n.rollbackAction || 'Rollback patch',
+            variant: 'danger'
+        }).then(function (confirmed) {
+            if (!confirmed) { return; }
+            PatchUpdate.doRollback(id);
+        });
+    },
+
+    /**
+     * Perform the actual rollback request — split out from rollback() so the
+     * confirmation step above can be async (native <dialog> can't block
+     * synchronously the way window.confirm() did).
+     * @param {number} id - patch_history record ID to roll back
+     */
+    doRollback: function (id) {
         fetch(PatchUpdate.baseUrl + '/rollback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': PatchUpdate.csrfToken },
@@ -1037,35 +1120,52 @@ const PatchUpload = {
      * @param {Object} data - Parsed server JSON (success=true)
      */
     onUploadSuccess: function (data) {
-        if (data.warning === 'version_gap' && data.warning_message) {
-            if (!window.confirm(data.warning_message)) {
-                this.reset();
-                return;
-            }
+        var self = this;
+
+        function proceed() {
+            var mount          = document.getElementById('patch-mount');
+            var currentVersion = mount ? (mount.dataset.currentVersion || null) : null;
+
+            PatchUpdate.patches           = [{
+                id:                 data.patch_history_id,
+                version:            data.version            || '',
+                release_notes_html: data.release_notes_html || null,
+                file_size:          data.file_size          || 0,
+                released_at:        data.released_at        || null
+            }];
+            PatchUpdate.totalPatches      = 1;
+            PatchUpdate.currentPatchIndex = 0;
+            PatchUpdate.installedCount    = 0;
+
+            PatchUpdate.renderQueue();
+            PatchUpdate.populatePatchDetails(PatchUpdate.patches[0], currentVersion);
+            PatchUpdate.updateInstallButton();
+            PatchUpdate.switchState('details');
+
+            openPatchDialog('patchUpdateModal');
+
+            self.reset();
         }
 
-        var mount          = document.getElementById('patch-mount');
-        var currentVersion = mount ? (mount.dataset.currentVersion || null) : null;
+        // Native <dialog> can't block synchronously the way window.confirm()
+        // did — the no-warning path below still runs synchronously (same
+        // ordering as before), only the warning path is now async.
+        if (data.warning === 'version_gap' && data.warning_message) {
+            PatchUpdate.confirmDialog({
+                message: data.warning_message,
+                title: PatchUpdate.i18n.versionGapWarning || 'Version gap warning',
+                variant: 'warning'
+            }).then(function (confirmed) {
+                if (!confirmed) {
+                    self.reset();
+                    return;
+                }
+                proceed();
+            });
+            return;
+        }
 
-        PatchUpdate.patches           = [{
-            id:                 data.patch_history_id,
-            version:            data.version            || '',
-            release_notes_html: data.release_notes_html || null,
-            file_size:          data.file_size          || 0,
-            released_at:        data.released_at        || null
-        }];
-        PatchUpdate.totalPatches      = 1;
-        PatchUpdate.currentPatchIndex = 0;
-        PatchUpdate.installedCount    = 0;
-
-        PatchUpdate.renderQueue();
-        PatchUpdate.populatePatchDetails(PatchUpdate.patches[0], currentVersion);
-        PatchUpdate.updateInstallButton();
-        PatchUpdate.switchState('details');
-
-        openPatchDialog('patchUpdateModal');
-
-        this.reset();
+        proceed();
     },
 
     /**

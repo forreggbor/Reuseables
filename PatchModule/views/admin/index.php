@@ -280,3 +280,4 @@ if (!function_exists('patchStatusBadge')) {
 
 <?php include __DIR__ . '/_modal.php'; ?>
 <?php include __DIR__ . '/_changelog_modal.php'; ?>
+<?php include __DIR__ . '/_confirm_dialog.php'; ?>

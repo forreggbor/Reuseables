@@ -5,6 +5,26 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.7.2] - 2026-08-20
+
+| Kategória | Leírás |
+|-----------|--------|
+| Módosítva | A visszaállítási és a kézi feltöltés verzió-kihagyási megerősítései mostantól stílusozott ablakot használnak a böngésző natív megerősítő felugrója helyett |
+
+### Módosítva
+
+- **A natív `window.confirm()` hívások lecserélve stílusozott ablakra** — a "Visszaállítod ezt a patchet?" kérdés és a kézi feltöltés verzió-kihagyási figyelmeztetése mostantól a modul saját, natív `<dialog>`-alapú megerősítő ablakát nyitja (fejléc, törzs, lábléc, a modul már meglévő `.patch-dialog` konvenciójával), a böngésző egyszerű megerősítő felugrója helyett — ugyanaz a "confirm() → modal" minta, amit a UniCMS admin felületén is már bevezettünk (UniCMS#21). A visszaállítás megerősítése piros fejlécet kap (destruktív művelet), a verzió-kihagyási figyelmeztetés borostyánsárgát. Lezárja a Reusables#6-ot.
+
+## [2.7.1] - 2026-08-20
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva   | Egy kiürült migráció-nyilvántartó tábla egy meglévő telepítésen tévesen "már alkalmazottnak" jelölhetett meg minden migrációt, örökre elrejtve a tényleges séma-eltérést |
+
+### Javítva
+
+- **A migráció-bootstrap mostantól ellenőrzi, hogy a séma valóban friss-e, mielőtt feltételezné** — a `PatchMigrator` eddig az üres `patch_migrations` nyilvántartó táblát önmagában friss telepítés bizonyítékának tekintette, és minden migrációt "már alkalmazottnak" jelölt, futtatás nélkül, abból a feltevésből kiindulva, hogy egy friss telepítés séma-fájljai már tartalmazzák a legfrissebb állapotot. Ha ez a tábla egy MEGLÉVŐ telepítésen ürült ki (pl. egy részleges adatbázis-visszaállítás miatt), ez némán és véglegesen elrejtette a keletkező séma-eltérést — az érintett migrációk soha többé nem futhattak le. A bootstrap mostantól azt is ellenőrzi, hogy a séma többi része valóban üres-e, mielőtt visszamenőleg feltöltené a nyilvántartást; ha a nyilvántartó tábla üres, de a séma nem, a migrációk ténylegesen lefutnak (ez biztonságos, mivel a migrációknak eleve idempotensnek kell lenniük). Lezárja a Reusables#13-at.
+
 ## [2.7.0] - 2026-08-17
 
 | Kategória | Leírás |
