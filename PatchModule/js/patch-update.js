@@ -1177,7 +1177,7 @@ const PatchUpload = {
         var errorLabels = {};
         var mount       = document.getElementById('patch-mount');
         if (mount) {
-            try { errorLabels = JSON.parse(mount.dataset.errorLabels || '{}'); } catch (ex) {}
+            try { errorLabels = JSON.parse(mount.dataset.errorLabels || '{}'); } catch (ex) { /* keep default {} */ }
         }
         var message = (errorCode && errorLabels[errorCode])
             ? errorLabels[errorCode]

@@ -5,6 +5,16 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.7.3] - 2026-08-23
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva   | A kézi feltöltés képernyő egy csendben elnyelt hibakezelési ága mostantól dokumentálja, miért nem csinál semmit szándékosan |
+
+### Javítva
+
+- **Egy szándékosan csendes hiba-visszaesési ág pontosítva a kézi feltöltés képernyőn** — az opcionális, hibakódonkénti felirat-felülírások beolvasása eddig csendben, magyarázat nélkül futott tovább hiba esetén; mostantól egy rövid megjegyzés jelzi, hogy a visszaesés (alapértelmezett hibaüzenetek) szándékos, nem hiba. Felhasználó által látható viselkedésváltozás nincs.
+
 ## [2.7.2] - 2026-08-20
 
 | Kategória | Leírás |

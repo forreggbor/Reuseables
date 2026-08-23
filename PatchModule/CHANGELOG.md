@@ -5,6 +5,16 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.3] - 2026-08-23
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | A silent error-handling code path in the update-upload screen now documents why it intentionally does nothing |
+
+### Fixed
+
+- **Clarified an intentionally-silent error fallback in the manual upload screen** — parsing the optional per-error-code label overrides used to fail silently with no explanation; it now carries a short note confirming the fallback (plain default error messages) is deliberate, not an oversight. No user-visible behavior change.
+
 ## [2.7.2] - 2026-08-20
 
 | Category | Description |
