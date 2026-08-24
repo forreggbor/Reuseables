@@ -144,8 +144,14 @@ const PatchUpdate = {
         fetch(this.baseUrl + '/details', {
             headers: { 'Accept': 'application/json', 'X-CSRF-Token': this.csrfToken }
         })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
+            .then(PatchUpdate.parseResponse)
+            .then(function (result) {
+                if (!result.ok) {
+                    showNotification(result.errorMessage, 'error');
+                    return;
+                }
+                var data = result.data;
+
                 if (!data.available) {
                     showNotification(PatchUpdate.i18n.checkNoUpdates || 'No update available', 'info');
                     return;
@@ -721,7 +727,11 @@ const PatchUpdate = {
                 }
                 if (callback) callback();
             })
-            .catch(function () {
+            .catch(function (error) {
+                // Non-fatal: self-healing, the next poll tick retries — the
+                // authoritative install-result POST is what actually reports
+                // success/failure. Still worth logging for debugging (#478/#480).
+                console.error('PatchUpdate.pollOnce: progress poll failed', error);
                 if (callback) callback();
             });
     },
@@ -901,23 +911,29 @@ const PatchUpdate = {
 
     /**
      * Show a styled confirmation dialog (native <dialog>, #patchConfirmDialog),
-     * replacing window.confirm(). Falls back to window.confirm() itself if the
-     * partial somehow isn't present in the page (e.g. included from a context
-     * that only renders _banner.php, not the full admin index).
+     * replacing window.confirm(). If the partial somehow isn't present in the
+     * page (e.g. included from a context that only renders _banner.php, not the
+     * full admin index), fails closed — resolves false (same as "cancelled") and
+     * surfaces the problem loudly, rather than falling back to native
+     * window.confirm() (never used in this app — #478/#480).
      *
      * @param {Object} options
      * @param {string} options.message - Body text (plain text, not HTML)
      * @param {string} [options.title] - Header title text
      * @param {string} [options.confirmText] - Confirm button label (defaults to i18n.confirmButtonGeneric)
      * @param {'danger'|'warning'} [options.variant] - Header/button color; omit for the default (primary) styling
-     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled/dismissed
+     * @returns {Promise<boolean>} Resolves true if confirmed, false if cancelled/dismissed/unavailable
      */
     confirmDialog: function (options) {
         options = options || {};
         return new Promise(function (resolve) {
             var dialog = document.getElementById('patchConfirmDialog');
             if (!dialog) {
-                resolve(window.confirm(options.message));
+                console.error('PatchUpdate.confirmDialog: #patchConfirmDialog is missing from the page — cannot confirm, aborting the action.');
+                if (typeof showNotification === 'function') {
+                    showNotification(PatchUpdate.i18n.genericError || 'Request failed. Please try again.', 'error');
+                }
+                resolve(false);
                 return;
             }
 

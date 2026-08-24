@@ -50,3 +50,4 @@ if ($patchCount === 1) {
     </div>
 </div>
 <?php include __DIR__ . '/_modal.php'; ?>
+<?php include __DIR__ . '/_confirm_dialog.php'; ?>

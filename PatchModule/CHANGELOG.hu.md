@@ -5,6 +5,28 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.7.4] - 2026-08-24
+
+| Kategória | Leírás |
+|-----------|--------|
+| Hozzáadva | A `_confirm_dialog.php` partial mostantól a `_banner.php`-ból is betöltődik, így a stílusozott megerősítő ablak csak-banner render kontextusban is elérhető |
+| Módosítva | A `confirmDialog()` mostantól zárt hibaállapotba esik (megszakítottként oldódik fel + hibaértesítést mutat), a böngésző natív `window.confirm()`-jére való visszaesés helyett, ha a dialógus partial hiányzik az oldalról |
+| Javítva   | A frissítés-ellenőrző fetch mostantól a modul közös, hibakezelő válaszfeldolgozóján keresztül dolgozza fel a `/details` választ, egy csupasz `.json()` hívás helyett |
+| Javítva   | A csendben elnyelt progress-poll fetch hibák mostantól konzolba naplózódnak a diagnosztizálhatóság érdekében |
+
+### Hozzáadva
+
+- **A `_banner.php` mostantól betölti a `_confirm_dialog.php`-t** — ezzel megszűnik az a hiány, ami miatt a natív `confirm()` visszaesésre szükség volt csak-banner render kontextusban.
+
+### Módosítva
+
+- **A `confirmDialog()` zárt hibaállapotba esik natív `confirm()`-re visszaesés helyett** — ha a `#patchConfirmDialog` hiányzik az oldalról (pl. egy olyan kontextusban, ahol csak a `_banner.php` renderelődik), a promise mostantól `false`-ra oldódik fel (mint a felhasználói megszakításnál) és hibaértesítést mutat, ahelyett hogy csendben visszaesne a `window.confirm()`-re, amit az alkalmazás egyébként sehol sem használ (#478/#480).
+
+### Javítva
+
+- **A `/details` fetch mostantól a `parseResponse`-on keresztül fut** — a frissítés-ellenőrző kérés eddig egy csupasz `.then(r => r.json())`-t használt a fájl többi részében következetesen alkalmazott közös `parseResponse` segédfüggvény helyett, így egy nem-2xx vagy hibás válasz kezeletlen feldolgozási hibaként jelent meg a szabványos `{ok, data, errorMessage}` alak és a felhasználó felé mutatott értesítés helyett.
+- **A progress-poll hibák mostantól naplózódnak** — a `pollOnce()` catch ága eddig csendben elnyelte a fetch hibákat, diagnosztikai nyom nélkül; mostantól `console.error`-ral naplózza a hibát, mielőtt folytatná (maga a poll továbbra sem kritikus — a mérvadó telepítési eredményt továbbra is az install-result POST adja) (#478/#480).
+
 ## [2.7.3] - 2026-08-23
 
 | Kategória | Leírás |

@@ -5,6 +5,28 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.4] - 2026-08-24
+
+| Category | Description |
+|----------|-------------|
+| Added    | `_confirm_dialog.php` partial is now included from `_banner.php` so the styled confirmation dialog is available in banner-only render contexts |
+| Changed  | `confirmDialog()` fails closed (resolves cancelled + shows an error notification) instead of falling back to the browser's native `window.confirm()` when the dialog partial is missing from the page |
+| Fixed    | Update-check fetch now parses the `/details` response through the module's shared error-aware parser instead of a bare `.json()` call |
+| Fixed    | Silent progress-poll fetch failures are now logged to the console for diagnosability |
+
+### Added
+
+- **`_banner.php` now includes `_confirm_dialog.php`** — closes the gap that made the native-`confirm()` fallback necessary in banner-only render contexts in the first place.
+
+### Changed
+
+- **`confirmDialog()` fails closed instead of falling back to native `confirm()`** — if `#patchConfirmDialog` is missing from the page (e.g. a context that renders only `_banner.php`), the promise now resolves `false` (same as user-cancelled) and shows an error notification, instead of silently falling back to `window.confirm()`, which this app never otherwise uses (#478/#480).
+
+### Fixed
+
+- **`/details` fetch now goes through `parseResponse`** — the update-check request used a bare `.then(r => r.json())` instead of the module's shared `parseResponse` helper used everywhere else in the file, so a non-2xx or malformed response surfaced as an unhandled parse error instead of the standard `{ok, data, errorMessage}` shape with a user-facing notification.
+- **Progress-poll failures are now logged** — `pollOnce()`'s catch handler silently swallowed fetch errors with no diagnostic trail; it now logs the error via `console.error` before continuing (the poll itself stays non-fatal — the authoritative install result still comes from the install-result POST) (#478/#480).
+
 ## [2.7.3] - 2026-08-23
 
 | Category | Description |
