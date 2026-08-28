@@ -125,7 +125,7 @@ class MysqldumpBackupAdapter implements BackupAdapterInterface
             escapeshellarg($this->dbUser),
             escapeshellarg($this->dbPass),
             escapeshellarg($this->dbName),
-            $stderrFile,
+            escapeshellarg($stderrFile),
             escapeshellarg($filePath)
         );
 
@@ -203,14 +203,14 @@ class MysqldumpBackupAdapter implements BackupAdapterInterface
         $command = sprintf(
             'bash -c "set -o pipefail; gunzip -c %s 2>%s | %s --host=%s --port=%s --user=%s --password=%s %s 2>>%s"',
             escapeshellarg($filePath),
-            $stderrFile,
+            escapeshellarg($stderrFile),
             $this->clientBinary,
             escapeshellarg($this->dbHost),
             escapeshellarg((string)$this->dbPort),
             escapeshellarg($this->dbUser),
             escapeshellarg($this->dbPass),
             escapeshellarg($this->dbName),
-            $stderrFile
+            escapeshellarg($stderrFile)
         );
 
         $output     = [];

@@ -5,6 +5,16 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.5] - 2026-08-28
+
+| Category | Description |
+|----------|-------------|
+| Security | Backup/restore stderr temp-file path is now shell-escaped, closing a defense-in-depth gap in `MysqldumpBackupAdapter` |
+
+### Security
+
+- **`MysqldumpBackupAdapter` now escapes the stderr redirect target** — `createBackup()` and `restoreDatabase()` built their shell command with every argument passed through `escapeshellarg()` except the stderr temp-file path, which was interpolated raw into the `2>`/`2>>` redirection. In practice that path comes from PHP's own `tempnam(sys_get_temp_dir(), ...)`, not user input, so this was not exploitable through any current call site — but it broke the "every shell argument is escaped" invariant the surrounding code comments claimed, and cost nothing to close. Found by an automated security review of a downstream integration (LicenseManager).
+
 ## [2.7.4] - 2026-08-24
 
 | Category | Description |
