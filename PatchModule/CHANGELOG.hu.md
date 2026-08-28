@@ -5,6 +5,16 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.7.5] - 2026-08-28
+
+| Kategória | Leírás |
+|-----------|--------|
+| Biztonság | A backup/restore stderr ideiglenes fájl útvonala mostantól shell-escape-elt, ezzel lezárva egy defense-in-depth rést a `MysqldumpBackupAdapter`-ben |
+
+### Biztonság
+
+- **A `MysqldumpBackupAdapter` mostantól a stderr átirányítás célját is escape-eli** — a `createBackup()` és a `restoreDatabase()` a shell parancsot úgy építette fel, hogy minden argumentumot `escapeshellarg()`-on vezetett át, kivéve a stderr ideiglenes fájl útvonalát, amely nyersen került be a `2>`/`2>>` átirányításba. A gyakorlatban ez az útvonal PHP saját `tempnam(sys_get_temp_dir(), ...)` hívásából származik, nem felhasználói bemenetből, így egyetlen jelenlegi hívási ponton keresztül sem volt kihasználható — de megsértette a környező kódkommentek által állított "minden shell argumentum escape-elt" invariánst, és ingyen volt lezárható. Egy downstream integráció (LicenseManager) automatizált biztonsági átvizsgálása találta.
+
 ## [2.7.4] - 2026-08-24
 
 | Kategória | Leírás |
