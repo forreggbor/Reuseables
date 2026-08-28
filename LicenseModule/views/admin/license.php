@@ -8,7 +8,7 @@
  *   $license           — raw DB row array or null
  *   $status            — current license status string
  *   $tier              — array {slug, name, level, description} or null
- *   $addons            — array of addon rows {feature_key, name, slug, description}
+ *   $addons            — array of addon rows {feature_key, name, description}
  *   $featureKeys       — array of feature keys resolved by the license server (tier + addons combined)
  *   $isLegacy          — true only for a genuine legacy/no-tier-data license (the historical
  *                        ['all'] sentinel) — distinct from a valid tier-less license with

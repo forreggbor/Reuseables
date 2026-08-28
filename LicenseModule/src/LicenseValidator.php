@@ -229,7 +229,6 @@ class LicenseValidator
             $addons[] = [
                 'feature_key' => $addon['feature_key'] ?? null,
                 'name' => $addon['name'] ?? null,
-                'slug' => $addon['slug'] ?? null,
                 'description' => $addon['description'] ?? null,
             ];
         }

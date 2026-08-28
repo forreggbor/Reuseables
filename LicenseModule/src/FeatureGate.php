@@ -47,10 +47,10 @@ class FeatureGate
     /**
      * Get full addon rows from the license data
      *
-     * Returns each addon as an associative array with feature_key, name, slug, and description.
+     * Returns each addon as an associative array with feature_key, name, and description.
      * Returns an empty array for a legacy license.
      *
-     * @return array<int, array{feature_key: string, name: string, slug: string, description: string|null}>
+     * @return array<int, array{feature_key: string, name: string, description: string|null}>
      */
     public function getAddons(): array
     {

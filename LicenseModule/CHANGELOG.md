@@ -5,6 +5,19 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-08-28
+
+| Category | Description                                                                                   |
+|----------|------------------------------------------------------------------------------------------------|
+| Removed  | Add-on rows no longer carry a `slug` field — the `feature_key` is the only supported identifier |
+
+### Removed
+
+- **Add-on `slug` field removed** from `getAddons()`/`getEnabledAddons()` rows and the underlying
+  response parsing. Add-on identification has always been `feature_key`-only; `slug` was an unused
+  leftover from an earlier design. Confirmed unused across every host project before removal
+  (closes #28)
+
 ## [2.1.0] - 2026-08-28
 
 | Category | Description                                                                                   |

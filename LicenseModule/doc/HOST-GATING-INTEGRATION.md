@@ -104,7 +104,7 @@ never by leaving the license's data empty.
 | `requireTierLevel(int $minLevel)` | `bool` | Pure predicate — see below. |
 | `hasAddon(string $addonKey)` | `bool` | Checks the addon list — see "hasFeature vs hasAddon" above. |
 | `getEnabledAddons()` | `string[]` | Enabled addon feature keys. |
-| `getAddons()` | `array` of `{feature_key,name,slug,description}` | Full addon rows, for display. |
+| `getAddons()` | `array` of `{feature_key,name,description}` | Full addon rows, for display. |
 | `getFeatureKeys()` | `string[]` | The authoritative flat enabled-feature set. |
 | `hasFeature(string $key)` | `bool` | General-purpose gating — see above. |
 | `getPackage()` | `?array{id,name,slug}` | API-only; not shown on the admin page. The server's `tier_inheritance` field (see "Two license modes" above) is not currently parsed into this array. |

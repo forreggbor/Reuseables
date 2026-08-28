@@ -176,7 +176,7 @@ if ($license->hasAddon('analytics')) {
     // Show analytics features
 }
 $addonKeys = $license->getEnabledAddons();  // ['analytics', 'mailchimp']
-$addonRows = $license->getAddons();         // full rows: feature_key, name, slug, description
+$addonRows = $license->getAddons();         // full rows: feature_key, name, description
 
 // Full addon catalog for the license's package — every addon available in that
 // package (not just the enabled ones), for upsell/marketing UI. No slug; feature_key
@@ -461,7 +461,6 @@ The module expects the license server to return responses in this format:
       {
         "feature_key": "analytics",
         "name": "Advanced Analytics",
-        "slug": "analytics",
         "description": "Tracking and reporting"
       }
     ],

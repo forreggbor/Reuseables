@@ -404,9 +404,9 @@ class LicenseModule
 
     /**
      * Get full addon rows enabled by this license.
-     * Each row: feature_key, name, slug, description.
+     * Each row: feature_key, name, description.
      *
-     * @return array<int, array{feature_key: string, name: string, slug: string, description: string|null}>
+     * @return array<int, array{feature_key: string, name: string, description: string|null}>
      */
     public function getAddons(): array
     {
