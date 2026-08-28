@@ -5,6 +5,21 @@ All notable changes to UiKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.00.01] - 2026-08-28
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Changed  | Popover component now ships its own visual styling instead of relying on host-loaded Bootstrap CSS |
+| Added    | Popover supports `data-bs-custom-class` to scope extra CSS to specific popovers |
+
+### Changed
+- `.popover`/`.popover-header`/`.popover-body` in `uikit.css` now carry their own background, border, shadow, and typography, matching `ui-tooltip.js`/`ui-dialog.js` — a host is no longer required to have Bootstrap CSS loaded for the popover to render correctly.
+
+### Added
+- `ui-popover.js` now reads `data-bs-custom-class` (Bootstrap Popover's own convention) and appends it to the panel's class list, letting a caller scope its own CSS to just its own popovers.
+
 ## [1.00.00] - 2026-08-20
 
 ### Summary

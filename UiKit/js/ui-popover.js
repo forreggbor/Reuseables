@@ -4,9 +4,9 @@
  * `UiKit.popover.show(el)` / `.hide(el)` / `.toggle(el)` — a single shared
  * floating panel (like ui-tooltip.js) built with the same DOM structure
  * Bootstrap Popover uses (`.popover` > `.popover-arrow` + `.popover-header`
- * + `.popover-body`), so Bootstrap's own CSS (still loaded — removed in a
- * later step of the host project's Bootstrap-removal work) continues to
- * style it with zero visual change, exactly like ui-dropdown.js/ui-tabs.js.
+ * + `.popover-body`); `uikit.css` ships this component's own visual styling
+ * (background/border/shadow) so it renders correctly with no host CSS
+ * dependency, exactly like ui-tooltip.js/ui-dialog.js.
  *
  * Content source, read fresh on every `show()` call (so updating
  * `data-bs-content` between calls — e.g. a "loading…" placeholder replaced
@@ -26,6 +26,12 @@
  *                                   mode and stays responsible for only
  *                                   passing trusted markup once it does.
  *   `data-bs-placement`          → top/bottom/left/right, default top
+ *   `data-bs-custom-class`       → extra class appended to the panel, so a
+ *                                   caller can scope its own CSS to just its
+ *                                   own popovers (Bootstrap Popover's own
+ *                                   convention; e.g. the host's field-help
+ *                                   popover uses it for a `white-space:
+ *                                   pre-line` rule on `.popover-body`).
  *
  * Two trigger modes are supported, matching each real caller in the host
  * codebase exactly:
@@ -124,6 +130,7 @@
         var titleText = trigger.getAttribute('title') || trigger.getAttribute('data-bs-original-title') || '';
         var content = trigger.getAttribute('data-bs-content') || '';
         var placement = trigger.getAttribute('data-bs-placement') || 'top';
+        var customClass = trigger.getAttribute('data-bs-custom-class') || '';
 
         innerHeader.textContent = titleText;
         innerHeader.style.display = titleText ? '' : 'none';
@@ -133,7 +140,7 @@
             innerBody.textContent = content;
         }
 
-        popoverEl.className = 'popover bs-popover-auto uik-popover--' + placement;
+        popoverEl.className = 'popover bs-popover-auto uik-popover--' + placement + (customClass ? ' ' + customClass : '');
         popoverEl.style.display = 'block';
         currentTrigger = trigger;
         trigger.setAttribute('aria-describedby', 'uik-popover');

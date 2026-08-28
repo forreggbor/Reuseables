@@ -396,10 +396,15 @@
 }
 
 /* ===== Popover =====
-   Structural rules only — visual .popover/.popover-header/.popover-body
-   styling currently comes from Bootstrap CSS (still loaded); see
-   ui-popover.js's docblock. Same DOM structure Bootstrap Popover uses, so
-   that CSS applies unmodified. */
+   Self-contained visual styling — a host is not guaranteed to have Bootstrap
+   (or any other) CSS loaded that would otherwise style the `.popover`/
+   `.popover-header`/`.popover-body` DOM ui-popover.js builds, so (like
+   `.uik-tooltip__inner`/`.modal-content` above) this component ships its own.
+   No arrow: `.popover-arrow` stays in the DOM for callers relying on the
+   Bootstrap Popover structure, but is left unstyled on purpose — matches
+   `0_test/test.html`'s own reference rendering, and `position()`'s plain
+   edge-clamping (no Popper flip/collision detection) would misalign a
+   center-anchored arrow whenever the panel gets shifted off its trigger. */
 
 .popover {
     position: absolute;
@@ -408,6 +413,30 @@
     z-index: var(--uik-popover-z-index, 1070);
     display: none;
     max-width: 276px;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    font-family: inherit;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    text-align: left;
+    word-wrap: break-word;
+}
+
+.popover-header {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    background: #f0f2f5;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 7px 7px 0 0;
+}
+
+.popover-body {
+    padding: 0.5rem 0.75rem;
+    color: #212529;
 }
 
 /* ===== Offcanvas =====
