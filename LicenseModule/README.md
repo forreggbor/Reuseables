@@ -178,6 +178,14 @@ if ($license->hasAddon('analytics')) {
 $addonKeys = $license->getEnabledAddons();  // ['analytics', 'mailchimp']
 $addonRows = $license->getAddons();         // full rows: feature_key, name, slug, description
 
+// Full addon catalog for the license's package — every addon available in that
+// package (not just the enabled ones), for upsell/marketing UI. No slug; feature_key
+// is the identifier.
+$catalog = $license->getAddonCatalog();
+// [['feature_key' => 'seo', 'name' => 'SEO Tools', 'description' => '...', 'price' => 19.99,
+//   'price_currency' => 'EUR', 'billing_period' => 'monthly', 'requires_tier_level' => 3,
+//   'status' => 'active', 'sort_order' => 1, 'activated' => false, 'tier_eligible' => true], ...]
+
 // Package information, if the license has one (API-only — renderAdminPage() does
 // not currently display it)
 $package = $license->getPackage();  // ['id' => 1, 'name' => 'Pro Suite', 'slug' => 'pro-suite'] or null

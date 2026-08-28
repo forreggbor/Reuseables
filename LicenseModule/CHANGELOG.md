@@ -5,6 +5,19 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-08-28
+
+| Category | Description                                                                                   |
+|----------|------------------------------------------------------------------------------------------------|
+| Added    | New way for projects to read the full list of add-ons available for a license's package, for upsell/marketing use |
+
+### Added
+
+- `getAddonCatalog()` on the main module and its underlying feature-gating layer: returns every
+  add-on available in the license's package (not just the currently enabled ones), including
+  name, description, price, billing period, and required tier level — useful for showing upsell
+  options for add-ons a customer hasn't activated yet
+
 ## [2.0.1] - 2026-07-13
 
 | Category | Description                                                                          |

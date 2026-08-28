@@ -64,6 +64,28 @@ class FeatureGate
     }
 
     /**
+     * Get the full addon catalog for the license's package — every addon
+     * available in that package, not just the ones currently activated.
+     * Returns an empty array for a legacy license or when the server sent
+     * no catalog data.
+     *
+     * @return array<int, array{feature_key: string, name: string, description: string|null,
+     *                          price: mixed, price_currency: string|null, billing_period: string|null,
+     *                          requires_tier_level: int|null, status: string|null, sort_order: mixed,
+     *                          activated: bool, tier_eligible: bool}>
+     */
+    public function getAddonCatalog(): array
+    {
+        $license = $this->getLicenseData();
+
+        if ($license === null) {
+            return [];
+        }
+
+        return $license['addon_catalog'] ?? [];
+    }
+
+    /**
      * Get the flat list of enabled feature keys resolved by the license server
      *
      * This is the authoritative enabled-feature set: the server has already merged
@@ -412,7 +434,7 @@ class FeatureGate
      * The fetch is attempted only once per request even on failure, so a
      * persistent outage doesn't retry the failing call on every gating check.
      *
-     * @return array{tier: array|null, addons: array, feature_keys: array, package: array|null}|null
+     * @return array{tier: array|null, addons: array, feature_keys: array, package: array|null, addon_catalog: array}|null
      */
     private function getLicenseData(): ?array
     {
@@ -424,10 +446,11 @@ class FeatureGate
             }
 
             $this->licenseCache = $features === null ? null : [
-                'tier'         => $features['tier'] ?? null,
-                'addons'       => $features['addons'] ?? [],
-                'feature_keys' => $features['feature_keys'] ?? [],
-                'package'      => $features['package'] ?? null,
+                'tier'          => $features['tier'] ?? null,
+                'addons'        => $features['addons'] ?? [],
+                'feature_keys'  => $features['feature_keys'] ?? [],
+                'package'       => $features['package'] ?? null,
+                'addon_catalog' => $features['addon_catalog'] ?? [],
             ];
             $this->licenseFetched = true;
         }

@@ -237,6 +237,26 @@ class LicenseValidator
         // Parse feature keys
         $featureKeys = $result['data']['features'] ?? [];
 
+        // Parse addon catalog (all addons in the license's package, not just enabled ones)
+        $rawAddonCatalog = $result['data']['addon_catalog'] ?? [];
+        $addonCatalog = [];
+
+        foreach ($rawAddonCatalog as $catalogAddon) {
+            $addonCatalog[] = [
+                'feature_key' => $catalogAddon['feature_key'] ?? null,
+                'name' => $catalogAddon['name'] ?? null,
+                'description' => $catalogAddon['description'] ?? null,
+                'price' => $catalogAddon['price'] ?? null,
+                'price_currency' => $catalogAddon['price_currency'] ?? null,
+                'billing_period' => $catalogAddon['billing_period'] ?? null,
+                'requires_tier_level' => $catalogAddon['requires_tier_level'] ?? null,
+                'status' => $catalogAddon['status'] ?? null,
+                'sort_order' => $catalogAddon['sort_order'] ?? null,
+                'activated' => (bool) ($catalogAddon['activated'] ?? false),
+                'tier_eligible' => (bool) ($catalogAddon['tier_eligible'] ?? false),
+            ];
+        }
+
         // Build features structure
         if ($tier !== null || $package !== null) {
             $features = [
@@ -244,6 +264,7 @@ class LicenseValidator
                 'tier' => $tier,
                 'addons' => $addons,
                 'feature_keys' => $featureKeys,
+                'addon_catalog' => $addonCatalog,
             ];
         } else {
             $features = ['all'];

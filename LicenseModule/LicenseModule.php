@@ -414,6 +414,20 @@ class LicenseModule
     }
 
     /**
+     * Get the full addon catalog for the license's package — every addon
+     * available in that package, not just the ones currently activated.
+     *
+     * @return array<int, array{feature_key: string, name: string, description: string|null,
+     *                          price: mixed, price_currency: string|null, billing_period: string|null,
+     *                          requires_tier_level: int|null, status: string|null, sort_order: mixed,
+     *                          activated: bool, tier_eligible: bool}>
+     */
+    public function getAddonCatalog(): array
+    {
+        return $this->featureGate->getAddonCatalog();
+    }
+
+    /**
      * Get the flat list of enabled feature keys resolved by the license server.
      * The authoritative enabled-feature set: covers both tier-granted and
      * addon-granted feature keys. General-purpose gating should check this
@@ -753,7 +767,7 @@ class LicenseModule
      *   2. shape recognition (the legacy/malformed gate — {@see isRecognizedFeatureFormat()})
      *   3. field diagnostics on an already-recognized payload — {@see validateFeatureFields()})
      *
-     * @return array{tier: array|null, addons: array, feature_keys: array, package: array|null}|null
+     * @return array{tier: array|null, addons: array, feature_keys: array, package: array|null, addon_catalog: array}|null
      *         Structured features, or null for a legacy/unrestricted license
      */
     private function getParsedFeatures(): ?array
@@ -791,6 +805,7 @@ class LicenseModule
             'addons' => $features['addons'] ?? [],
             'feature_keys' => $features['feature_keys'] ?? [],
             'package' => $features['package'] ?? null,
+            'addon_catalog' => $features['addon_catalog'] ?? [],
         ];
     }
 
