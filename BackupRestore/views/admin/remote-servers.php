@@ -5,6 +5,7 @@
  * @var callable $t          Translator: function(string $key, array $params = []): string
  * @var string   $baseUrl    Module mount path, no trailing slash
  * @var string   $csrfToken  CSRF token for the host's forms
+ * @var string   $nonce      CSP nonce for inline <script> tags (empty string if the host has no CSP nonce)
  * @var array<int,object> $servers  RemoteService::getAll() (credentials excluded)
  */
 
@@ -19,14 +20,14 @@ foreach ([
 }
 ?>
 <div class="br-root">
-    <script>
+    <script nonce="<?= htmlspecialchars($nonce ?? '', ENT_QUOTES) ?>">
         window.BackupRestoreConfig = {
             baseUrl: <?= json_encode($baseUrl) ?>,
             csrfToken: <?= json_encode($csrfToken) ?>,
             i18n: <?= json_encode($i18nForJs, JSON_UNESCAPED_UNICODE) ?>
         };
     </script>
-    <script>document.addEventListener('DOMContentLoaded', function () {
+    <script nonce="<?= htmlspecialchars($nonce ?? '', ENT_QUOTES) ?>">document.addEventListener('DOMContentLoaded', function () {
             BackupRestoreUI.setServersData(<?= json_encode($servers, JSON_UNESCAPED_UNICODE) ?>);
         });</script>
 

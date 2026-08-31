@@ -6,6 +6,7 @@
  * @var callable $t            Translator: function(string $key, array $params = []): string
  * @var string   $baseUrl      Module mount path, no trailing slash (e.g. '/admin/settings/backup-restore')
  * @var string   $csrfToken    CSRF token for the host's forms
+ * @var string   $nonce        CSP nonce for inline <script> tags (empty string if the host has no CSP nonce)
  * @var string   $dbName       Target database name, for the restore confirmation step
  * @var array    $stats        BackupEngine::getStats()
  * @var array    $diskSpace    BackupEngine::getDiskSpaceInfo()
@@ -57,7 +58,7 @@ foreach ([
 }
 ?>
 <div class="br-root">
-    <script>
+    <script nonce="<?= htmlspecialchars($nonce ?? '', ENT_QUOTES) ?>">
         window.BackupRestoreConfig = {
             baseUrl: <?= json_encode($baseUrl) ?>,
             csrfToken: <?= json_encode($csrfToken) ?>,

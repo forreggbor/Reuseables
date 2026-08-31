@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-08-31
+
+| Category | Description |
+|----------|--------------|
+| Added    | Admin views now support a CSP nonce for their inline `<script>` tags |
+
+### Added
+- The `index`, `profiles`, and `remote-servers` admin views now accept an optional `$nonce` value and apply it to every inline `<script>` tag, so hosts enforcing a nonce-based Content-Security-Policy can allow these scripts without weakening the policy.
+
 ## [0.1.3] - 2026-08-03
 
 | Category | Description |

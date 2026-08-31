@@ -5,6 +5,15 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.2.0] - 2026-08-31
+
+| Kategória | Leírás |
+|-----------|--------|
+| Új        | Az admin nézetek mostantól CSP nonce-ot is támogatnak a beágyazott `<script>` tageken |
+
+### Új
+- Az `index`, `profiles` és `remote-servers` admin nézetek mostantól elfogadnak egy opcionális `$nonce` értéket, és minden beágyazott `<script>` tagre alkalmazzák, így a nonce-alapú Content-Security-Policy-t érvényesítő hosztok anélkül engedélyezhetik ezeket a szkripteket, hogy gyengíteniük kellene a policyt.
+
 ## [0.1.3] - 2026-08-03
 
 | Kategória | Leírás |
