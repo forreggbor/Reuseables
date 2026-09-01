@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit — shared core.
  * @version 1.00.02
  *

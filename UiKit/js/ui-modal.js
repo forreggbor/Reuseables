@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit modal.
  *
  * `UiKit.Modal` is a drop-in-compatible replacement for `bootstrap.Modal`:

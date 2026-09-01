@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit tooltip.
  *
  * Self-initializing on load — no explicit init call needed. Uses a single

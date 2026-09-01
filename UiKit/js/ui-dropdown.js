@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit dropdown.
  *
  * Self-initializing, single delegated `click` listener — no per-element

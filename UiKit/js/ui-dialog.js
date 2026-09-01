@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit confirm dialog.
  *
  * `UiKit.confirm({ message, onConfirm, title, confirmText, cancelText, danger,

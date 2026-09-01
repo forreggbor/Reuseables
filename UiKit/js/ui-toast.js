@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit toast notification.
  *
  * `UiKit.toast(message, type)` shows a single, auto-dismissing, dismissible

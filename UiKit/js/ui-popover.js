@@ -1,4 +1,6 @@
 /**
+ * Copyright (C) 2026 PatrikMol Solutions Kft. All rights reserved.
+ *
  * UiKit popover.
  *
  * `UiKit.popover.show(el)` / `.hide(el)` / `.toggle(el)` — a single shared
