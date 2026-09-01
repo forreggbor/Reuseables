@@ -64,6 +64,37 @@
  * ownership and call `stopImmediatePropagation()` — too late to undo an
  * open that already happened, producing two stacked backdrops.
  *
+ * IMPORTANT — never attach a separate `click` listener to a
+ * `data-bs-toggle="modal"` trigger element to read its `data-*` attributes
+ * (e.g. to pre-populate an edit form from the clicked row). The capture-phase
+ * interceptor above calls `stopImmediatePropagation()` on that same click,
+ * and since capture-phase listeners on `document` (an ancestor) always run
+ * *before* the event ever reaches the target element, `stopImmediatePropagation()`
+ * there prevents the event from reaching ANY listener on the trigger itself —
+ * including the host application's own, not just Bootstrap's. This is not a
+ * UiKit-specific defect: genuine `bootstrap.Modal` has the identical
+ * capture-phase interceptor (confirmed by reading Bootstrap 5.3.0's own
+ * source) and traps a co-located click listener the same way. A real
+ * instance of this trap: an "edit" button using `data-bs-toggle="modal"`
+ * plus its own `btn.addEventListener('click', ...)` to copy `data-id`/
+ * `data-name`/etc. into the modal's form fields — the listener silently
+ * never fires, and the form opens empty every time.
+ *
+ * The correct, already-supported fix: read the triggering element from the
+ * modal's own `show.bs.modal` event instead, via `event.relatedTarget`
+ * (`Modal.prototype.show(relatedTarget)` below sets it, exactly matching
+ * Bootstrap's own documented `relatedTarget` convention):
+ *
+ *     document.getElementById('edit-modal').addEventListener('show.bs.modal', function (e) {
+ *         var btn = e.relatedTarget;
+ *         document.getElementById('edit-id').value = btn.getAttribute('data-id');
+ *         // ...
+ *     });
+ *
+ * This fires exactly once per open, from any trigger, without competing
+ * with the interceptor above — the modal element itself is never the
+ * click target the interceptor stops propagation to.
+ *
  * Known simplification, stated up front: no scrollbar-width compensation on
  * fixed-position elements (Bootstrap's `.fixed-top`/`.sticky-top` margin
  * adjustment) — only `<body>` itself gets the padding-right compensation.
@@ -107,8 +138,19 @@
         }
     }
 
+    // `detail`'s keys (e.g. `relatedTarget`) are copied onto the event
+    // itself, not just left under `.detail` — real bootstrap.Modal exposes
+    // `event.relatedTarget` as a top-level property (its own EventHandler.trigger()
+    // assigns event properties directly, it doesn't use CustomEvent's `detail`
+    // bucket at all), and every consumer follows that documented convention.
+    // `.detail` is kept too, so nothing that happened to read it breaks.
     function fire(el, name, detail) {
         var evt = new CustomEvent(name, { bubbles: true, cancelable: true, detail: detail || {} });
+        if (detail) {
+            Object.keys(detail).forEach(function (key) {
+                evt[key] = detail[key];
+            });
+        }
         el.dispatchEvent(evt);
         return evt;
     }

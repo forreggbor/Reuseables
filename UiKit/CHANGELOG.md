@@ -5,6 +5,21 @@ All notable changes to UiKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.00.02] - 2026-09-01
+
+### Summary
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | `ui-modal.js`'s `show.bs.modal`/`shown.bs.modal`/`hide.bs.modal`/`hidden.bs.modal`/`hidePrevented.bs.modal` events now expose `relatedTarget` (and any other passed detail key) as a top-level event property, matching real `bootstrap.Modal`'s documented behavior |
+| Changed  | `ui-modal.js` docblock now explicitly warns against attaching a separate click listener to a `data-bs-toggle="modal"` trigger, and documents the correct `show.bs.modal`/`relatedTarget` integration pattern |
+
+### Fixed
+- `ui-modal.js`'s internal `fire()` helper only stored a dispatched event's extra data under `event.detail`, never as a top-level property — so `event.relatedTarget` (the documented, Bootstrap-compatible way to read which element triggered a modal) was always `undefined`, even though the docblock already claimed full event compatibility. `fire()` now copies every key from `detail` onto the event object itself as well, so `event.relatedTarget` works exactly as real `bootstrap.Modal` documents it. `event.detail` is left in place too, so this is purely additive — nothing could have been relying on the old (broken) behavior, since it never worked. Found while diagnosing a TFL-ERP admin-edit modal that opened empty; root-caused with a live in-page script trace before assuming the fix and confirming it end to end. Scope: `ui-modal.js`'s `fire()` only — the other components' own `fire(el, name)` (`ui-collapse.js`/`ui-tabs.js`/`ui-offcanvas.js`) take no `detail` argument at all and don't have this defect, but a similar check would be worth doing in any project that customized those independently.
+
+### Changed
+- `ui-modal.js`: added a docblock section documenting a real integration trap found in a consuming project (TFL-ERP) — a trigger button's own `click` listener never fires because the capture-phase interceptor's `stopImmediatePropagation()` stops the event before it reaches the target. `relatedTarget` on `show.bs.modal` is the documented fix for hosts that need to read the triggering element's data (see the Fixed entry above for why this previously silently failed too).
+
 ## [1.00.01] - 2026-08-28
 
 ### Summary
