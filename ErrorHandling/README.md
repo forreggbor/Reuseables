@@ -76,6 +76,13 @@ ErrorHandler::init([
     'on_fatal' => function (array $error): void {
         MyErrorPage::render($error);
     },
+
+    // Called on every write; its return value is merged into $context so
+    // every log line — including ones written by the handlers below,
+    // which call log() directly — carries the same correlation id
+    'context_provider' => function (): array {
+        return ['request_id' => MyRequestContext::id()];
+    },
 ]);
 ```
 
@@ -90,6 +97,7 @@ ErrorHandler::init([
 | `include_trace` | bool | `false` | Include stack trace for exceptions |
 | `permissions` | int | `0750` | Directory permissions on creation |
 | `on_fatal` | callable | `null` | `function(array $error): void` invoked by the shutdown handler after a fatal error is logged (e.g. to render an error page); never called during CLI runs |
+| `context_provider` | callable | `null` | `function(): array<string,mixed>` invoked on every write; its return value is merged into `$context` (the caller's own `$context` wins on key collision) before logging. Use it to attach a correlation id (e.g. a request id) to every log line, including ones written directly by `registerErrorHandler()`/`registerExceptionHandler()`/`registerShutdownHandler()`. A `Throwable` from the callback is swallowed — a broken provider never blocks logging. |
 
 ### Log Levels
 

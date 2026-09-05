@@ -5,6 +5,23 @@ All notable changes to ErrorHandler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-03
+
+| Category | Description                                                                    |
+|----------|----------------------------------------------------------------------------------|
+| Added    | `context_provider` hook to merge caller-supplied context (e.g. a request id) into every log line |
+
+### Added
+
+- `context_provider` configuration option — a `callable(): array<string,mixed>` invoked on every
+  write, merged into `$context` ahead of the caller's own context so an explicit key always wins
+  on collision. Lets a host application correlate log lines from `registerErrorHandler()`/
+  `registerExceptionHandler()`/`registerShutdownHandler()` (which call `log()` directly, bypassing
+  any request-id wrapper the host may have) with the rest of a request's log lines. A failure
+  inside the callback is swallowed, mirroring `on_fatal` — a broken provider can never block
+  logging. `null` (the default) preserves the prior behaviour exactly: no extra context is added,
+  zero behaviour change for existing consumers that do not set this key.
+
 ## [1.2.1] - 2026-08-01
 
 | Category | Description                                                                    |

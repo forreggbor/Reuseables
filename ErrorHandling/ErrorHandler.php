@@ -17,7 +17,7 @@ namespace ErrorHandling;
  * file logging, and optional PHP error/exception handler registration.
  *
  * @package ErrorHandling
- * @version 1.2.1
+ * @version 1.3.0
  * @license MIT
  */
 class ErrorHandler
@@ -66,6 +66,12 @@ class ErrorHandler
         // fatal error has been logged, so the application can emit an error page
         // instead of a blank response; null preserves the log-only behaviour
         'on_fatal' => null,
+        // callable(): array<string,mixed> — invoked on every write to supply
+        // extra context (e.g. a request id) merged into $context before it is
+        // logged; a Throwable from the callback is swallowed so a broken
+        // provider can never block logging; null preserves the prior behaviour
+        // (no extra context added)
+        'context_provider' => null,
     ];
 
     /**
@@ -111,6 +117,11 @@ class ErrorHandler
      *   - on_fatal: callable(array $error): void invoked by the shutdown handler
      *     after a fatal error is logged (e.g. to render an error page); null
      *     (default) keeps the log-only behaviour
+     *   - context_provider: callable(): array<string,mixed> invoked on every
+     *     write to supply extra context (e.g. a request id) merged into
+     *     $context before it is logged; a Throwable from the callback is
+     *     swallowed so a broken provider can never block logging; null
+     *     (default) adds no extra context
      * @return void
      */
     public static function init(array $config = []): void
@@ -464,6 +475,21 @@ class ErrorHandler
 
         // Neutralize log injection / credential leakage before formatting
         $message = self::sanitizeMessage($message);
+
+        // Merge in provider-supplied context (e.g. a request id) ahead of the
+        // caller's own $context, so an explicit key always wins on collision.
+        // A failing provider must never block logging.
+        $provider = $config['context_provider'] ?? null;
+        if (is_callable($provider)) {
+            try {
+                $providerContext = $provider();
+                if (is_array($providerContext)) {
+                    $context = array_merge($providerContext, $context);
+                }
+            } catch (\Throwable) {
+                // Swallow — a broken context provider is not this write's problem.
+            }
+        }
 
         // Format timestamp
         $timestamp = date($config['date_format']);
