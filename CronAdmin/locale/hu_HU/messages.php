@@ -31,6 +31,7 @@ return [
     'TEXT_CRON_EMAIL_REPORT_SUBJECT'                 => 'Cron feladat {label}: {status}',
     'TEXT_CRON_ENABLED'                              => 'Engedélyezve',
     'TEXT_CRON_EVERY_N_MINUTES'                      => 'Minden {n}. percben',
+    'TEXT_CRON_ERROR_GENERIC'                        => 'Általános hiba',
     'TEXT_CRON_FREQUENCY'                            => 'Ütemezés',
     'TEXT_CRON_FREQUENCY_DAILY'                      => 'Naponta',
     'TEXT_CRON_FREQUENCY_EVERY_N_MINUTES'            => 'Minden N percben',

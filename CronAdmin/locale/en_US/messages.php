@@ -31,6 +31,7 @@ return [
     'TEXT_CRON_EMAIL_REPORT_SUBJECT'                 => 'Cron job {label}: {status}',
     'TEXT_CRON_ENABLED'                              => 'Enabled',
     'TEXT_CRON_EVERY_N_MINUTES'                      => 'Every {n} minutes',
+    'TEXT_CRON_ERROR_GENERIC'                        => 'Generic error',
     'TEXT_CRON_FREQUENCY'                            => 'Frequency',
     'TEXT_CRON_FREQUENCY_DAILY'                      => 'Daily',
     'TEXT_CRON_FREQUENCY_EVERY_N_MINUTES'            => 'Every N minutes',

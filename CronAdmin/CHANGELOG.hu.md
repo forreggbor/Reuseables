@@ -6,6 +6,18 @@ Formátum: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + Szemantiku
 
 ---
 
+## 1.3.1 — 2026-09-05
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva   | Az admin felület JavaScript hibaüzenetei hiányzó/üres általános hibaszöveget jelenítettek meg |
+
+### Javítva
+
+- Pótolva a hiányzó `TEXT_CRON_ERROR_GENERIC` fordítási kulcs mind az `en_US`, mind a `hu_HU` nyelvi fájlban, és javítva az admin nézet, hogy a nem kapcsolódó `TEXT_ERROR_GENERIC` kulcs helyett ezt a modulspecifikus kulcsot használja
+
+---
+
 ## 1.3.0 — 2026-05-28
 
 | Kategória | Leírás |

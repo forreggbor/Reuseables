@@ -26,7 +26,7 @@ use CronAdmin\Exceptions\InvalidConfigException;
  */
 class CronAdmin
 {
-    public const VERSION = '1.3.0';
+    public const VERSION = '1.3.1';
 
     /** @var array<string, mixed> Normalised, validated config. */
     private array $config;

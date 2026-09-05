@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + Semantic Vers
 
 ---
 
+## 1.3.1 — 2026-09-05
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Admin UI JavaScript error messages showed a missing/blank generic error text |
+
+### Fixed
+
+- Added the missing `TEXT_CRON_ERROR_GENERIC` translation key to both the `en_US` and `hu_HU` locale files, and corrected the admin view to reference this module-specific key instead of the unrelated `TEXT_ERROR_GENERIC` key
+
+---
+
 ## 1.3.0 — 2026-05-28
 
 | Category | Description |
