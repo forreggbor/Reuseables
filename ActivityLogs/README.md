@@ -34,6 +34,10 @@ Framework-agnostic PHP activity logging with a built-in admin interface. Tracks 
 - PHP 8.3+
 - PDO extension
 - MySQL 5.7+ or MariaDB 10.2+
+- APCu extension (optional) — when present, the admin UI's filter-dropdown facet
+  queries (`getUniqueActions()`, `getUniqueEntityTypes()`, `getUniqueSources()`,
+  `getDistinctUserIds()`) are cached for 5 minutes instead of re-scanning the log
+  table on every page load. Falls back to a direct query when unavailable.
 
 ## Installation
 

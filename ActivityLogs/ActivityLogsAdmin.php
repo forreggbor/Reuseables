@@ -198,17 +198,45 @@ class ActivityLogsAdmin
     }
 
     /**
+     * Seconds the distinct-user-ID facet query is cached for via APCu before being
+     * re-queried. Kept short so a newly-active user appears in the filter dropdown
+     * within a few minutes.
+     */
+    private const USER_FACET_CACHE_TTL = 300;
+
+    /**
      * Return distinct non-null user IDs from the log table for the user filter dropdown.
+     *
+     * Cached briefly via APCu when available — this is a dropdown-population query,
+     * not audit data, so a few minutes of staleness is an acceptable trade-off for
+     * skipping a full-table distinct scan on every admin page load.
      *
      * @return array<int> Sorted list of user IDs
      */
     public function getDistinctUserIds(): array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT DISTINCT user_id FROM {$this->tableName} WHERE user_id IS NOT NULL ORDER BY user_id ASC"
-        );
-        $stmt->execute();
-        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'user_id'));
+        $compute = function (): array {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT user_id FROM {$this->tableName} WHERE user_id IS NOT NULL ORDER BY user_id ASC"
+            );
+            $stmt->execute();
+            return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'user_id'));
+        };
+
+        if (!function_exists('apcu_fetch')) {
+            return $compute();
+        }
+
+        $key     = 'activity_logs:' . $this->tableName . ':distinct_user_ids';
+        $success = false;
+        $cached  = apcu_fetch($key, $success);
+        if ($success) {
+            return $cached;
+        }
+
+        $value = $compute();
+        apcu_store($key, $value, self::USER_FACET_CACHE_TTL);
+        return $value;
     }
 
     /**

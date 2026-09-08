@@ -805,6 +805,13 @@ class ActivityLogger
     }
 
     /**
+     * Seconds a facet-list query (unique actions/entity types/sources/user IDs) is
+     * cached for via APCu before being re-queried. Kept short so a newly-used action
+     * or entity type appears in filter dropdowns within a few minutes.
+     */
+    private const FACET_CACHE_TTL = 300;
+
+    /**
      * Get unique actions
      *
      * @return array List of action names
@@ -812,12 +819,12 @@ class ActivityLogger
     public static function getUniqueActions(): array
     {
         $table = self::$config['table_name'];
-        $sql = "SELECT DISTINCT action FROM {$table} ORDER BY action ASC";
-
-        $stmt = self::getPdo()->prepare($sql);
-        $stmt->execute();
-
-        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'action');
+        return self::cachedFacet($table, 'unique_actions', static function () use ($table): array {
+            $sql = "SELECT DISTINCT action FROM {$table} ORDER BY action ASC";
+            $stmt = self::getPdo()->prepare($sql);
+            $stmt->execute();
+            return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'action');
+        });
     }
 
     /**
@@ -828,12 +835,12 @@ class ActivityLogger
     public static function getUniqueEntityTypes(): array
     {
         $table = self::$config['table_name'];
-        $sql = "SELECT DISTINCT entity_type FROM {$table} WHERE entity_type IS NOT NULL ORDER BY entity_type ASC";
-
-        $stmt = self::getPdo()->prepare($sql);
-        $stmt->execute();
-
-        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'entity_type');
+        return self::cachedFacet($table, 'unique_entity_types', static function () use ($table): array {
+            $sql = "SELECT DISTINCT entity_type FROM {$table} WHERE entity_type IS NOT NULL ORDER BY entity_type ASC";
+            $stmt = self::getPdo()->prepare($sql);
+            $stmt->execute();
+            return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'entity_type');
+        });
     }
 
     /**
@@ -844,12 +851,41 @@ class ActivityLogger
     public static function getUniqueSources(): array
     {
         $table = self::$config['table_name'];
-        $sql = "SELECT DISTINCT source FROM {$table} WHERE source IS NOT NULL ORDER BY source ASC";
+        return self::cachedFacet($table, 'unique_sources', static function () use ($table): array {
+            $sql = "SELECT DISTINCT source FROM {$table} WHERE source IS NOT NULL ORDER BY source ASC";
+            $stmt = self::getPdo()->prepare($sql);
+            $stmt->execute();
+            return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'source');
+        });
+    }
 
-        $stmt = self::getPdo()->prepare($sql);
-        $stmt->execute();
+    /**
+     * Fetch a facet list (distinct filter-dropdown values) through a short-lived APCu
+     * cache when available, falling back to a direct query otherwise. Used only for
+     * dropdown population, never for audit data, so brief staleness is acceptable.
+     *
+     * @param string   $table   Table name (part of the cache key — multiple installs
+     *                          on one server must not share entries)
+     * @param string   $facet   Facet identifier, e.g. 'unique_actions'
+     * @param callable $compute fn(): array Runs the query on a cache miss
+     * @return array
+     */
+    private static function cachedFacet(string $table, string $facet, callable $compute): array
+    {
+        if (!function_exists('apcu_fetch')) {
+            return $compute();
+        }
 
-        return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'source');
+        $key     = 'activity_logs:' . $table . ':' . $facet;
+        $success = false;
+        $cached  = apcu_fetch($key, $success);
+        if ($success) {
+            return $cached;
+        }
+
+        $value = $compute();
+        apcu_store($key, $value, self::FACET_CACHE_TTL);
+        return $value;
     }
 
     /**

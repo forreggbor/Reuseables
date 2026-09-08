@@ -57,9 +57,11 @@ class AdminActions
         $filters  = $this->buildFilters($request);
         $page     = max(1, (int)($request['page'] ?? 1));
         $pageSize = $this->facade->getPageSize();
-        $offset   = ($page - 1) * $pageSize;
 
-        $total = \ActivityLogs\ActivityLogger::getCount($filters);
+        // Single aggregate query covers total + today/this_week/unique_* — reused
+        // for pagination so the filtered row count is never full-scanned twice.
+        $stats = $this->facade->computeFilteredStats($filters);
+        $total = $stats['total'];
 
         $totalPages = $total > 0 ? (int)ceil($total / $pageSize) : 1;
         $page       = min($page, $totalPages);
@@ -70,7 +72,6 @@ class AdminActions
             'offset' => $offset,
         ]));
 
-        $stats        = $this->facade->computeFilteredStats($filters);
         $actions      = \ActivityLogs\ActivityLogger::getUniqueActions();
         $entityTypes  = \ActivityLogs\ActivityLogger::getUniqueEntityTypes();
         $sources      = \ActivityLogs\ActivityLogger::getUniqueSources();

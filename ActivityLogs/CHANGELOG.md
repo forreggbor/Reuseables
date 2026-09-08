@@ -5,6 +5,28 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-09-08
+
+| Category | Description                                                                                      |
+|----------|---------------------------------------------------------------------------------------------------|
+| Fixed    | Admin index page ran a redundant full-table aggregate query on every page load                   |
+| Fixed    | Filter-dropdown lists were re-queried against the full table on every admin page load             |
+
+### Fixed
+
+- **Duplicate full-table aggregate scan on every admin page load** — `AdminActions::index()`
+  called both `ActivityLogger::getCount()` and `ActivityLogsAdmin::computeFilteredStats()`, which
+  independently scanned the same filtered row set to compute the same total. On a production
+  table with ~550k rows this doubled the cost of an already-expensive scan and was measured
+  contributing to 13+ second admin page loads. `index()` now takes `total` from the single
+  `computeFilteredStats()` result instead of querying it twice.
+- **Unfiltered `SELECT DISTINCT` queries re-run on every admin page load** — `getUniqueActions()`,
+  `getUniqueEntityTypes()`, `getUniqueSources()`, and `getDistinctUserIds()` populate the filter
+  dropdowns and ran unconditionally on every request regardless of page or filters. They're now
+  cached for 5 minutes via APCu when the extension is available (`function_exists('apcu_fetch')`
+  guard, transparent fallback to a direct query otherwise) — dropdown values tolerate brief
+  staleness, unlike the audit data itself, which this change does not touch.
+
 ## [1.4.2] - 2026-08-02
 
 | Category | Description                                                                                      |

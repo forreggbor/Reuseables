@@ -250,17 +250,9 @@ The module ships only `TEXT_CRON_*` and `TEXT_DAY_OF_WEEK_*` keys. Per-job `TEXT
 
 ---
 
-## Step 15 — Add audit action keys (JupitERP only)
+## Step 15 — Audit action registration (not needed)
 
-JupitERP maintains a `config/audit_actions.php` allowlist. Add these entries if you use that file:
-
-```php
-'update_cron_jobs', 'enable_cron_job', 'disable_cron_job',
-'run_cron_job', 'run_cron_job_manual', 'sync_cron_manifest',
-'toggle_cron_dispatcher',
-```
-
-Skip this step on hosts without an `audit_actions` config (TrafficJournal, LicenseManager).
+No registration step is required. CronAdmin's own actions (`update_cron_jobs`, `enable_cron_job`, `disable_cron_job`, `run_cron_job`, `run_cron_job_manual`, `sync_cron_manifest`, `toggle_cron_dispatcher`) log via each host's `ActivityLogs` module integration, which resolves display icon/color automatically from the action-name prefix (`update_*`, `enable_*`, `disable_*`, `run_*`, etc.) — no allowlist file to maintain on any host. (JupitERP previously maintained a `config/audit_actions.php` allowlist for this; it was retired in JupitERP v2.115.2 as dead weight, and this step was already a no-op even before that, since CronAdmin's actions never actually read that file. No current host — JupitERP, TrafficJournal, LicenseManager, or any other — has an `audit_actions` config.)
 
 ---
 
