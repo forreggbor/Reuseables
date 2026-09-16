@@ -209,6 +209,28 @@ if ($backupResult['success']) {
     check('Download token round-trips', $engine->validateDownloadToken($token) === $backupId);
     check('Download token is single-use', $engine->validateDownloadToken($token) === false);
 
+    // registerUploadedArchive(): a host moves an uploaded .tgz into the backup
+    // dir under a server-generated name, then asks the engine to register it.
+    $uploadedPath = $engine->getBackupDir() . '/uploaded_harness_' . bin2hex(random_bytes(4)) . '.tgz';
+    copy($archivePath, $uploadedPath);
+    $reg = $engine->registerUploadedArchive($uploadedPath, 1, 'client-name.tgz');
+    check('registerUploadedArchive() registers a valid archive', $reg['success'] === true, $reg['error'] ?? '');
+    $regRow = $reg['success'] ? $engine->getBackup((int) $reg['backup_id']) : null;
+    check('registerUploadedArchive() row is completed + full', ($regRow->status ?? null) === 'completed' && ($regRow->type ?? null) === 'full');
+    check('registerUploadedArchive() records size and checksum', (int) ($regRow->size_bytes ?? 0) === filesize($uploadedPath) && ($regRow->checksum_sha256 ?? '') === hash_file('sha256', $uploadedPath));
+
+    $bogusPath = $engine->getBackupDir() . '/uploaded_bogus.tgz';
+    file_put_contents($bogusPath, 'definitely not a gzip archive');
+    $regBad = $engine->registerUploadedArchive($bogusPath, 1);
+    check('registerUploadedArchive() rejects a corrupt archive', $regBad['success'] === false && $regBad['error'] !== null);
+    check('registerUploadedArchive() deletes the rejected file', !file_exists($bogusPath));
+
+    $outsidePath = $tempPath . '/outside_harness.tgz';
+    copy($archivePath, $outsidePath);
+    $regOut = $engine->registerUploadedArchive($outsidePath, 1);
+    check('registerUploadedArchive() refuses a path outside the backup dir', $regOut['success'] === false);
+    check('registerUploadedArchive() leaves the outside file untouched', file_exists($outsidePath));
+
     $stats = $engine->getStats();
     check('getStats() reports total >= 1', $stats['total'] >= 1);
 

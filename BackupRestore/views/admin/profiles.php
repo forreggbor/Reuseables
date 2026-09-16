@@ -57,7 +57,7 @@ foreach ([
                 <span class="br-action-icon">&#8592;</span>
                 <span class="br-action-text"><?= htmlspecialchars($t('TEXT_BUTTON_BACK')) ?></span>
             </a>
-            <a href="#" class="br-action-card br-success" onclick="BackupRestoreUI.openProfileModal(); return false;">
+            <a href="#" class="br-action-card br-success" data-br-action="openProfileModal">
                 <span class="br-action-icon">&#43;</span>
                 <span class="br-action-text"><?= htmlspecialchars($t('TEXT_BUTTON_CREATE_PROFILE')) ?></span>
             </a>
@@ -129,9 +129,9 @@ foreach ([
                             </td>
                             <td class="br-text-end">
                                 <div class="br-btn-group">
-                                    <button class="br-btn br-btn-sm br-btn-outline-primary" onclick="BackupRestoreUI.editProfile(<?= (int) $profile->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_EDIT')) ?>">&#9998;</button>
-                                    <button class="br-btn br-btn-sm br-btn-outline-success" onclick="BackupRestoreUI.runProfile(<?= (int) $profile->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_RUN_NOW')) ?>">&#9654;</button>
-                                    <button class="br-btn br-btn-sm br-btn-outline-danger" onclick="BackupRestoreUI.deleteProfile(<?= (int) $profile->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE')) ?>">&#10007;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-primary" data-br-action="editProfile" data-br-id="<?= (int) $profile->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_EDIT')) ?>">&#9998;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-success" data-br-action="runProfile" data-br-id="<?= (int) $profile->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_RUN_NOW')) ?>">&#9654;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-danger" data-br-action="deleteProfile" data-br-id="<?= (int) $profile->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE')) ?>">&#10007;</button>
                                 </div>
                             </td>
                         </tr>
@@ -172,13 +172,13 @@ foreach ([
                     <div class="br-col-12"><hr class="br-hr"><h5><?= htmlspecialchars($t('TEXT_HEADING_SCHEDULE')) ?></h5></div>
                     <div class="br-col-4">
                         <div class="br-switch">
-                            <input type="checkbox" id="brProfileScheduleEnabled" onchange="BackupRestoreUI.toggleSchedule()">
+                            <input type="checkbox" id="brProfileScheduleEnabled" data-br-change="toggleSchedule">
                             <label for="brProfileScheduleEnabled"><?= htmlspecialchars($t('TEXT_LABEL_ENABLE_SCHEDULE')) ?></label>
                         </div>
                     </div>
                     <div class="br-col-4 br-schedule-fields" style="display:none;">
                         <label class="br-label"><?= htmlspecialchars($t('TEXT_LABEL_SCHEDULE_TYPE')) ?></label>
-                        <select class="br-select" id="brProfileScheduleType" onchange="BackupRestoreUI.toggleScheduleDay()">
+                        <select class="br-select" id="brProfileScheduleType" data-br-change="toggleScheduleDay">
                             <option value="daily"><?= htmlspecialchars($t('TEXT_OPTION_DAILY')) ?></option>
                             <option value="weekly"><?= htmlspecialchars($t('TEXT_OPTION_WEEKLY')) ?></option>
                             <option value="monthly"><?= htmlspecialchars($t('TEXT_OPTION_MONTHLY')) ?></option>
@@ -231,7 +231,7 @@ foreach ([
             </div>
             <div class="br-modal-footer">
                 <button type="button" class="br-btn br-btn-secondary" data-br-dismiss="brProfileModal"><?= htmlspecialchars($t('TEXT_BUTTON_CANCEL')) ?></button>
-                <button type="button" class="br-btn br-btn-primary" onclick="BackupRestoreUI.saveProfile()"><?= htmlspecialchars($t('TEXT_BUTTON_SAVE')) ?></button>
+                <button type="button" class="br-btn br-btn-primary" data-br-action="saveProfile"><?= htmlspecialchars($t('TEXT_BUTTON_SAVE')) ?></button>
             </div>
         </div>
     </div>

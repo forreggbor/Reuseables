@@ -38,7 +38,7 @@ foreach ([
                 <span class="br-action-icon">&#8592;</span>
                 <span class="br-action-text"><?= htmlspecialchars($t('TEXT_BUTTON_BACK')) ?></span>
             </a>
-            <a href="#" class="br-action-card br-success" onclick="BackupRestoreUI.openServerModal(); return false;">
+            <a href="#" class="br-action-card br-success" data-br-action="openServerModal">
                 <span class="br-action-icon">&#43;</span>
                 <span class="br-action-text"><?= htmlspecialchars($t('TEXT_BUTTON_ADD_SERVER')) ?></span>
             </a>
@@ -97,9 +97,9 @@ foreach ([
                             <td><?= $server->last_connected ? htmlspecialchars($server->last_connected) : '<span class="br-text-muted">-</span>' ?></td>
                             <td class="br-text-end">
                                 <div class="br-btn-group">
-                                    <button class="br-btn br-btn-sm br-btn-outline-success" onclick="BackupRestoreUI.testServer(<?= (int) $server->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_TEST_CONNECTION')) ?>">&#128268;</button>
-                                    <button class="br-btn br-btn-sm br-btn-outline-primary" onclick="BackupRestoreUI.editServer(<?= (int) $server->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_EDIT')) ?>">&#9998;</button>
-                                    <button class="br-btn br-btn-sm br-btn-outline-danger" onclick="BackupRestoreUI.deleteServer(<?= (int) $server->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE')) ?>">&#10007;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-success" data-br-action="testServer" data-br-id="<?= (int) $server->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_TEST_CONNECTION')) ?>">&#128268;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-primary" data-br-action="editServer" data-br-id="<?= (int) $server->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_EDIT')) ?>">&#9998;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-danger" data-br-action="deleteServer" data-br-id="<?= (int) $server->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE')) ?>">&#10007;</button>
                                 </div>
                             </td>
                         </tr>
@@ -152,7 +152,7 @@ foreach ([
                     </div>
                     <div class="br-col-6">
                         <label class="br-label"><?= htmlspecialchars($t('TEXT_LABEL_AUTH_TYPE')) ?></label>
-                        <select class="br-select" id="brServerAuthType" onchange="BackupRestoreUI.toggleAuthFields()">
+                        <select class="br-select" id="brServerAuthType" data-br-change="toggleAuthFields">
                             <option value="password"><?= htmlspecialchars($t('TEXT_OPTION_PASSWORD')) ?></option>
                             <option value="key"><?= htmlspecialchars($t('TEXT_OPTION_SSH_KEY')) ?></option>
                         </select>
@@ -175,7 +175,7 @@ foreach ([
             </div>
             <div class="br-modal-footer">
                 <button type="button" class="br-btn br-btn-secondary" data-br-dismiss="brServerModal"><?= htmlspecialchars($t('TEXT_BUTTON_CANCEL')) ?></button>
-                <button type="button" class="br-btn br-btn-primary" onclick="BackupRestoreUI.saveServer()"><?= htmlspecialchars($t('TEXT_BUTTON_SAVE')) ?></button>
+                <button type="button" class="br-btn br-btn-primary" data-br-action="saveServer"><?= htmlspecialchars($t('TEXT_BUTTON_SAVE')) ?></button>
             </div>
         </div>
     </div>

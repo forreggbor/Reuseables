@@ -5,6 +5,25 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.3.0] - 2026-09-16
+
+| Kategória | Leírás |
+|-----------|--------|
+| Új        | Az admin nézetek nonce-alapú Content-Security-Policy mellett is működnek (nincs beágyazott eseménykezelő) |
+| Új        | Feltöltött mentési archívum regisztrálható a motoron keresztül |
+| Változott | Szinkronizáláskor a hosztnak újra kell másolnia a `js/backup-restore.js` fájlt |
+| Javítva   | Elgépelés a magyar „Biztonsági mentés & Visszaállítás” címsorban |
+
+### Új
+- Az `index`, `profiles` és `remote-servers` admin nézetek már nem használnak beágyazott `onclick`/`onchange` attribútumokat. A gombok és választók `data-br-action` / `data-br-change` attribútumot kapnak, amelyet a `js/backup-restore.js` a változatlan, nyilvános `BackupRestoreUI` API-ra irányít. Így azok a hosztok is működnek, amelyek CSP-je tiltja a beágyazott eseménykezelőket, anélkül hogy lazítaniuk kellene a szabályzaton. A saját nézettel rendelkező hosztok, amelyek továbbra is beágyazva hívják a `BackupRestoreUI.*` függvényeket, változatlanul működnek.
+- A `BackupEngine::registerUploadedArchive()` metódussal a hoszt egy már a mentési könyvtárba helyezett archívumot (pl. admin feltöltést) befejezett mentésként regisztrálhat, tartalmazási és integritás-ellenőrzéssel és `upload_backup` naplóbejegyzéssel. Korábban a hosztnak közvetlenül kellett a modul `backups` táblájába írnia.
+
+### Változott
+- Mivel a nézetek és a JS a `data-br-*` szerződésen keresztül összefüggnek, a `views/` szinkronizálásával együtt a hosztnak a `js/backup-restore.js` fájlt is újra kell másolnia a nyilvános asset könyvtárába (az integrációs útmutatóban leírt telepítési lépés). Ha csak az egyik frissül, a gombok nem reagálnak.
+
+### Javítva
+- A magyar vezérlőpult-címsor „Visszaéllítás” helyett most már „Visszaállítás”.
+
 ## [0.2.0] - 2026-08-31
 
 | Kategória | Leírás |

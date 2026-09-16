@@ -20,7 +20,7 @@ This module has been built and verified **standalone** — see
 [`tests/README.md`](tests/README.md) and [`tests/harness.php`](tests/harness.php)
 for a reproducible end-to-end proof (backup creation, atomic restore,
 in-place restore + forced-failure rollback, file restore, audit trail,
-standalone CLI restore — 43/43 checks passing against a real MySQL/MariaDB
+standalone CLI restore — 82/82 checks passing against a real MySQL/MariaDB
 server). **HTTP/host-controller integration is a separate, deferred step**
 — see [`doc/INTEGRATION-GUIDE.md`](doc/INTEGRATION-GUIDE.md).
 

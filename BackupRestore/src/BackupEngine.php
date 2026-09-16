@@ -771,6 +771,81 @@ final class BackupEngine
     }
 
     /**
+     * Register an archive that the host has already placed inside the backup
+     * directory (typically an admin upload) as a completed backup row.
+     *
+     * The host moves the upload into {@see getBackupDir()} under a
+     * server-generated name and calls this method. The archive must resolve
+     * inside the backup directory, must be a readable gzip/tar and must carry a
+     * manifest; an archive that fails those checks is deleted and reported.
+     * The recorded type is derived from the archive contents (database and/or
+     * files members).
+     *
+     * @param string      $absolutePath Absolute path of the archive inside getBackupDir()
+     * @param int|null    $createdBy    User id to record as creator (null = system)
+     * @param string|null $originalName Client-side filename, recorded in the audit entry only
+     * @return array{success: bool, backup_id: ?int, error: ?string}
+     */
+    public function registerUploadedArchive(string $absolutePath, ?int $createdBy, ?string $originalName = null): array
+    {
+        $realBackupDir = realpath($this->backupDir);
+        $realPath = realpath($absolutePath);
+        if ($realBackupDir === false || $realPath === false || !str_starts_with($realPath, rtrim($realBackupDir, '/') . '/')) {
+            $this->log("[Upload] Refused to register archive outside the backup directory: {$absolutePath}", 'ERROR');
+            return ['success' => false, 'backup_id' => null, 'error' => $this->t->translate('TEXT_ERROR_BACKUP_NOT_FOUND')];
+        }
+
+        $integrity = $this->verifyArchiveIntegrity($realPath);
+        if (!$integrity['valid'] || !$integrity['has_manifest']) {
+            $details = $integrity['error'] ?? 'missing manifest';
+            if (!unlink($realPath)) {
+                $this->log("[Upload] Could not delete rejected archive {$realPath}", 'ERROR');
+            }
+            $this->log("[Upload] Rejected archive {$realPath}: {$details}", 'WARNING');
+            return ['success' => false, 'backup_id' => null, 'error' => $this->t->translate('TEXT_ERROR_INVALID_BACKUP_ARCHIVE', ['details' => $details])];
+        }
+
+        $type = match (true) {
+            $integrity['has_database'] && $integrity['has_files'] => 'full',
+            $integrity['has_database'] => 'database',
+            default => 'files',
+        };
+        $filename = basename($realPath);
+        $size = filesize($realPath);
+        $checksum = hash_file('sha256', $realPath);
+
+        try {
+            $backupsTable = $this->tableNames['backups'];
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO {$backupsTable} (filename, type, size_bytes, checksum_sha256, status, note, created_by, created_at)
+                 VALUES (:filename, :type, :size_bytes, :checksum, 'completed', :note, :created_by, NOW())"
+            );
+            $stmt->execute([
+                ':filename' => $filename,
+                ':type' => $type,
+                ':size_bytes' => $size === false ? null : $size,
+                ':checksum' => $checksum === false ? null : $checksum,
+                ':note' => $this->t->translate('TEXT_NOTE_UPLOADED_FOR_RESTORE'),
+                ':created_by' => $createdBy,
+            ]);
+            $backupId = (int) $this->pdo->lastInsertId();
+        } catch (\Throwable $e) {
+            $this->log("[Upload] Failed to register archive {$filename}: " . $e->getMessage(), 'ERROR');
+            return ['success' => false, 'backup_id' => null, 'error' => $this->t->translate('TEXT_ERROR_UPLOAD_SERVER')];
+        }
+
+        $this->audit('upload_backup', $backupId, null, [
+            'filename' => $filename,
+            'original_name' => $originalName,
+            'type' => $type,
+            'size' => $size === false ? null : $size,
+        ], $createdBy);
+        $this->log("[Upload] Registered uploaded archive {$filename} as backup #{$backupId} (type={$type})", 'INFO');
+
+        return ['success' => true, 'backup_id' => $backupId, 'error' => null];
+    }
+
+    /**
      * Get disk space information for the backup directory.
      *
      * `disk_free_space()`/`disk_total_space()` can return `false` in

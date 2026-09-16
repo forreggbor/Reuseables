@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-16
+
+| Category | Description |
+|----------|--------------|
+| Added    | Admin views work under a nonce-only Content-Security-Policy (no inline event handlers) |
+| Added    | Uploaded backup archives can be registered through the engine |
+| Changed  | Hosts must re-copy `js/backup-restore.js` when syncing this version |
+| Fixed    | Typo in the Hungarian "Backup & Restore" heading |
+
+### Added
+- The `index`, `profiles`, and `remote-servers` admin views no longer use inline `onclick`/`onchange` attributes. Buttons and selects now carry `data-br-action` / `data-br-change` attributes and `js/backup-restore.js` dispatches them to the unchanged public `BackupRestoreUI` API, so hosts whose CSP forbids inline handlers work without weakening their policy. Hosts with their own custom views that still call `BackupRestoreUI.*` inline keep working.
+- `BackupEngine::registerUploadedArchive()` lets a host register an archive it has already placed in the backup directory (e.g. an admin upload) as a completed backup, with containment and integrity checks and an `upload_backup` audit entry. Previously hosts had to insert into the module's `backups` table themselves.
+
+### Changed
+- Because the views and the JS now depend on each other through the `data-br-*` contract, a host that syncs `views/` must also re-copy `js/backup-restore.js` into its public asset directory (the deploy step documented in the integration guide). Syncing only one of the two leaves the buttons inactive.
+
+### Fixed
+- The Hungarian dashboard heading read "Visszaéllítás" instead of "Visszaállítás".
+
 ## [0.2.0] - 2026-08-31
 
 | Category | Description |

@@ -40,6 +40,7 @@ Create `app/services/BackupRestore/` mirroring `app/services/Patch/`:
 | `BackupModuleFactory.php` | Memoized-per-request factory, clone of `PatchModuleFactory.php` |
 | `EncryptorAdapter.php` | Delegates to `App\Helpers\Security::encrypt/decrypt` (see §5 — **do not** use the shipped `OpenSslGcmEncryptor` default) |
 | `TranslatorAdapter.php` | Reads `lib/BackupRestore/locale/{lang}/messages.php`, `array_merge(enUS, localized)` — clone of `app/services/Patch/TranslatorAdapter.php`, does **not** touch the global `__()` |
+| `SessionTokenStore.php` | **Required over HTTP.** `TokenStoreInterface` backed by the host session. The default `ArrayTokenStore` is per-process memory, and both the download token (`generate-download-token` → `download`) and the restore authorization (`verify-password` → `restore`) span two requests, so with the default every token is invalid on redemption. |
 | `MaintenanceGate.php` (optional) | Only needed if the host wants the flag stored somewhere other than `temp_path/.restore_maintenance` (the shipped `FileMaintenanceGate` is fine as-is) |
 
 Example factory config:
@@ -145,6 +146,12 @@ directly (the module's `__DIR__`-relative path — not `ROOT_PATH . '/restore.ph
 like the original; either keep a copy at project root too, or repoint this
 one route).
 
+`uploadRestore` moves the uploaded `.tgz` into `backupEngine()->getBackupDir()`
+under a server-generated name (validate the extension and sniff the MIME type
+host-side first), then calls `backupEngine()->registerUploadedArchive($path, $userId, $originalName)`
+and returns its result — the module verifies containment and integrity, deletes
+a rejected file, inserts the `backups` row and writes the audit entry.
+
 ## 4. License gating — feature key `backup_restore`
 
 The module ships license-agnostic. Gate it exactly like any other addon:
@@ -195,9 +202,22 @@ Embed the module's view fragments (`lib/BackupRestore/views/admin/*.php`)
 the same way `ActivityLogsAdmin::render()` is embedded — they render a body
 fragment, not a full page. Copy `css/backup-restore.css` and
 `js/backup-restore.js` to `public/css/`/`public/js/` at deploy time and load
-them once per admin page (see `doc/reviewed/` conventions for other
-reusables). Pass `$t`, `$baseUrl` (e.g. `/admin/settings/backup-restore`),
-and `$csrfToken` as documented in each view file's header docblock.
+them once per admin page. Pass `$t`, `$baseUrl` (e.g. `/admin/settings/backup-restore`),
+`$csrfToken` and `$nonce` as documented in each view file's header docblock.
+
+**Since 0.3.0 the views contain no inline event handlers.** Interactive
+elements carry `data-br-action="<BackupRestoreUI method>"` (click) or
+`data-br-change="<BackupRestoreUI method>"` (change), with arguments in
+`data-br-id` (int) and `data-br-type` (string). `js/backup-restore.js`
+registers delegated listeners and dispatches to the public `BackupRestoreUI`
+namespace, whose method names and signatures are unchanged. Consequences:
+
+- Nonce-only CSP hosts (`script-src 'self' 'nonce-…'`, no `'unsafe-inline'`)
+  work without policy changes; pass the request nonce as `$nonce`.
+- A host that syncs the views **must re-copy `js/backup-restore.js`** in the
+  same deploy — old JS + new views leaves the buttons inactive.
+- Host-authored custom views may keep calling `BackupRestoreUI.*` inline where
+  their CSP allows it, or adopt the same `data-br-*` attributes.
 
 ## 8. Known differences from the original JupitERP feature
 

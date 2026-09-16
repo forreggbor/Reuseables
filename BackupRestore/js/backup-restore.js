@@ -928,6 +928,48 @@
     // Public namespace + auto-init
     // ---------------------------------------------------------------------
 
+    // ---------------------------------------------------------------------
+    // Declarative action wiring (CSP-safe — no inline event handlers)
+    //
+    // Elements carry data-br-action="<BackupRestoreUI method>" (click) or
+    // data-br-change="<BackupRestoreUI method>" (change). Arguments come from
+    // data-br-id (int) and data-br-type (string), in that order. The public
+    // BackupRestoreUI namespace is the dispatch target, so hosts that still
+    // use inline onclick="BackupRestoreUI.x()" under a permissive CSP keep
+    // working unchanged.
+    // ---------------------------------------------------------------------
+
+    function dispatchDeclaredAction(el, attr) {
+        const name = el.getAttribute(attr);
+        const fn = window.BackupRestoreUI[name];
+        if (typeof fn !== 'function') {
+            console.warn('BackupRestoreUI: unknown action "' + name + '"');
+            return;
+        }
+        const args = [];
+        if (el.hasAttribute('data-br-id')) {
+            args.push(parseInt(el.getAttribute('data-br-id'), 10));
+        }
+        if (el.hasAttribute('data-br-type')) {
+            args.push(el.getAttribute('data-br-type'));
+        }
+        fn.apply(window.BackupRestoreUI, args);
+    }
+
+    function initActionDelegation() {
+        document.addEventListener('click', function (e) {
+            const el = e.target.closest('[data-br-action]');
+            if (!el) return;
+            if (el.tagName === 'A') e.preventDefault();
+            dispatchDeclaredAction(el, 'data-br-action');
+        });
+        document.addEventListener('change', function (e) {
+            const el = e.target.closest('[data-br-change]');
+            if (!el) return;
+            dispatchDeclaredAction(el, 'data-br-change');
+        });
+    }
+
     window.BackupRestoreUI = {
         notify: notify,
         confirm: confirmAction,
@@ -970,6 +1012,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         initModalDismissers();
         initCollapseToggles();
+        initActionDelegation();
 
         const dbNameInput = document.getElementById('brDbNameConfirm');
         if (dbNameInput) dbNameInput.addEventListener('input', updateRestoreStep1Button);

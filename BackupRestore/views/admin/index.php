@@ -142,7 +142,7 @@ foreach ([
                     </div>
                     <div class="br-col-3">
                         <label class="br-label">&nbsp;</label>
-                        <button type="button" class="br-btn br-btn-primary br-btn-block" id="brBtnCreateBackup" onclick="BackupRestoreUI.createBackup()">
+                        <button type="button" class="br-btn br-btn-primary br-btn-block" id="brBtnCreateBackup" data-br-action="createBackup">
                             <?= htmlspecialchars($t('TEXT_BUTTON_CREATE_BACKUP')) ?>
                         </button>
                     </div>
@@ -184,7 +184,7 @@ foreach ([
         <div class="br-card-header">
             <span><?= htmlspecialchars($t('TEXT_HEADING_BACKUP_HISTORY')) ?> (<?= count($backups) ?>)</span>
             <?php if (!empty($backups)): ?>
-                <button type="button" class="br-btn br-btn-sm br-btn-outline-secondary" onclick="BackupRestoreUI.uploadRestoreFile()">
+                <button type="button" class="br-btn br-btn-sm br-btn-outline-secondary" data-br-action="uploadRestoreFile">
                     <?= htmlspecialchars($t('TEXT_BUTTON_UPLOAD_RESTORE')) ?>
                 </button>
             <?php endif; ?>
@@ -245,12 +245,12 @@ foreach ([
                             <td class="br-text-end">
                                 <div class="br-btn-group">
                                     <?php if ($backup->status === 'completed' && !$backup->file_deleted_at): ?>
-                                        <button class="br-btn br-btn-sm br-btn-outline-primary" onclick="BackupRestoreUI.downloadBackup(<?= (int) $backup->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_DOWNLOAD')) ?>">&#8681;</button>
-                                        <button class="br-btn br-btn-sm br-btn-outline-warning" onclick="BackupRestoreUI.restoreBackup(<?= (int) $backup->id ?>, '<?= htmlspecialchars($backup->type) ?>')" title="<?= htmlspecialchars($t('TEXT_BUTTON_RESTORE')) ?>">&#8635;</button>
-                                        <button class="br-btn br-btn-sm br-btn-outline-info" onclick="BackupRestoreUI.transferBackup(<?= (int) $backup->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_TRANSFER_REMOTE')) ?>">&#9729;</button>
-                                        <button class="br-btn br-btn-sm br-btn-outline-secondary" onclick="BackupRestoreUI.deleteBackupFile(<?= (int) $backup->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE_FILE')) ?>">&#128465;</button>
+                                        <button class="br-btn br-btn-sm br-btn-outline-primary" data-br-action="downloadBackup" data-br-id="<?= (int) $backup->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_DOWNLOAD')) ?>">&#8681;</button>
+                                        <button class="br-btn br-btn-sm br-btn-outline-warning" data-br-action="restoreBackup" data-br-id="<?= (int) $backup->id ?>" data-br-type="<?= htmlspecialchars($backup->type) ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_RESTORE')) ?>">&#8635;</button>
+                                        <button class="br-btn br-btn-sm br-btn-outline-info" data-br-action="transferBackup" data-br-id="<?= (int) $backup->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_TRANSFER_REMOTE')) ?>">&#9729;</button>
+                                        <button class="br-btn br-btn-sm br-btn-outline-secondary" data-br-action="deleteBackupFile" data-br-id="<?= (int) $backup->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE_FILE')) ?>">&#128465;</button>
                                     <?php endif; ?>
-                                    <button class="br-btn br-btn-sm br-btn-outline-danger" onclick="BackupRestoreUI.deleteBackupFull(<?= (int) $backup->id ?>)" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE_FULL')) ?>">&#10007;</button>
+                                    <button class="br-btn br-btn-sm br-btn-outline-danger" data-br-action="deleteBackupFull" data-br-id="<?= (int) $backup->id ?>" title="<?= htmlspecialchars($t('TEXT_BUTTON_DELETE_FULL')) ?>">&#10007;</button>
                                 </div>
                             </td>
                         </tr>
@@ -283,7 +283,7 @@ foreach ([
                     <p class="br-text-muted br-small"><?= htmlspecialchars($t('TEXT_MESSAGE_TYPE_DB_NAME_TO_CONFIRM')) ?></p>
                     <input type="text" class="br-input" id="brDbNameConfirm" style="margin-bottom:0.75rem;" placeholder="<?= htmlspecialchars($t('TEXT_PLACEHOLDER_DATABASE_NAME')) ?>" autocomplete="off">
 
-                    <button type="button" class="br-btn br-btn-outline-danger br-btn-block" id="brBtnRestoreStep1" onclick="BackupRestoreUI.restoreStep2()" disabled>
+                    <button type="button" class="br-btn br-btn-outline-danger br-btn-block" id="brBtnRestoreStep1" data-br-action="restoreStep2" disabled>
                         <?= htmlspecialchars($t('TEXT_BUTTON_CONTINUE')) ?>
                     </button>
                 </div>
@@ -292,7 +292,7 @@ foreach ([
                     <label class="br-label"><?= htmlspecialchars($t('TEXT_LABEL_VERIFY_PASSWORD')) ?></label>
                     <p class="br-text-muted br-small"><?= htmlspecialchars($t('TEXT_MESSAGE_ENTER_PASSWORD_TO_CONFIRM')) ?></p>
                     <input type="password" class="br-input" id="brRestorePassword" style="margin-bottom:0.75rem;" placeholder="<?= htmlspecialchars($t('TEXT_PLACEHOLDER_PASSWORD')) ?>" autocomplete="off">
-                    <button type="button" class="br-btn br-btn-outline-danger br-btn-block" onclick="BackupRestoreUI.verifyRestorePassword()">
+                    <button type="button" class="br-btn br-btn-outline-danger br-btn-block" data-br-action="verifyRestorePassword">
                         <?= htmlspecialchars($t('TEXT_BUTTON_VERIFY_PASSWORD')) ?>
                     </button>
                 </div>
@@ -301,7 +301,7 @@ foreach ([
                     <div style="text-align:center;">
                         <h5><?= htmlspecialchars($t('TEXT_HEADING_FINAL_CONFIRMATION')) ?></h5>
                         <p class="br-text-danger"><?= htmlspecialchars($t('TEXT_WARNING_RESTORE_FINAL')) ?></p>
-                        <button type="button" class="br-btn br-btn-danger br-btn-block" id="brBtnExecuteRestore" onclick="BackupRestoreUI.executeRestore()" disabled>
+                        <button type="button" class="br-btn br-btn-danger br-btn-block" id="brBtnExecuteRestore" data-br-action="executeRestore" disabled>
                             <span id="brRestoreCountdown"><?= htmlspecialchars($t('TEXT_BUTTON_RESTORE')) ?> (5)</span>
                         </button>
                     </div>
@@ -337,7 +337,7 @@ foreach ([
             </div>
             <div class="br-modal-footer">
                 <button type="button" class="br-btn br-btn-secondary" data-br-dismiss="brTransferModal"><?= htmlspecialchars($t('TEXT_BUTTON_CANCEL')) ?></button>
-                <button type="button" class="br-btn br-btn-primary" id="brBtnTransfer" onclick="BackupRestoreUI.executeTransfer()"><?= htmlspecialchars($t('TEXT_BUTTON_TRANSFER')) ?></button>
+                <button type="button" class="br-btn br-btn-primary" id="brBtnTransfer" data-br-action="executeTransfer"><?= htmlspecialchars($t('TEXT_BUTTON_TRANSFER')) ?></button>
             </div>
         </div>
     </div>
@@ -361,7 +361,7 @@ foreach ([
             </div>
             <div class="br-modal-footer">
                 <button type="button" class="br-btn br-btn-secondary" data-br-dismiss="brUploadRestoreModal"><?= htmlspecialchars($t('TEXT_BUTTON_CANCEL')) ?></button>
-                <button type="button" class="br-btn br-btn-warning" id="brBtnUploadRestore" onclick="BackupRestoreUI.executeUploadRestore()"><?= htmlspecialchars($t('TEXT_BUTTON_UPLOAD_AND_RESTORE')) ?></button>
+                <button type="button" class="br-btn br-btn-warning" id="brBtnUploadRestore" data-br-action="executeUploadRestore"><?= htmlspecialchars($t('TEXT_BUTTON_UPLOAD_AND_RESTORE')) ?></button>
             </div>
         </div>
     </div>
@@ -376,7 +376,7 @@ foreach ([
                 <div class="br-alert br-alert-info"><?= htmlspecialchars($t('TEXT_MESSAGE_SAVE_RESTORE_TOKEN')) ?></div>
                 <label class="br-label" style="font-weight:600;"><?= htmlspecialchars($t('TEXT_LABEL_RESTORE_TOKEN')) ?></label>
                 <input type="text" class="br-input br-mono" id="brRestoreTokenValue" readonly>
-                <button type="button" class="br-btn br-btn-sm br-btn-outline-secondary br-mt-3" onclick="BackupRestoreUI.copyRestoreToken()" title="<?= htmlspecialchars($t('TEXT_LABEL_RESTORE_TOKEN')) ?>">&#128203;</button>
+                <button type="button" class="br-btn br-btn-sm br-btn-outline-secondary br-mt-3" data-br-action="copyRestoreToken" title="<?= htmlspecialchars($t('TEXT_LABEL_RESTORE_TOKEN')) ?>">&#128203;</button>
                 <div class="br-form-text"><?= htmlspecialchars($t('TEXT_HELP_RESTORE_TOKEN')) ?></div>
                 <div class="br-switch br-mt-3">
                     <input type="checkbox" id="brTokenSavedCheck">
