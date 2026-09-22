@@ -146,6 +146,13 @@ directly (the module's `__DIR__`-relative path — not `ROOT_PATH . '/restore.ph
 like the original; either keep a copy at project root too, or repoint this
 one route).
 
+`create` receives an optional `profile_id` (sent by the profiles page's "Run
+now" button since 0.3.0). When present, load the profile via
+`profileService()->getById($id)` and pass its `type`, decoded
+`included_paths`/`excluded_paths` and `profile_id` to `createBackup()` so the
+profile's settings apply; keep `created_by` as the acting user (this is a manual
+run, not a scheduled one).
+
 `uploadRestore` moves the uploaded `.tgz` into `backupEngine()->getBackupDir()`
 under a server-generated name (validate the extension and sniff the MIME type
 host-side first), then calls `backupEngine()->registerUploadedArchive($path, $userId, $originalName)`

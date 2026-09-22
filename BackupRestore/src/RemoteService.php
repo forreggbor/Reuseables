@@ -112,7 +112,12 @@ final class RemoteService
                 ':is_active' => $data['is_active'] ?? 1,
             ]);
 
-            return ['success' => true, 'id' => (int) $this->pdo->lastInsertId(), 'error' => null];
+            $id = (int) $this->pdo->lastInsertId();
+            $auditData = $data;
+            unset($auditData['credentials']);
+            $this->audit('create_remote_server', $id, null, $auditData, $data['acting_user_id'] ?? null);
+
+            return ['success' => true, 'id' => $id, 'error' => null];
         } catch (\Throwable $e) {
             $this->log('Failed to create remote server: ' . $e->getMessage(), 'ERROR');
             return ['success' => false, 'id' => null, 'error' => $e->getMessage()];
@@ -188,6 +193,10 @@ final class RemoteService
                 ]);
             }
 
+            $auditData = $data;
+            unset($auditData['credentials']);
+            $this->audit('update_remote_server', $id, null, $auditData, $data['acting_user_id'] ?? null);
+
             // Explicit, audited opt-in only — clearing the pinned host key is a
             // deliberate trust decision (e.g. the operator confirmed a legitimate
             // key rotation), never an implicit side effect of an unrelated edit.
@@ -215,13 +224,16 @@ final class RemoteService
      * @param int $id Server ID
      * @return array{success: bool, error: ?string}
      */
-    public function delete(int $id): array
+    public function delete(int $id, ?int $actingUserId = null): array
     {
         $table = $this->tableNames['backup_remote_servers'];
+        $server = $this->getById($id);
 
         try {
             $stmt = $this->pdo->prepare("DELETE FROM {$table} WHERE id = :id");
             $stmt->execute([':id' => $id]);
+
+            $this->audit('delete_remote_server', $id, $server ? ['name' => $server->name, 'host' => $server->host] : null, null, $actingUserId);
 
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {
@@ -388,7 +400,7 @@ final class RemoteService
      * @param int $serverId Server ID
      * @return array{success: bool, error: ?string, message: ?string}
      */
-    public function testConnection(int $serverId): array
+    public function testConnection(int $serverId, ?int $actingUserId = null): array
     {
         try {
             $sftp = $this->createConnection($serverId);
@@ -407,6 +419,8 @@ final class RemoteService
                 return ['success' => false, 'error' => 'Cannot write to remote path: ' . $remotePath, 'message' => null];
             }
             $sftp->delete($testFile);
+
+            $this->audit('test_remote_server', $serverId, null, ['status' => 'success'], $actingUserId);
 
             return [
                 'success' => true,

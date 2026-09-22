@@ -5,6 +5,17 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.3.1] - 2026-09-22
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva   | A mentési profil „Futtatás most” gombja mostantól átadja a hosztnak, melyik profilt kell futtatni, így a profil kizárási/befoglalási útvonalai érvényesülnek |
+| Javítva   | A mentési profil és a távoli szerver létrehozása/módosítása/törlése/tesztelése mostantól naplózásra kerül |
+
+### Javítva
+- A profilok oldal „Futtatás most” gombja csak a mentés típusát és egy megjegyzést küldött, így a hoszt nem tudta alkalmazni a profil befoglalt/kizárt útvonalait — egy mappát kizáró profil is becsomagolta azt. A kérés mostantól a `profile_id`-t is tartalmazza; az ezt kezelő hoszt betölti a profilt és annak útvonalait (és azonosítóját) adja át a `createBackup()`-nak, a mezőt figyelmen kívül hagyó hoszt pedig pontosan úgy működik, mint eddig (Reuseables#38).
+- A `ProfileService` egyáltalán nem naplózott, a `RemoteService` pedig csak a gazdakulcs visszaállítási/rögzítési eseményeit — egy mentési profil vagy távoli szerver létrehozása, módosítása, törlése vagy tesztelése nyomtalanul maradt az aktivitásnaplóban. Mindkét szolgáltatás mostantól naplóz létrehozáskor/módosításkor/törléskor (távoli szervernél sikeres kapcsolat-tesztkor is), ugyanazt az `acting_user_id` mezőt használva, amit a hoszt már eddig is átadott a gazdakulcs-visszaállításhoz. A `ProfileService::delete()` és a `RemoteService::delete()`/`testConnection()` egy opcionális záró `$actingUserId` paramétert kapott; a meglévő, e nélküli hívások továbbra is működnek, csak a naplóbejegyzés marad felhasználó nélküli (Reuseables#39).
+
 ## [0.3.0] - 2026-09-16
 
 | Kategória | Leírás |

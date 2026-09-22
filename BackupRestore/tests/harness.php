@@ -241,6 +241,49 @@ if ($backupResult['success']) {
 }
 
 // ---------------------------------------------------------------------
+// Fix (#38 + #39): profile_id sent by 'Run now', ProfileService/RemoteService
+// audit their own create/update/delete/testConnection
+// ---------------------------------------------------------------------
+
+section('Fix (#39): ProfileService/RemoteService audit their own CRUD');
+
+$profileService = $mod->profileService();
+$profCreate = $profileService->create([
+    'name' => 'harness-audit-profile',
+    'type' => 'full',
+    'acting_user_id' => 1,
+]);
+check('ProfileService::create() succeeds', $profCreate['success'], $profCreate['error'] ?? '');
+if ($profCreate['success'] && class_exists(ActivityLogs\ActivityLogger::class)) {
+    $profCreateAuditCount = auditCount($pdo, 'create_backup_profile', (string) $profCreate['id']);
+    check('Fix 39a: ProfileService::create() writes a create_backup_profile audit row', $profCreateAuditCount === 1, $profCreateAuditCount === null ? 'activity_logs table unavailable' : "count={$profCreateAuditCount}");
+
+    $profDelete = $profileService->delete($profCreate['id'], 1);
+    check('ProfileService::delete() succeeds', $profDelete['success'], $profDelete['error'] ?? '');
+    $profDeleteAuditCount = auditCount($pdo, 'delete_backup_profile', (string) $profCreate['id']);
+    check('Fix 39b: ProfileService::delete() writes a delete_backup_profile audit row', $profDeleteAuditCount === 1, $profDeleteAuditCount === null ? 'activity_logs table unavailable' : "count={$profDeleteAuditCount}");
+}
+
+$remoteService = $mod->remoteService();
+$remoteCreate = $remoteService->create([
+    'name' => 'harness-audit-remote',
+    'host' => 'example.invalid',
+    'username' => 'harness',
+    'credentials' => 'harness-secret',
+    'acting_user_id' => 1,
+]);
+check('RemoteService::create() succeeds', $remoteCreate['success'], $remoteCreate['error'] ?? '');
+if ($remoteCreate['success'] && class_exists(ActivityLogs\ActivityLogger::class)) {
+    $remoteCreateAuditCount = auditCount($pdo, 'create_remote_server', (string) $remoteCreate['id']);
+    check('Fix 39c: RemoteService::create() writes a create_remote_server audit row', $remoteCreateAuditCount === 1, $remoteCreateAuditCount === null ? 'activity_logs table unavailable' : "count={$remoteCreateAuditCount}");
+
+    $remoteDelete = $remoteService->delete($remoteCreate['id'], 1);
+    check('RemoteService::delete() succeeds', $remoteDelete['success'], $remoteDelete['error'] ?? '');
+    $remoteDeleteAuditCount = auditCount($pdo, 'delete_remote_server', (string) $remoteCreate['id']);
+    check('Fix 39d: RemoteService::delete() writes a delete_remote_server audit row', $remoteDeleteAuditCount === 1, $remoteDeleteAuditCount === null ? 'activity_logs table unavailable' : "count={$remoteDeleteAuditCount}");
+}
+
+// ---------------------------------------------------------------------
 // Reliability fixes 3 + 5: broken host callables must not crash the module
 // ---------------------------------------------------------------------
 

@@ -45,6 +45,28 @@ final class ProfileService
     }
 
     /**
+     * Write an audit entry via the sibling ActivityLogs\ActivityLogger module.
+     * Never lets a logging failure affect the caller: ActivityLogger::log()
+     * itself never throws, and a missing ActivityLogger class (host has not
+     * made it autoloadable) is silently skipped.
+     *
+     * @param string $action e.g. 'create_backup_profile'
+     * @param string|int|null $entityId
+     * @param array|null $oldValues
+     * @param array|null $newValues
+     * @param int|null $userId
+     * @return void
+     */
+    private function audit(string $action, string|int|null $entityId, ?array $oldValues, ?array $newValues, ?int $userId): void
+    {
+        if (!class_exists(\ActivityLogs\ActivityLogger::class)) {
+            return;
+        }
+
+        \ActivityLogs\ActivityLogger::log($userId, $action, 'backup_profile', $entityId, $oldValues, $newValues, $userId === null ? 'system' : 'admin');
+    }
+
+    /**
      * Get all backup profiles.
      *
      * @return array<int,object> List of profile objects
@@ -131,7 +153,10 @@ final class ProfileService
                 ':next_run_at' => $nextRunAt,
             ]);
 
-            return ['success' => true, 'id' => (int) $this->pdo->lastInsertId(), 'error' => null];
+            $id = (int) $this->pdo->lastInsertId();
+            $this->audit('create_backup_profile', $id, null, $data, $data['acting_user_id'] ?? null);
+
+            return ['success' => true, 'id' => $id, 'error' => null];
         } catch (\Throwable $e) {
             $this->log('Failed to create backup profile: ' . $e->getMessage(), 'ERROR');
             return ['success' => false, 'id' => null, 'error' => $e->getMessage()];
@@ -190,6 +215,8 @@ final class ProfileService
                 ':id' => $id,
             ]);
 
+            $this->audit('update_backup_profile', $id, null, $data, $data['acting_user_id'] ?? null);
+
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {
             $this->log('Failed to update backup profile: ' . $e->getMessage(), 'ERROR');
@@ -203,13 +230,16 @@ final class ProfileService
      * @param int $id Profile ID
      * @return array{success: bool, error: ?string}
      */
-    public function delete(int $id): array
+    public function delete(int $id, ?int $actingUserId = null): array
     {
         $profilesTable = $this->tableNames['backup_profiles'];
+        $profile = $this->getById($id);
 
         try {
             $stmt = $this->pdo->prepare("DELETE FROM {$profilesTable} WHERE id = :id");
             $stmt->execute([':id' => $id]);
+
+            $this->audit('delete_backup_profile', $id, $profile ? ['name' => $profile->name] : null, null, $actingUserId);
 
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-22
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | "Run now" on a backup profile now tells the host which profile to run, so its include/exclude paths apply |
+| Fixed    | Backup profile and remote server create/update/delete/test are now audited |
+
+### Fixed
+- "Run now" on the profiles page sent only the backup type and a note, so a host could not apply the profile's included/excluded paths — a profile that excluded a folder still archived it. The request now also carries `profile_id`; a host that honours it loads the profile and passes its paths (and the profile id) to `createBackup()`, while a host that ignores the field behaves exactly as before (Reuseables#38).
+- `ProfileService` had no audit logging at all, and `RemoteService` only audited its host-key reset/pin events — creating, updating, deleting or testing a backup profile or a remote server left no trace in the activity log. Both services now write an audit entry for create/update/delete (and, for remote servers, a successful connection test), using the same `acting_user_id` field a host already passes for the host-key-reset event. `ProfileService::delete()` and `RemoteService::delete()`/`testConnection()` gained an optional trailing `$actingUserId` parameter; existing calls without it keep working, just unattributed (Reuseables#39).
+
 ## [0.3.0] - 2026-09-16
 
 | Category | Description |

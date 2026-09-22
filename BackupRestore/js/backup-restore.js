@@ -786,6 +786,7 @@
             fetch(api('/create'), {
                 method: 'POST', headers: jsonHeaders(),
                 body: JSON.stringify({
+                    profile_id: id,
                     type: profile ? profile.type : 'full',
                     note: 'Manual run: ' + (profile ? profile.name : 'Profile #' + id),
                 }),
