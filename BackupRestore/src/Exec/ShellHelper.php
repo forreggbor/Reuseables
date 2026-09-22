@@ -414,6 +414,23 @@ class ShellHelper
     }
 
     /**
+     * Strip a literal leading "./" prefix — NOT a character-mask trim.
+     *
+     * ltrim($path, './')/trim($path, './') would also strip a leading "."
+     * from a dot-prefixed path like ".git" (the 2nd argument to ltrim/trim
+     * is a character mask, not a literal prefix), silently breaking any
+     * dot-prefixed exclude/include (e.g. ".git" became "git", which tar
+     * never matches against the real .git directory).
+     *
+     * @param string $path
+     * @return string
+     */
+    private static function stripLeadingDotSlash(string $path): string
+    {
+        return str_starts_with($path, './') ? substr($path, 2) : $path;
+    }
+
+    /**
      * Create a tar archive via tar -cf.
      *
      * @param string $outputPath Destination path for tar file
@@ -426,7 +443,7 @@ class ShellHelper
     {
         $excludeArgs = '';
         foreach ($excludes as $path) {
-            $excludeArgs .= ' --exclude=' . escapeshellarg('./' . ltrim($path, './'));
+            $excludeArgs .= ' --exclude=' . escapeshellarg('./' . self::stripLeadingDotSlash($path));
         }
 
         if ($includes === null || empty($includes)) {
@@ -434,7 +451,7 @@ class ShellHelper
         } else {
             $includeArg = '';
             foreach ($includes as $path) {
-                $includeArg .= ' ' . escapeshellarg('./' . ltrim($path, './'));
+                $includeArg .= ' ' . escapeshellarg('./' . self::stripLeadingDotSlash($path));
             }
         }
 
@@ -450,7 +467,14 @@ class ShellHelper
         $returnCode = 0;
         exec($cmd, $output, $returnCode);
 
-        if ($returnCode !== 0) {
+        // GNU tar exit code 1 means non-fatal diagnostics ("some files
+        // differ" — e.g. a file changed mid-read, a socket ignored); tar
+        // still produced a usable archive. Only exit code 2+ is a real
+        // failure. Never swallow the exit-1 diagnostics silently (global
+        // error-visibility rule) even though they don't fail the backup.
+        if ($returnCode === 1) {
+            Logger::log('[ShellHelper] tar reported non-fatal diagnostics (exit code 1): ' . implode(' | ', $output), 'WARNING');
+        } elseif ($returnCode !== 0) {
             return ['success' => false, 'error' => implode("\n", $output) ?: 'tar failed with exit code ' . $returnCode];
         }
 
@@ -476,7 +500,11 @@ class ShellHelper
         $returnCode = 0;
         exec($cmd, $output, $returnCode);
 
-        if ($returnCode !== 0) {
+        // See tarCreate() above — exit code 1 is a non-fatal tar diagnostic,
+        // not a failure.
+        if ($returnCode === 1) {
+            Logger::log('[ShellHelper] tar -czf reported non-fatal diagnostics (exit code 1): ' . implode(' | ', $output), 'WARNING');
+        } elseif ($returnCode !== 0) {
             return ['success' => false, 'error' => implode("\n", $output) ?: 'tar -czf failed with exit code ' . $returnCode];
         }
 

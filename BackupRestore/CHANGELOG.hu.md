@@ -5,6 +5,19 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.3.2] - 2026-09-22
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva   | A `createFileArchive()` már nem próbálja becsomagolni a saját folyamatban lévő temp munkakönyvtárát, ha a tempPath a rootPath alá van ágyazva |
+| Javítva   | A `.git` és más ponttal kezdődő kizárások/befoglalások mostantól tényleg érvényesülnek (mindkét tar-készítési háttérnél) |
+| Javítva   | Egy nem végzetes `tar` figyelmeztetés (exit code 1) mostantól nem szakítja meg az egyébként sikeres mentést |
+
+### Javítva
+- A `BackupEngine::createFileArchive()` csak a mentési könyvtárat és a `.git`-et zárta ki. Ha a hoszt a temp útvonalát a projekt gyökere alá konfigurálta (pl. `<base>/storage/temp`), a folyamatban lévő `files.tar` a saját maga által becsomagolt fába került, és a `tar` megtagadta a mentését ("archive cannot contain itself; not dumped"). Az `Excludes::always()` mostantól feltétel nélkül kizárja a temp útvonalat, ha az a rootPath alá esik, ugyanúgy, ahogy a visszaállítás-oldali `Excludes::fileSync()` már eddig is tette (Reuseables#40).
+- Mindkét tar-készítési háttér (`Exec\ShellHelper::tarCreate()` és `Exec\PhpHelper::tarCreate()`) az `ltrim($path, './')`/`trim($path, './')` hívással normalizálta a kizárási/befoglalási útvonalakat, ami egy ponttal kezdődő útvonal (pl. `.git`) elejéről is levágja a pontot (`.git` → `git`), mivel a második argumentum karaktermaszk, nem szó szerinti előtag. Minden ponttal kezdődő kizárás/befoglalás némán soha nem talált — egy valódi TFL-ERP mentésben bizonyítottan a teljes `.git` bekerült, holott az `Excludes::always()` explicit kizárta. A javítás mostantól csak a szó szerinti `./` előtagot vágja le (Reuseables#42).
+- Az `Exec\ShellHelper::tarCreate()`/`tarCreateGz()` a `tar` 1-es kilépési kódját (nem végzetes — „egyes fájlok eltérnek", pl. egy session-fájl a beolvasás közben megváltozott) ugyanúgy kezelte, mint a 2-es (végzetes) kódot, így egy élő fájlrendszeren átmeneti, gyakorlatilag elkerülhetetlen állapot is megszakította a teljes mentést. Az 1-es kilépési kód mostantól figyelmeztetésként naplózódik, az archívum pedig sikeresen elkészültnek számít; csak a 2-es vagy magasabb kód jelent hibát (Reuseables#41).
+
 ## [0.3.1] - 2026-09-22
 
 | Kategória | Leírás |

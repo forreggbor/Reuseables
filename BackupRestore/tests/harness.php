@@ -284,6 +284,92 @@ if ($remoteCreate['success'] && class_exists(ActivityLogs\ActivityLogger::class)
 }
 
 // ---------------------------------------------------------------------
+// Fix (#40): tempPath nested under rootPath is excluded from file archives
+// ---------------------------------------------------------------------
+
+section('Fix (#40): tempPath nested under rootPath is excluded from file archives');
+
+$nestedRoot = $scratchRoot . '/nested_root';
+$nestedTemp = $nestedRoot . '/storage/temp';
+mkdir($nestedRoot . '/somefiles', 0777, true);
+mkdir($nestedTemp, 0777, true);
+file_put_contents($nestedRoot . '/somefiles/marker.txt', 'nested-root-content');
+
+$nestedConfig = $facadeConfig;
+$nestedConfig['root_path'] = $nestedRoot;
+$nestedConfig['temp_path'] = $nestedTemp;
+$nestedMod = new BackupRestore\BackupRestore($nestedConfig);
+$nestedEngine = $nestedMod->backupEngine();
+
+$nestedBackup = $nestedEngine->createBackup(['type' => 'files', 'note' => 'nested-temp-path test']);
+check(
+    'Fix 40: createBackup() succeeds when tempPath is nested under rootPath',
+    $nestedBackup['success'],
+    $nestedBackup['error'] ?? ''
+);
+
+// ---------------------------------------------------------------------
+// Fix (#42): dot-prefixed excludes/includes (e.g. .git) actually match
+// ---------------------------------------------------------------------
+
+section('Fix (#42): dot-prefixed excludes (.git) actually match');
+
+$dotExcludeRoot = $scratchRoot . '/dotexclude_root';
+mkdir($dotExcludeRoot . '/.git', 0777, true);
+mkdir($dotExcludeRoot . '/keep', 0777, true);
+file_put_contents($dotExcludeRoot . '/.git/HEAD', 'ref: refs/heads/master');
+file_put_contents($dotExcludeRoot . '/keep/marker.txt', 'keep-me');
+
+$dotExcludeArchive = $scratchRoot . '/dotexclude.tar';
+$shellExcludeResult = BackupRestore\Exec\ShellHelper::tarCreate($dotExcludeArchive, $dotExcludeRoot, ['.git']);
+check('Fix 42a (shell): tarCreate() with .git exclude succeeds', $shellExcludeResult['success'], $shellExcludeResult['error'] ?? '');
+if ($shellExcludeResult['success']) {
+    $shellExcludeList = BackupRestore\Exec\ShellHelper::tarList($dotExcludeArchive);
+    $shellHasGit = !empty(array_filter($shellExcludeList['files'] ?? [], fn ($f) => str_contains($f, '.git/')));
+    check('Fix 42a (shell): archive does NOT contain .git', !$shellHasGit, json_encode($shellExcludeList['files'] ?? []));
+}
+
+$dotExcludeArchivePhp = $scratchRoot . '/dotexclude_php.tar';
+$phpExcludeResult = BackupRestore\Exec\PhpHelper::tarCreate($dotExcludeArchivePhp, $dotExcludeRoot, ['.git']);
+check('Fix 42b (php-fallback): tarCreate() with .git exclude succeeds', $phpExcludeResult['success'], $phpExcludeResult['error'] ?? '');
+if ($phpExcludeResult['success']) {
+    $phpExcludeList = BackupRestore\Exec\PhpHelper::tarList($dotExcludeArchivePhp);
+    $phpHasGit = !empty(array_filter($phpExcludeList['files'] ?? [], fn ($f) => str_contains($f, '.git/')));
+    check('Fix 42b (php-fallback): archive does NOT contain .git', !$phpHasGit, json_encode($phpExcludeList['files'] ?? []));
+}
+
+// ---------------------------------------------------------------------
+// Fix (#41): tar exit code 1 (non-fatal warning) does not fail the backup
+// ---------------------------------------------------------------------
+
+section('Fix (#41): tar exit code 1 (non-fatal warning) does not fail the backup');
+
+$socketRoot = $scratchRoot . '/socket_root';
+mkdir($socketRoot, 0777, true);
+file_put_contents($socketRoot . '/marker.txt', 'keep-me');
+$socketPath = $socketRoot . '/weird.sock';
+$sock = socket_create(AF_UNIX, SOCK_STREAM, 0);
+check('Fix 41 setup: socket_create() succeeds', $sock !== false);
+if ($sock !== false) {
+    $bound = @socket_bind($sock, $socketPath);
+    check('Fix 41 setup: socket_bind() creates the socket file', $bound && file_exists($socketPath));
+
+    if ($bound) {
+        $socketArchive = $scratchRoot . '/socket.tar';
+        $socketTarResult = BackupRestore\Exec\ShellHelper::tarCreate($socketArchive, $socketRoot);
+        check(
+            'Fix 41: tarCreate() treats exit-code-1 socket warning as success',
+            $socketTarResult['success'],
+            $socketTarResult['error'] ?? ''
+        );
+        check('Fix 41: archive file was actually written', file_exists($socketArchive) && filesize($socketArchive) > 0);
+    }
+
+    socket_close($sock);
+    @unlink($socketPath);
+}
+
+// ---------------------------------------------------------------------
 // Reliability fixes 3 + 5: broken host callables must not crash the module
 // ---------------------------------------------------------------------
 

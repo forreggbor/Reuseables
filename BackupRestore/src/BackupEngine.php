@@ -133,7 +133,7 @@ final class BackupEngine
     /** @return array<int,string> Always-excluded directories (backup/restore internals) */
     public function getAlwaysExcluded(): array
     {
-        return Excludes::always($this->rootPath, $this->backupDir);
+        return Excludes::always($this->rootPath, $this->backupDir, $this->tempPath);
     }
 
     /** @return array<int,string> Exclusion list shared by all restore-time file-sync operations */

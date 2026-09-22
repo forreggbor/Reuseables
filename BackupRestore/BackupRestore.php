@@ -46,7 +46,7 @@ use PDO;
  * ]);
  *
  * @package BackupRestore
- * @version 0.3.1
+ * @version 0.3.2
  * @license MIT
  */
 class BackupRestore

@@ -620,16 +620,22 @@ class PhpHelper
             $sourceDir = rtrim(realpath($sourceDir), '/');
 
             // Build exclude patterns (normalize to relative paths without leading ./)
-            $normalizedExcludes = array_map(function ($path) {
-                return trim($path, './');
-            }, $excludes);
+            // Note: a literal-prefix strip, not trim($path, './') — trim()'s 2nd
+            // argument is a character mask, not a literal prefix, so it would also
+            // strip a leading "." from a dot-prefixed path like ".git" ("git"),
+            // silently breaking that exclude/include.
+            $normalizedExcludes = array_map(
+                static fn (string $path): string => str_starts_with($path, './') ? substr($path, 2) : $path,
+                $excludes
+            );
 
             // Build include patterns
             $normalizedIncludes = null;
             if ($includes !== null && !empty($includes)) {
-                $normalizedIncludes = array_map(function ($path) {
-                    return trim($path, './');
-                }, $includes);
+                $normalizedIncludes = array_map(
+                    static fn (string $path): string => str_starts_with($path, './') ? substr($path, 2) : $path,
+                    $includes
+                );
             }
 
             $directoryIterator = new \RecursiveDirectoryIterator(

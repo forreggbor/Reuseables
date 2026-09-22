@@ -39,20 +39,31 @@ final class Excludes
      * Derived from the REAL configured backup directory, not a hardcoded
      * relative string — a customized storage path still resolves to the
      * correct exclusion path instead of silently failing to match and
-     * letting a backup archive itself. Also excludes `.git`.
+     * letting a backup archive itself. Also excludes `.git` and, when
+     * nested under $rootPath, the temp path: BackupEngine builds its own
+     * workdir (and the in-progress files.tar) inside the temp path
+     * regardless of what the host does, so the self-containment risk
+     * exists here exactly as it does for {@see fileSync()} — this is a
+     * module-guaranteed exclusion, not something every call site into
+     * createBackup() has to independently remember to pass.
      *
      * @param string $rootPath Absolute project root
      * @param string $backupDir Absolute backup-archive storage directory
+     * @param string $tempPath Absolute temp/scratch directory
      * @return array<int,string> List of always-excluded paths, relative to $rootPath
      */
-    public static function always(string $rootPath, string $backupDir): array
+    public static function always(string $rootPath, string $backupDir, string $tempPath): array
     {
         $rootDir = rtrim($rootPath, '/');
 
         $excluded = [];
-        $absolutePath = rtrim($backupDir, '/');
-        if (str_starts_with($absolutePath, $rootDir . '/')) {
-            $excluded[] = substr($absolutePath, strlen($rootDir) + 1);
+        $absoluteBackupDir = rtrim($backupDir, '/');
+        if (str_starts_with($absoluteBackupDir, $rootDir . '/')) {
+            $excluded[] = substr($absoluteBackupDir, strlen($rootDir) + 1);
+        }
+        $tempDir = rtrim($tempPath, '/');
+        if (str_starts_with($tempDir, $rootDir . '/')) {
+            $excluded[] = substr($tempDir, strlen($rootDir) + 1);
         }
         $excluded[] = '.git';
 
@@ -88,13 +99,7 @@ final class Excludes
      */
     public static function fileSync(string $rootPath, string $backupDir, string $tempPath): array
     {
-        $rootDir = rtrim($rootPath, '/');
-        $tempDir = rtrim($tempPath, '/');
-
-        $excluded = self::always($rootPath, $backupDir);
-        if (str_starts_with($tempDir, $rootDir . '/')) {
-            $excluded[] = substr($tempDir, strlen($rootDir) + 1);
-        }
+        $excluded = self::always($rootPath, $backupDir, $tempPath);
         $excluded[] = 'node_modules';
 
         return array_values(array_unique($excluded));

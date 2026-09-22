@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-22
+
+| Category | Description |
+|----------|--------------|
+| Fixed    | `createFileArchive()` no longer tries to archive its own in-progress temp workdir when tempPath is nested under rootPath |
+| Fixed    | `.git` and other dot-prefixed excludes/includes actually match now (both tar-creation backends) |
+| Fixed    | A non-fatal `tar` diagnostic (exit code 1) no longer aborts an otherwise-successful backup |
+
+### Fixed
+- `BackupEngine::createFileArchive()` only excluded the backup directory and `.git`. When a host configured its temp path inside the project root (e.g. `<base>/storage/temp`), the archive-in-progress `files.tar` ended up inside the very tree being archived, and `tar` refused to dump it ("archive cannot contain itself; not dumped"). `Excludes::always()` now unconditionally excludes the temp path when it resolves under the root path, mirroring the restore-side `Excludes::fileSync()` (Reuseables#40).
+- Both tar-creation backends (`Exec\ShellHelper::tarCreate()` and `Exec\PhpHelper::tarCreate()`) normalized exclude/include paths with `ltrim($path, './')`/`trim($path, './')`, which strips a leading `.` from any dot-prefixed path (`.git` → `git`) because the second argument is a character mask, not a literal prefix. Any exclude or include starting with a dot silently never matched — confirmed live on a real TFL-ERP backup, which contained the project's entire `.git` despite `Excludes::always()` listing it for exclusion. Fixed to strip only a literal `./` prefix (Reuseables#42).
+- `Exec\ShellHelper::tarCreate()`/`tarCreateGz()` treated `tar` exit code 1 (non-fatal — "some files differ", e.g. a session file that changed mid-scan) identically to exit code 2 (fatal), aborting the whole backup on a transient, essentially unavoidable condition on a live filesystem. Exit code 1 is now logged as a warning and the archive is treated as successfully created; only exit code 2 or higher is reported as a failure (Reuseables#41).
+
 ## [0.3.1] - 2026-09-22
 
 | Category | Description |
