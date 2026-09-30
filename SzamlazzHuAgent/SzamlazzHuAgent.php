@@ -135,6 +135,28 @@ class SzamlazzHuAgent
     }
 
     /**
+     * What a failed call means for the document. Nothing was sent, the XML could not be built, or Számlázz.hu answered
+     * with its own error code: a refusal (error result, code kept; the document was not created). Any other failure after
+     * sending (transport error, timeout, empty or unreadable answer, maintenance, missing PDF): uncertain, the document
+     * may exist.
+     *
+     * @param \Throwable $e    The failure.
+     * @param bool       $sent Whether the request had been handed to the SDK for sending.
+     * @return InvoiceResult
+     */
+    public static function classifyFailure(\Throwable $e, bool $sent): InvoiceResult
+    {
+        $message = $e->getMessage();
+        if (!$sent || str_starts_with($message, \SzamlaAgent\SzamlaAgentException::XML_DATA_BUILD_FAILED)) {
+            return InvoiceResult::error($message);
+        }
+        if (preg_match('/^' . preg_quote(\SzamlaAgent\SzamlaAgentException::AGENT_ERROR, '/') . ': \[(\d+)\]/u', $message, $m) === 1) {
+            return InvoiceResult::error($message, (int)$m[1]);
+        }
+        return InvoiceResult::uncertain($message);
+    }
+
+    /**
      * Validate connection to Szamlazz.hu
      *
      * @return array ['success' => bool, 'message' => string]
@@ -266,6 +288,103 @@ class SzamlazzHuAgent
             $this->log('Preview generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Preview generation failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Issues an invoice from exact net amounts, or with $preview only asks Számlázz.hu for the preview PDF (nothing is
+     * created). A real invoice carries $header['external_id'] (szamlaKulsoAzon), so findInvoiceByExternalId() can tell
+     * later whether it exists. Nothing is written to disk: no request/response XML, no PDF file.
+     *
+     * @param array<string,mixed>       $header  See InvoiceBuilder::buildNet(), plus external_id (required unless preview).
+     * @param array<string,mixed>       $buyer   See InvoiceBuilder::buildNet().
+     * @param list<array<string,mixed>> $items   See InvoiceBuilder::buildNet().
+     * @param bool                      $preview Preview only.
+     * @return InvoiceResult Success (invoice number or 'PREVIEW', pdfContent base64), refused (error, nothing was created)
+     *                       or uncertain (sent, the outcome is unknown).
+     */
+    public function issueInvoice(array $header, array $buyer, array $items, bool $preview = false): InvoiceResult
+    {
+        try {
+            $externalId = trim((string)($header['external_id'] ?? ''));
+            if (!$preview && $externalId === '') {
+                throw new \InvalidArgumentException('An invoice needs its external id');
+            }
+            $invoice = $this->builder->buildNet($header, $buyer, $items, $preview);
+            $agent = $this->getAgent() ?? throw new \RuntimeException('The szamlaagent SDK is not available');
+            $this->noFiles($agent);
+            $agent->getSetting()->setInvoiceExternalId($preview ? '' : $externalId);   // the agent is a per-key singleton: always set
+        } catch (\Throwable $e) {
+            $this->log('Invoice request not sent: ' . $e->getMessage(), 'ERROR');
+            return self::classifyFailure($e, false);
+        }
+        try {
+            $response = $agent->generateInvoice($invoice);
+        } catch (\Throwable $e) {
+            $this->log('Invoice request failed: ' . $e->getMessage(), 'ERROR');
+            return self::classifyFailure($e, true);
+        }
+        $pdf    = (string)$response->getPdfFile();
+        $real   = trim((string)$response->getDocumentNumber());
+        if ($preview && $real !== '') {
+            // a preview must never create an invoice: say so loudly instead of hiding the number behind 'PREVIEW'
+            $this->log('A preview request was answered with a real invoice number: ' . $real, 'ERROR');
+            return InvoiceResult::error('Számlázz.hu answered the preview with invoice number ' . $real);
+        }
+        $number = $preview ? 'PREVIEW' : $real;
+        if ($pdf === '' || $number === '') {
+            $this->log('Invoice answer without number or PDF', 'ERROR');
+            return $preview ? InvoiceResult::error('Számlázz.hu returned no preview PDF') : InvoiceResult::uncertain('Számlázz.hu answered without the invoice number or PDF');
+        }
+        return new InvoiceResult(success: true, invoiceNumber: $number, pdfContent: base64_encode($pdf));
+    }
+
+    /**
+     * The invoice issued with an external id (szamlaKulsoAzon). Found: success with the invoice number and pdfContent
+     * base64. Not found: an error result, only when Számlázz.hu's error code is in $notFoundCodes. Anything else, a network
+     * error or another code included, is uncertain and never reads as "not found" (the SDK's isExistsInvoiceByExternalId()
+     * treats every exception as "not found", so it is not used).
+     *
+     * @param string    $externalId    External id the invoice was issued with.
+     * @param list<int> $notFoundCodes Számlázz.hu error codes that mean "no such invoice".
+     * @return InvoiceResult
+     */
+    public function findInvoiceByExternalId(string $externalId, array $notFoundCodes): InvoiceResult
+    {
+        if (trim($externalId) === '') {
+            return InvoiceResult::error('The external id is empty');
+        }
+        try {
+            $agent = $this->getAgent() ?? throw new \RuntimeException('The szamlaagent SDK is not available');
+            $this->noFiles($agent);
+            $response = $agent->getInvoicePdf($externalId, \SzamlaAgent\Document\Invoice\Invoice::FROM_INVOICE_EXTERNAL_ID);
+        } catch (\Throwable $e) {
+            $result = self::classifyFailure($e, true);
+            if (!$result->isUncertain() && $result->errorCode !== null && in_array($result->errorCode, $notFoundCodes, true)) {
+                return $result;
+            }
+            $this->log('Invoice lookup by external id failed: ' . $e->getMessage(), 'ERROR');
+            return InvoiceResult::uncertain($e->getMessage(), $result->errorCode);   // keeps a Számlázz.hu code that is not a not-found code
+        }
+        $pdf    = (string)$response->getPdfFile();
+        $number = trim((string)$response->getDocumentNumber());
+        if ($pdf === '' || $number === '') {
+            return InvoiceResult::uncertain('Számlázz.hu answered the lookup without number or PDF');
+        }
+        return new InvoiceResult(success: true, invoiceNumber: $number, pdfContent: base64_encode($pdf));
+    }
+
+    /**
+     * Stops the SDK from writing request/response XML (which carries the key) and PDF files for this agent.
+     *
+     * @param \SzamlaAgent\SzamlaAgentAPI $agent Agent.
+     * @return void
+     */
+    private function noFiles(\SzamlaAgent\SzamlaAgentAPI $agent): void
+    {
+        $agent->setXmlFileSave(false);
+        $agent->setRequestXmlFileSave(false);
+        $agent->setResponseXmlFileSave(false);
+        $agent->setPdfFileSave(false);
     }
 
     /**
@@ -529,6 +648,49 @@ class SzamlazzHuAgent
         } catch (\Exception $e) {
             $this->log('Receipt generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Receipt generation failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get invoice PDF
+     *
+     * Downloads the PDF of an invoice issued in the account, by invoice number. The SDK's own request XML and
+     * PDF file saving is turned off for this call, because the request XML carries the Agent key.
+     *
+     * @param string $invoiceNumber Invoice number
+     * @return InvoiceResult pdfContent holds the PDF base64-encoded
+     */
+    public function getInvoicePdf(string $invoiceNumber): InvoiceResult
+    {
+        $agent = $this->getAgent();
+
+        if ($agent === null) {
+            return InvoiceResult::error('Invoice PDF retrieval requires the szamlaagent SDK.');
+        }
+
+        try {
+            // never write the key-bearing request XML (or a copy of the PDF) to disk
+            $agent->setXmlFileSave(false);
+            $agent->setPdfFileSave(false);
+
+            $result = $agent->getInvoicePdf($invoiceNumber);
+
+            if ($result->isSuccess()) {
+                return new InvoiceResult(
+                    success: true,
+                    invoiceNumber: $invoiceNumber,
+                    pdfContent: base64_encode((string)$result->getPdfFile())
+                );
+            }
+
+            $code = $result->getErrorCode();
+            return InvoiceResult::error(
+                $result->getErrorMessage() ?? 'Invoice PDF retrieval failed.',
+                is_numeric($code) ? (int)$code : null
+            );
+        } catch (\Throwable $e) {
+            $this->log('Invoice PDF retrieval failed: ' . $e->getMessage(), 'ERROR');
+            return InvoiceResult::error('Invoice PDF retrieval failed: ' . $e->getMessage());
         }
     }
 

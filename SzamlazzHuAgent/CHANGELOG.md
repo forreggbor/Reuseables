@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.5.0   | 2026-09-30 | Add net-based invoicing, lookup by external id, invoice PDF download |
 | 1.4.1   | 2026-09-30 | Stop writing the Agent key to disk, fix invoice_prefix crash |
 | 1.4.0   | 2026-08-01 | Add configurable e-invoice vs paper invoice type          |
 | 1.3.0   | 2026-06-03 | Add per-line item comment field                                   |
@@ -24,6 +25,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.5.0] - 2026-09-30
+
+| Category | Description |
+|----------|-------------|
+| Added    | Invoices can be issued from exact net amounts, taken over unchanged from the source document (closes #47) |
+| Added    | An issued invoice can be looked up by its external reference to tell whether it already exists (closes #47) |
+| Added    | The PDF of any invoice in the account can be downloaded by invoice number (closes #47) |
+| Added    | Results now report an "uncertain" outcome when the request was sent but the answer was lost (closes #47) |
+
+### Added
+
+- Invoices can be issued from exact net amounts: every date, amount, VAT code, discount note and foreign-currency rate is sent exactly as given, so the invoice matches its source document to the cent. Missing or invalid values stop the request before anything is sent. A preview-only mode returns the preview PDF without creating an invoice.
+- An invoice issued with an external reference can be looked up later. A "not found" answer is only trusted when Számlázz.hu explicitly says so; a network error or any other answer is reported as uncertain, so a duplicate invoice is never created by mistake.
+- The PDF of any invoice in the account can be downloaded by its invoice number.
+- Every result now distinguishes three outcomes: issued, refused (nothing was created), and uncertain (the invoice may exist — check before sending again).
+- None of the new operations write request or response files (which contain the Agent key) or PDF copies to disk.
 
 ## [1.4.1] - 2026-09-30
 

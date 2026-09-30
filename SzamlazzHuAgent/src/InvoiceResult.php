@@ -15,6 +15,7 @@ class InvoiceResult
     public ?string $pdfContent;
     public ?string $errorMessage;
     public ?int $errorCode;
+    public bool $uncertain;
 
     public function __construct(
         bool $success,
@@ -22,7 +23,8 @@ class InvoiceResult
         ?string $pdfPath = null,
         ?string $pdfContent = null,
         ?string $errorMessage = null,
-        ?int $errorCode = null
+        ?int $errorCode = null,
+        bool $uncertain = false
     ) {
         $this->success = $success;
         $this->invoiceNumber = $invoiceNumber;
@@ -30,6 +32,7 @@ class InvoiceResult
         $this->pdfContent = $pdfContent;
         $this->errorMessage = $errorMessage;
         $this->errorCode = $errorCode;
+        $this->uncertain = $uncertain;
     }
 
     /**
@@ -55,6 +58,22 @@ class InvoiceResult
             errorMessage: $message,
             errorCode: $code
         );
+    }
+
+    /**
+     * Create an uncertain result: the request was sent, then its answer was lost or unusable, so the document may exist
+     */
+    public static function uncertain(string $message, ?int $code = null): self
+    {
+        return new self(success: false, errorMessage: $message, errorCode: $code, uncertain: true);
+    }
+
+    /**
+     * Whether the outcome is unknown (the request was sent; check before sending again)
+     */
+    public function isUncertain(): bool
+    {
+        return $this->uncertain;
     }
 
     /**
@@ -125,6 +144,7 @@ class InvoiceResult
             'pdf_content' => $this->pdfContent,
             'error_message' => $this->errorMessage,
             'error_code' => $this->errorCode,
+            'uncertain' => $this->uncertain,
         ];
     }
 }

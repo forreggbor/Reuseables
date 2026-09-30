@@ -85,6 +85,154 @@ class InvoiceBuilder
     }
 
     /**
+     * Builds an invoice from exact net amounts (the net-based path of SzamlazzHuAgent::issueInvoice()): every date,
+     * amount, VAT code and label is taken as given and nothing is recomputed, so the invoice equals its source document.
+     *
+     * @param array<string,mixed>       $header  issue_date, fulfillment_date, payment_due (Y-m-d), payment_method (key) or
+     *                                           payment_method_label, paid, currency (ISO), exchange_rate + exchange_bank
+     *                                           (not HUF), language (hu|en|de), order_number, comment, invoice_type (paper|e).
+     * @param array<string,mixed>       $buyer   name, zip, city, address (required), country, tax_number, tax_number_eu,
+     *                                           tax_payer (a TaxPayer constant), email, phone.
+     * @param list<array<string,mixed>> $items   name, quantity, unit, net_unit_price, vat (SDK VAT code), net_amount,
+     *                                           vat_amount, gross_amount (decimal strings), comment.
+     * @param bool                      $preview Ask only for the preview PDF (nothing is created).
+     * @return \SzamlaAgent\Document\Invoice\Invoice
+     * @throws \InvalidArgumentException On a missing or invalid value (nothing is sent then).
+     */
+    public function buildNet(array $header, array $buyer, array $items, bool $preview): \SzamlaAgent\Document\Invoice\Invoice
+    {
+        $invoice = new \SzamlaAgent\Document\Invoice\Invoice(($header['invoice_type'] ?? 'paper') === 'e'
+            ? \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_E_INVOICE : \SzamlaAgent\Document\Invoice\Invoice::INVOICE_TYPE_P_INVOICE);
+        $h = $invoice->getHeader();
+        $h->setIssueDate(self::date($header, 'issue_date'));
+        $h->setFulfillment(self::date($header, 'fulfillment_date'));
+        $h->setPaymentDue(self::date($header, 'payment_due'));
+        $h->setPaymentMethod((string)($header['payment_method_label'] ?? $this->getPaymentMethodLabel($this->resolvePaymentMethodKey((string)($header['payment_method'] ?? 'bank_transfer')))));
+        $h->setPaid((bool)($header['paid'] ?? false));
+        $currency = strtoupper((string)($header['currency'] ?? ''));
+        if ($currency === 'HUF') {
+            $h->setCurrency(\SzamlaAgent\Currency::CURRENCY_FT);
+        } elseif (preg_match('/^[A-Z]{3}$/', $currency) === 1 && defined('\SzamlaAgent\Currency::CURRENCY_' . $currency)) {
+            $h->setCurrency(constant('\SzamlaAgent\Currency::CURRENCY_' . $currency));
+            $rate = (string)($header['exchange_rate'] ?? '');
+            if (preg_match('/^\d+(?:\.\d+)?$/', $rate) !== 1 || (float)$rate <= 0.0) {
+                throw new \InvalidArgumentException('A foreign-currency invoice needs its exchange rate');
+            }
+            $h->setExchangeRate((float)$rate);
+            $h->setExchangeBank((string)($header['exchange_bank'] ?? 'MNB'));
+        } else {
+            throw new \InvalidArgumentException('Unsupported currency: ' . $currency);
+        }
+        $h->setLanguage(match ((string)($header['language'] ?? 'hu')) {
+            'hu' => \SzamlaAgent\Language::LANGUAGE_HU,
+            'en' => \SzamlaAgent\Language::LANGUAGE_EN,
+            'de' => \SzamlaAgent\Language::LANGUAGE_DE,
+            default => throw new \InvalidArgumentException('Unsupported invoice language'),
+        });
+        foreach (['order_number' => 'setOrderNumber', 'comment' => 'setComment'] as $key => $setter) {
+            if (trim((string)($header[$key] ?? '')) !== '') {
+                $h->$setter((string)$header[$key]);
+            }
+        }
+        if (!empty($this->config['invoice_prefix'])) {
+            $h->setPrefix((string)$this->config['invoice_prefix']);
+        }
+        if ($preview) {
+            $h->setPreviewPdf(true);
+        }
+        $invoice->setBuyer($this->netBuyer($buyer));
+        if ($items === []) {
+            throw new \InvalidArgumentException('An invoice needs at least one item');
+        }
+        foreach ($items as $i => $item) {
+            $invoice->addItem($this->netItem($item, $i));
+        }
+        return $invoice;
+    }
+
+    /**
+     * The buyer of a net-based invoice.
+     *
+     * @param array<string,mixed> $buyer See buildNet().
+     * @return \SzamlaAgent\Buyer
+     * @throws \InvalidArgumentException When a required address part or the buyer type is missing or invalid.
+     */
+    private function netBuyer(array $buyer): \SzamlaAgent\Buyer
+    {
+        foreach (['name', 'zip', 'city', 'address'] as $key) {
+            if (trim((string)($buyer[$key] ?? '')) === '') {
+                throw new \InvalidArgumentException('The buyer needs ' . $key);
+            }
+        }
+        $b = new \SzamlaAgent\Buyer((string)$buyer['name'], (string)$buyer['zip'], (string)$buyer['city'], (string)$buyer['address']);
+        $taxPayers = array_values(array_filter((new \ReflectionClass(\SzamlaAgent\TaxPayer::class))->getConstants(), 'is_int'));
+        if (!is_int($buyer['tax_payer'] ?? null) || !in_array($buyer['tax_payer'], $taxPayers, true)) {
+            throw new \InvalidArgumentException('Unknown buyer type');
+        }
+        $b->setTaxPayer($buyer['tax_payer']);
+        foreach (['country' => 'setCountry', 'tax_number' => 'setTaxNumber', 'tax_number_eu' => 'setTaxNumberEU', 'email' => 'setEmail', 'phone' => 'setPhone'] as $key => $setter) {
+            if (trim((string)($buyer[$key] ?? '')) !== '') {
+                $b->$setter((string)$buyer[$key]);
+            }
+        }
+        $b->setSendEmail(false);
+        return $b;
+    }
+
+    /**
+     * One line of a net-based invoice, its amounts exactly as given.
+     *
+     * @param array<string,mixed> $item  See buildNet().
+     * @param int                 $index Line index (for the message).
+     * @return \SzamlaAgent\Item\InvoiceItem
+     * @throws \InvalidArgumentException On a missing name, an unknown VAT code or a malformed amount.
+     */
+    private function netItem(array $item, int $index): \SzamlaAgent\Item\InvoiceItem
+    {
+        $vat = (string)($item['vat'] ?? '');
+        $codes = array_filter((new \ReflectionClass(\SzamlaAgent\Item\Item::class))->getConstants(), static fn(string $k): bool => str_starts_with($k, 'VAT_'), ARRAY_FILTER_USE_KEY);
+        if (preg_match('/^\d{1,2}$/', $vat) !== 1 && !in_array($vat, $codes, true)) {
+            throw new \InvalidArgumentException('Item ' . ($index + 1) . ': unknown VAT code ' . $vat);
+        }
+        $amount = static function (string $key) use ($item, $index): float {
+            $v = (string)($item[$key] ?? '');
+            if (preg_match('/^-?\d+(?:\.\d+)?$/', $v) !== 1) {
+                throw new \InvalidArgumentException('Item ' . ($index + 1) . ': ' . $key . ' is not a decimal number');
+            }
+            return (float)$v;
+        };
+        if (trim((string)($item['name'] ?? '')) === '') {
+            throw new \InvalidArgumentException('Item ' . ($index + 1) . ' has no name');
+        }
+        $line = new \SzamlaAgent\Item\InvoiceItem((string)$item['name'], $amount('net_unit_price'), $amount('quantity'), (string)($item['unit'] ?? 'db'), $vat);
+        $line->setNetPrice($amount('net_amount'));
+        $line->setVatAmount($amount('vat_amount'));
+        $line->setGrossAmount($amount('gross_amount'));
+        if (trim((string)($item['comment'] ?? '')) !== '') {
+            $line->setComment((string)$item['comment']);
+        }
+        return $line;
+    }
+
+    /**
+     * A required Y-m-d date of the header.
+     *
+     * @param array<string,mixed> $header Header.
+     * @param string              $key    Key.
+     * @return string
+     * @throws \InvalidArgumentException When missing or not a real date.
+     */
+    private static function date(array $header, string $key): string
+    {
+        $v = (string)($header[$key] ?? '');
+        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $v);
+        if ($d === false || $d->format('Y-m-d') !== $v) {
+            throw new \InvalidArgumentException($key . ' is not a date: ' . $v);
+        }
+        return $v;
+    }
+
+    /**
      * Set invoice header
      */
     private function setHeader(\SzamlaAgent\Document\Invoice\Invoice $invoice, array $orderData, bool $preview): void

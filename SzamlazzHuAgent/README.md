@@ -169,6 +169,70 @@ $result = $agent->createStornoInvoice(
 
 **Note:** Storno requires the szamlaagent SDK.
 
+#### getInvoicePdf()
+
+Download the PDF of an invoice issued in the account, by invoice number. `pdfContent` holds the PDF base64-encoded.
+The SDK's request XML and PDF file saving is turned off for this call (the request XML carries the Agent key).
+
+```php
+$result = $agent->getInvoicePdf(invoiceNumber: 'E-INV-2025-00001');
+if ($result->success) {
+    $pdf = base64_decode($result->pdfContent);
+}
+```
+
+**Note:** Invoice PDF retrieval requires the szamlaagent SDK.
+
+### Net-based invoices: issueInvoice() and findInvoiceByExternalId()
+
+For callers that already hold exact net amounts (an ERP document with per-line net, VAT and gross, special VAT codes, discounts, foreign currency), `issueInvoice()` sends every value as given and recomputes nothing. The gross-based `generateInvoice()` above is unchanged.
+
+```php
+$result = $agent->issueInvoice(
+    header: [
+        'issue_date' => '2026-09-29', 'fulfillment_date' => '2026-09-25', 'payment_due' => '2026-10-07',
+        'payment_method' => 'bank_transfer',            // or 'payment_method_label' => 'Előreutalás'
+        'paid' => false,
+        'currency' => 'EUR', 'exchange_rate' => '389.460000', 'exchange_bank' => 'MNB',   // rate required unless HUF
+        'language' => 'de',                              // hu | en | de
+        'order_number' => 'PO-77', 'comment' => 'Ref.: AJ-2026-19',
+        'invoice_type' => 'paper',                       // paper | e
+        'external_id' => 'PMERP-1-AJ-2026-19',           // szamlaKulsoAzon, required unless preview
+    ],
+    buyer: [
+        'name' => 'Beispiel GmbH', 'zip' => '74321', 'city' => 'Musterstadt', 'address' => 'Beispielweg 1',   // required
+        'country' => 'Deutschland', 'tax_number' => '', 'tax_number_eu' => 'DE123456789',
+        'tax_payer' => \SzamlaAgent\TaxPayer::TAXPAYER_EU_ENTERPRISE,                                       // required
+        'email' => '', 'phone' => '',
+    ],
+    items: [[
+        'name' => 'Licenc', 'quantity' => '2.000', 'unit' => 'db', 'net_unit_price' => '100.5000',
+        'vat' => 'EUKT',                                  // '27', '5', '0', 'AAM', 'TAM', 'EUKT', 'HO', … (SDK Item::VAT_*)
+        'net_amount' => '201.00', 'vat_amount' => '0.00', 'gross_amount' => '201.00', 'comment' => 'Kedvezmény: 10 %',
+    ]],
+    preview: false,                                        // true: only the preview PDF, nothing is created
+);
+```
+
+The result tells three outcomes apart:
+
+| Outcome | `success` | `isUncertain()` | Meaning |
+|---------|-----------|-----------------|---------|
+| Issued | true | false | `invoiceNumber` (or `PREVIEW`) and `pdfContent` (base64) |
+| Refused | false | false | Not sent (invalid input), or Számlázz.hu answered with its error code (`errorCode`): nothing was created |
+| Uncertain | false | true | Sent, then the answer was lost or unusable: the invoice **may exist** — look it up before sending again |
+
+- Invalid or missing values (currency, VAT code, buyer type, dates, address, rate) throw inside the builder, and the call is refused before anything is sent. Nothing is defaulted silently.
+- A preview answered with a real invoice number is an error (logged), never hidden.
+- `findInvoiceByExternalId(string $externalId, array $notFoundCodes)`:
+  - found → success with the number and PDF;
+  - "not found" → an error result, **only** when Számlázz.hu's error code is in `$notFoundCodes`;
+  - anything else (network error, another code) → uncertain.
+  - The SDK's own `isExistsInvoiceByExternalId()` reads every exception as "not found" and must not decide whether it is safe to send again.
+- Both methods write **no files**: no request/response XML (which carries the agent key) and no PDF. The PDF comes back in `pdfContent`.
+- Errors are caught as `\Throwable`, and the log callback never receives the key.
+- The agent is a per-key singleton inside the SDK. `issueInvoice()` sets the external id on every call (empty for a preview).
+
 ### Delivery Note Methods
 
 #### generateDeliveryNote()
