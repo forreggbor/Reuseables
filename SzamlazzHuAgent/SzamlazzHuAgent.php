@@ -117,12 +117,17 @@ class SzamlazzHuAgent
         }
 
         try {
-            return \SzamlaAgent\SzamlaAgentAPI::create(
+            $agent = \SzamlaAgent\SzamlaAgentAPI::create(
                 $this->config['api_key'],
                 true,
                 \SzamlaAgent\Log::LOG_LEVEL_WARN,
                 \SzamlaAgent\Response\SzamlaAgentResponse::RESULT_AS_TEXT
             );
+
+            // The request XML contains the Agent key (<szamlaagentkulcs>) — never persist it to disk
+            $agent->setRequestXmlFileSave(false);
+
+            return $agent;
         } catch (\Exception $e) {
             $this->log('Failed to create SzamlaAgent: ' . $e->getMessage(), 'ERROR');
             return null;

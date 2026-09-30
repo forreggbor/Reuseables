@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.4.1   | 2026-09-30 | Stop writing the Agent key to disk, fix invoice_prefix crash |
 | 1.4.0   | 2026-08-01 | Add configurable e-invoice vs paper invoice type          |
 | 1.3.0   | 2026-06-03 | Add per-line item comment field                                   |
 | 1.2.0   | 2026-02-10 | Add payment_method_label, validate keys, deprecate config mapping |
@@ -23,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.4.1] - 2026-09-30
+
+| Category | Description |
+|----------|-------------|
+| Security | Request XML files (containing the Agent key) are no longer saved to disk (closes #43) |
+| Fixed    | Invoice, delivery note and proforma generation no longer fail when `invoice_prefix` is configured (closes #44) |
+
+### Security
+
+- `getAgent()` now disables request XML saving (`setRequestXmlFileSave(false)`) for every SDK call. The SDK saved each request XML under `<storage_path>/xmls` by default, and that XML contains the Agent key (`<szamlaagentkulcs>`) in plaintext. Existing files from earlier versions are not removed — delete them from `<storage_path>/xmls` on each installation and consider rotating the key.
+- Known and not fixed here: the vendored SDK enables `CURLOPT_VERBOSE` (`SzamlaAgentRequest.php:483`), so the curl trace (including the `Cookie: JSESSIONID` header, not the key) still goes to the web server's stderr. It requires patching or upgrading the vendored SDK (tracked in #46).
+
+### Fixed
+
+- `invoice_prefix` config key called a non-existent SDK method (`setInvoiceNumberPrefix()`), so `generateInvoice()`, `generateDeliveryNote()` and `generateProforma()` failed with "Call to undefined method" whenever a prefix was configured. The builder now uses the SDK's `setPrefix()`.
 
 ## [1.4.0] - 2026-08-01
 

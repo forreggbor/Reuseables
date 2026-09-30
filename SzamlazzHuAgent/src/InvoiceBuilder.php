@@ -142,7 +142,7 @@ class InvoiceBuilder
 
         // Invoice prefix
         if (!empty($this->config['invoice_prefix'])) {
-            $header->setInvoiceNumberPrefix($this->config['invoice_prefix']);
+            $header->setPrefix($this->config['invoice_prefix']);
         }
     }
 
@@ -390,7 +390,7 @@ class InvoiceBuilder
 
         // Invoice prefix
         if (!empty($this->config['invoice_prefix'])) {
-            $header->setInvoiceNumberPrefix($this->config['invoice_prefix']);
+            $header->setPrefix($this->config['invoice_prefix']);
         }
     }
 
@@ -549,7 +549,7 @@ class InvoiceBuilder
 
         // Invoice prefix
         if (!empty($this->config['invoice_prefix'])) {
-            $header->setInvoiceNumberPrefix($this->config['invoice_prefix']);
+            $header->setPrefix($this->config['invoice_prefix']);
         }
     }
 
