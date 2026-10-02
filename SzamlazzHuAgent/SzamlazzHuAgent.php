@@ -230,6 +230,189 @@ class SzamlazzHuAgent
     }
 
     /**
+     * Query a Hungarian taxpayer by tax number through the Szamlazz.hu Agent taxpayer interface.
+     *
+     * Szamlazz.hu forwards the query to the NAV Online Szamla system, so the answer is limited to what NAV returns there:
+     * validity, full name, short name (when NAV has one), tax number details (VAT code, county code), business type
+     * (incorporation) and the address list. The official Szamlazz.hu docs sample still shows the older NAV v2.0 shape without
+     * short name/incorporation/county code, while the live answer is NAV v3.0 — NAV may omit any of these and may change the
+     * interface at any time, so callers must tolerate missing parts. There is no company registry number, no contact data.
+     *
+     * Only the first 8 digits (torzsszam) are sent. A non-singleton agent is used with file saving disabled (the answer
+     * contains personal data of sole proprietors) so the call never changes state shared with invoicing.
+     *
+     * @param string $taxNumber Tax number in any format; the first 8 digits are used.
+     * @return array{
+     *     success: bool,
+     *     valid: bool,
+     *     error_code: int|null,
+     *     message: string,
+     *     taxpayer: array<string, mixed>|null,
+     *     raw_xml: string|null
+     * } success = NAV/Szamlazz.hu answered; valid = NAV knows the tax number (taxpayerValidity); taxpayer = null unless
+     *   valid; raw_xml = the raw NAV answer (success path only, null on errors).
+     */
+    public function queryTaxpayer(string $taxNumber): array
+    {
+        $taxId = substr((string)preg_replace('/\D/', '', $taxNumber), 0, 8);
+        if (strlen($taxId) !== 8) {
+            return self::taxpayerResult(false, false, null, 'Invalid tax number: the first 8 digits are required.');
+        }
+
+        if (!$this->sdkLoaded) {
+            return self::taxpayerResult(false, false, null, 'Taxpayer query requires the szamlaagent SDK.');
+        }
+
+        try {
+            // Non-singleton: the SDK caches singleton agents per key and getTaxPayer() switches the response type on the
+            // cached instance, which would leak into later invoice calls in the same process.
+            $agent = \SzamlaAgent\SzamlaAgentAPI::create(
+                $this->config['api_key'],
+                false,
+                \SzamlaAgent\Log::LOG_LEVEL_WARN,
+                \SzamlaAgent\Response\SzamlaAgentResponse::RESULT_AS_TEXT,
+                '',
+                false
+            );
+            $this->noFiles($agent);
+            $agent->setRequestTimeout(15);
+
+            $response = $agent->getTaxPayer($taxId);
+            $rawXml = $response->getTaxPayerData();
+
+            if (!is_string($rawXml) || trim($rawXml) === '') {
+                $this->log('Taxpayer query returned an empty answer.', 'ERROR');
+                return self::taxpayerResult(false, false, null, 'Taxpayer query returned an empty answer.');
+            }
+
+            return $this->parseTaxpayerXml($rawXml);
+        } catch (\Throwable $e) {
+            // The SDK throws "AGENT_ERROR: [code], message" when funcCode=ERROR (e.g. 57 = malformed tax number); the raw
+            // XML does not exist on that path.
+            $code = null;
+            if (preg_match('/^' . preg_quote(\SzamlaAgent\SzamlaAgentException::AGENT_ERROR, '/') . ': \[(\d+)\]/u', $e->getMessage(), $m) === 1) {
+                $code = (int)$m[1];
+            }
+            $this->log('Taxpayer query failed: ' . $e->getMessage(), 'ERROR');
+            return self::taxpayerResult(false, false, $code, $e->getMessage());
+        }
+    }
+
+    /**
+     * Parse a NAV QueryTaxpayerResponse into the structured taxpayer result (namespace/version tolerant).
+     *
+     * @param string $rawXml The raw NAV answer.
+     * @return array The queryTaxpayer() result array.
+     */
+    private function parseTaxpayerXml(string $rawXml): array
+    {
+        // The answer comes from a third party: refuse DTDs/entities outright, never touch the network.
+        if (stripos($rawXml, '<!DOCTYPE') !== false || stripos($rawXml, '<!ENTITY') !== false) {
+            $this->log('Taxpayer answer rejected: it contains a DTD.', 'ERROR');
+            return self::taxpayerResult(false, false, null, 'Taxpayer answer rejected: unexpected DTD.');
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $doc = new \DOMDocument();
+            if (!$doc->loadXML($rawXml, LIBXML_NONET | LIBXML_NOBLANKS)) {
+                $this->log('Taxpayer answer is not valid XML.', 'ERROR');
+                return self::taxpayerResult(false, false, null, 'Taxpayer answer is not valid XML.');
+            }
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        $xp = new \DOMXPath($doc);
+        $text = static function (string $query, ?\DOMNode $ctx = null) use ($xp): ?string {
+            $nodes = $xp->query($query, $ctx);
+            if ($nodes === false || $nodes->length === 0) {
+                return null;
+            }
+            $value = trim((string)$nodes->item(0)->textContent);
+            return $value === '' ? null : $value;
+        };
+
+        $funcCode = $text('//*[local-name()="result"]/*[local-name()="funcCode"]');
+        if ($funcCode !== null && strtoupper($funcCode) !== 'OK') {
+            $code = $text('//*[local-name()="result"]/*[local-name()="errorCode"]');
+            $message = $text('//*[local-name()="result"]/*[local-name()="message"]') ?? 'Taxpayer query failed.';
+            $this->log('Taxpayer query answered with an error: ' . $message, 'ERROR');
+            return self::taxpayerResult(false, false, $code !== null ? (int)$code : null, $message, $rawXml);
+        }
+
+        $validity = $text('//*[local-name()="taxpayerValidity"]');
+        $valid = $validity !== null && strtolower($validity) === 'true';
+
+        if (!$valid || $text('//*[local-name()="taxpayerData"]/*[local-name()="taxpayerName"]') === null) {
+            return self::taxpayerResult(true, false, null, 'Tax number not found.', $rawXml);
+        }
+
+        $addresses = [];
+        $items = $xp->query('//*[local-name()="taxpayerAddressItem"]');
+        if ($items !== false) {
+            foreach ($items as $item) {
+                $addr = $xp->query('./*[local-name()="taxpayerAddress"]', $item)->item(0);
+                if ($addr === null) {
+                    continue;
+                }
+                $addresses[] = [
+                    'type' => $text('./*[local-name()="taxpayerAddressType"]', $item),
+                    'country_code' => $text('./*[local-name()="countryCode"]', $addr),
+                    'region' => $text('./*[local-name()="region"]', $addr),
+                    'postal_code' => $text('./*[local-name()="postalCode"]', $addr),
+                    'city' => $text('./*[local-name()="city"]', $addr),
+                    'street_name' => $text('./*[local-name()="streetName"]', $addr),
+                    'public_place_category' => $text('./*[local-name()="publicPlaceCategory"]', $addr),
+                    'number' => $text('./*[local-name()="number"]', $addr),
+                    'building' => $text('./*[local-name()="building"]', $addr),
+                    'staircase' => $text('./*[local-name()="staircase"]', $addr),
+                    'floor' => $text('./*[local-name()="floor"]', $addr),
+                    'door' => $text('./*[local-name()="door"]', $addr),
+                    'lot_number' => $text('./*[local-name()="lotNumber"]', $addr),
+                ];
+            }
+        }
+
+        $taxpayer = [
+            'name' => $text('//*[local-name()="taxpayerData"]/*[local-name()="taxpayerName"]'),
+            'short_name' => $text('//*[local-name()="taxpayerData"]/*[local-name()="taxpayerShortName"]'),
+            'incorporation' => $text('//*[local-name()="taxpayerData"]/*[local-name()="incorporation"]'),
+            'tax_id' => $text('//*[local-name()="taxNumberDetail"]/*[local-name()="taxpayerId"]'),
+            'vat_code' => $text('//*[local-name()="taxNumberDetail"]/*[local-name()="vatCode"]'),
+            'county_code' => $text('//*[local-name()="taxNumberDetail"]/*[local-name()="countyCode"]'),
+            'info_date' => $text('//*[local-name()="infoDate"]'),
+            'addresses' => $addresses,
+        ];
+
+        return self::taxpayerResult(true, true, null, 'OK', $rawXml, $taxpayer);
+    }
+
+    /**
+     * Build the queryTaxpayer() result array.
+     *
+     * @param bool        $success  NAV/Szamlazz.hu answered.
+     * @param bool        $valid    NAV knows the tax number.
+     * @param int|null    $code     Szamlazz.hu/NAV error code, if any.
+     * @param string      $message  Human-readable (English) message.
+     * @param string|null $rawXml   Raw NAV answer, success path only.
+     * @param array|null  $taxpayer Parsed taxpayer data, valid answers only.
+     * @return array The result array documented on queryTaxpayer().
+     */
+    private static function taxpayerResult(bool $success, bool $valid, ?int $code, string $message, ?string $rawXml = null, ?array $taxpayer = null): array
+    {
+        return [
+            'success' => $success,
+            'valid' => $valid,
+            'error_code' => $code,
+            'message' => $message,
+            'taxpayer' => $taxpayer,
+            'raw_xml' => $rawXml,
+        ];
+    }
+
+    /**
      * Generate an invoice
      *
      * @param array $orderData Order information

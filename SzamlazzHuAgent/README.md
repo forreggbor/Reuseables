@@ -8,6 +8,7 @@ Framework-agnostic PHP module for Szamlazz.hu invoice integration.
 - **Delivery Notes**: Generate szállítólevél documents
 - **Proforma Invoices**: Generate díjbekérő with deletion support
 - **Receipts**: Generate nyugta with PDF retrieval, email sending, and storno
+- **Taxpayer query**: Look up a Hungarian tax number (validity, name, address) from NAV through Szamlazz.hu
 - Uses official szamlaagent SDK (v2.10.23)
 - cURL fallback for basic invoice generation
 - Configurable storage path for all SDK-generated files
@@ -413,6 +414,43 @@ if ($result['success']) {
     echo "Error: " . $result['message'];
 }
 ```
+
+#### queryTaxpayer()
+
+Look up a Hungarian taxpayer by tax number. Szamlazz.hu forwards the query to the NAV Online Szamla system, so no NAV technical user is needed — only the Agent API key already configured for invoicing.
+
+```php
+$result = $agent->queryTaxpayer('13421739-2-44'); // any format, the first 8 digits (törzsszám) are used
+
+if (!$result['success']) {
+    // Szamlazz.hu/NAV could not answer: $result['error_code'] (e.g. 3 = login failed, 57 = malformed number), $result['message']
+} elseif (!$result['valid']) {
+    // NAV does not know this tax number
+} else {
+    $t = $result['taxpayer'];
+    // $t['name'], $t['short_name'], $t['tax_id'], $t['vat_code'], $t['county_code'], $t['incorporation'], $t['info_date'], $t['addresses'][]
+}
+```
+
+Result array:
+
+| Key | Meaning |
+|-----|---------|
+| `success` | NAV/Szamlazz.hu answered (false = transport, login or request error) |
+| `valid` | NAV knows the tax number (`taxpayerValidity`) |
+| `error_code` | Szamlazz.hu/NAV error code, `null` if none |
+| `message` | Message (the SDK's own errors are Hungarian) |
+| `taxpayer` | Parsed data, `null` unless `valid` |
+| `raw_xml` | The raw NAV answer, success path only (`null` on errors) |
+
+`taxpayer.addresses[]` items: `type` (`HQ` = registered seat, `SITE`, `BRANCH`), `country_code`, `region`, `postal_code`, `city`, `street_name`, `public_place_category`, `number`, `building`, `staircase`, `floor`, `door`, `lot_number` (missing parts are `null`).
+
+Notes and limits:
+
+- The data is what NAV Online Szamla returns: validity, full name (as registered, typically UPPERCASE with the spelled-out company form), short name (`short_name`, only when NAV has one), tax number details (`vat_code`, `county_code`), business type (`incorporation`: `ORGANIZATION`, `SELF_EMPLOYED` or `TAXABLE_PERSON`) and addresses. There is **no** company registry number or contact data, and no search by name. Note: the official Szamlazz.hu documentation sample still shows the older NAV v2.0 answer (no short name, `incorporation` or county code), while the live answer was observed to be NAV v3.0 (2026-10) — treat every field except `name` and `tax_id` as optional.
+- NAV does not always return address data and may change the interface at any time — treat every address part as optional.
+- The call uses its own non-singleton agent with all file saving disabled (the answer contains personal data of sole proprietors), so it never changes state shared with invoicing. Timeout: 15 s.
+- Unknown tax number is **not** an error: `success = true`, `valid = false`.
 
 ## Data Structures
 

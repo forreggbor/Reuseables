@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.6.0   | 2026-10-02 | Add taxpayer (tax number) lookup from NAV through Számlázz.hu |
 | 1.5.0   | 2026-09-30 | Add net-based invoicing, lookup by external id, invoice PDF download |
 | 1.4.1   | 2026-09-30 | Stop writing the Agent key to disk, fix invoice_prefix crash |
 | 1.4.0   | 2026-08-01 | Add configurable e-invoice vs paper invoice type          |
@@ -25,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.6.0] - 2026-10-02
+
+| Category | Description |
+|----------|-------------|
+| Added    | A Hungarian tax number can be looked up from NAV through Számlázz.hu with just the Agent key (closes #48) |
+
+### Added
+
+- `queryTaxpayer()` looks up a Hungarian taxpayer by tax number (first 8 digits) through the Számlázz.hu Agent taxpayer interface, which asks NAV Online Számla: no NAV technical user is needed, only the Agent key already used for invoicing. The result tells whether NAV answered, whether it knows the tax number, and returns the name, short name (when NAV has one), tax number details (VAT code, county code), business type and addresses; an unknown tax number is a normal "not found" answer, not an error. NAV may leave any of these out, so every part except the name and tax id must be treated as optional.
+- The lookup uses its own agent and writes no files (the answer contains personal data of sole proprietors), so it never affects invoicing calls in the same process.
 
 ## [1.5.0] - 2026-09-30
 
