@@ -4,7 +4,7 @@
  *
  * CronAdmin English (en_US) translation strings.
  *
- * Contains TEXT_CRON_* (admin UI) and TEXT_DAY_OF_WEEK_* (schedule formatter) keys only.
+ * Contains TEXT_CRON_* (admin UI), TEXT_DAY_OF_WEEK_* (schedule formatter) and the generic TEXT_BUTTON_* / TEXT_ERROR_* / TEXT_LABEL_ERROR keys the views use.
  * Per-job TEXT_JOB_* labels belong in each host's own locale file.
  *
  * Host bootstrap merges this file into its own translations:
@@ -14,6 +14,10 @@
  */
 
 return [
+    'TEXT_BUTTON_CANCEL'                             => 'Cancel',
+    'TEXT_BUTTON_CLOSE'                              => 'Close',
+    'TEXT_BUTTON_EDIT'                               => 'Edit',
+    'TEXT_BUTTON_SAVE'                               => 'Save',
     'TEXT_CRON_CSRF_FAILED'                          => 'Invalid CSRF token. Please reload and try again.',
     'TEXT_CRON_DAYS_OF_MONTH'                        => 'Days of month',
     'TEXT_CRON_DAYS_OF_MONTH_HIGH_DAY_WARNING'       => 'This day does not exist in some months; the job will not fire then.',
@@ -81,4 +85,7 @@ return [
     'TEXT_DAY_OF_WEEK_THU'                           => 'Thu',
     'TEXT_DAY_OF_WEEK_TUE'                           => 'Tue',
     'TEXT_DAY_OF_WEEK_WED'                           => 'Wed',
+    'TEXT_ERROR_FORBIDDEN'                           => 'You are not allowed to do this.',
+    'TEXT_ERROR_NOT_FOUND'                           => 'The job was not found.',
+    'TEXT_LABEL_ERROR'                               => 'Error',
 ];

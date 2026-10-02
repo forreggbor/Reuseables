@@ -4,7 +4,7 @@
  *
  * CronAdmin Hungarian (hu_HU) translation strings.
  *
- * Contains TEXT_CRON_* (admin UI) and TEXT_DAY_OF_WEEK_* (schedule formatter) keys only.
+ * Contains TEXT_CRON_* (admin UI), TEXT_DAY_OF_WEEK_* (schedule formatter) and the generic TEXT_BUTTON_* / TEXT_ERROR_* / TEXT_LABEL_ERROR keys the views use.
  * Per-job TEXT_JOB_* labels belong in each host's own locale file.
  *
  * Host bootstrap merges this file into its own translations:
@@ -14,6 +14,10 @@
  */
 
 return [
+    'TEXT_BUTTON_CANCEL'                             => 'Mégse',
+    'TEXT_BUTTON_CLOSE'                              => 'Bezárás',
+    'TEXT_BUTTON_EDIT'                               => 'Szerkesztés',
+    'TEXT_BUTTON_SAVE'                               => 'Mentés',
     'TEXT_CRON_CSRF_FAILED'                          => 'Érvénytelen CSRF token. Kérjük, töltse újra az oldalt, és próbálja meg újra.',
     'TEXT_CRON_DAYS_OF_MONTH'                        => 'Hónap napjai',
     'TEXT_CRON_DAYS_OF_MONTH_HIGH_DAY_WARNING'       => 'Ez a nap nem létezik minden hónapban; a feladat ilyenkor nem fut le.',
@@ -81,4 +85,7 @@ return [
     'TEXT_DAY_OF_WEEK_THU'                           => 'Cs',
     'TEXT_DAY_OF_WEEK_TUE'                           => 'K',
     'TEXT_DAY_OF_WEEK_WED'                           => 'Sze',
+    'TEXT_ERROR_FORBIDDEN'                           => 'Nincs jogosultságod a művelethez.',
+    'TEXT_ERROR_NOT_FOUND'                           => 'A feladat nem található.',
+    'TEXT_LABEL_ERROR'                               => 'Hiba',
 ];
