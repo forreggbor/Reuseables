@@ -1,0 +1,168 @@
+.nav-sync-invoices { font-size: 14px; }
+
+.nav-sync-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.nav-sync-tabs { display: flex; gap: 4px; }
+
+.nav-sync-tab {
+    padding: 6px 16px;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.nav-sync-tab.active {
+    background: #1a73e8;
+    color: #fff;
+    border-color: #1a73e8;
+}
+
+.nav-sync-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.nav-sync-filters input,
+.nav-sync-filters select {
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.nav-sync-btn-sync {
+    margin-left: auto;
+    padding: 6px 14px;
+    background: #34a853;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.nav-sync-btn-sync:disabled { opacity: .5; cursor: default; }
+
+.nav-sync-last-sync { font-size: 12px; color: #888; margin-bottom: 8px; }
+
+.nav-sync-table { width: 100%; border-collapse: collapse; }
+
+.nav-sync-table th,
+.nav-sync-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #e8e8e8;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.nav-sync-table th { background: #f9f9f9; font-weight: 600; }
+
+.nav-sync-tfoot td { background: #f9f9f9; font-weight: 600; }
+.nav-sync-total-row:first-child td { border-top: 2px solid #d0d0d0; }
+.nav-sync-total-row:not(:last-child) td { border-bottom: 0; }
+
+.nav-sync-row { cursor: pointer; }
+.nav-sync-row:hover { background: #f0f7ff; }
+
+.text-right  { text-align: right; }
+.text-center { text-align: center; }
+/* inside the tables the rules above are outranked by ".nav-sync-table th/td { text-align: left }" (it also reaches the nested line table), so they are repeated
+   with the table in front; amounts get equal-width digits, so the place values line up */
+.nav-sync-table .text-right  { text-align: right; font-variant-numeric: tabular-nums; }
+.nav-sync-table .text-center { text-align: center; }
+
+.nav-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+}
+
+.nav-badge-paid    { background: #d4edda; color: #155724; }
+.nav-badge-unpaid  { background: #fff3cd; color: #856404; }
+.nav-badge-overdue { background: #f8d7da; color: #721c24; }
+
+.nav-kind-head     { text-transform: none; letter-spacing: normal; }   /* like the sortable headers, which reset the app's uppercase headings */
+.nav-kind-icon     { display: inline-block; line-height: 0; vertical-align: middle; white-space: nowrap; }
+.nav-kind-icon svg { width: 26px; height: 26px; }
+.nav-kind-icon + .nav-kind-icon { margin-left: 4px; }
+
+.nav-sync-detail-row td { padding: 0; background: #fafafa; }
+
+.nav-detail-wrap { padding: 12px 16px; }
+
+.nav-detail-header { margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+.nav-detail-meta { font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.nav-detail-pay  { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.nav-lines-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.nav-lines-table th,
+.nav-lines-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.nav-lines-table th { background: #f0f0f0; }
+
+.nav-sync-pagination { margin-top: 12px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+.nav-pg-btn {
+    padding: 4px 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.nav-pg-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+
+.nav-btn-mark-paid,
+.nav-btn-mark-unpaid {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.nav-btn-mark-paid   { background: #34a853; color: #fff; }
+.nav-btn-mark-unpaid { background: #ea4335; color: #fff; }
+
+/* VAT Report */
+.nav-vat-toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+
+.nav-vat-month { padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; }
+
+.nav-vat-note { color: #888; font-size: 12px; }
+
+.nav-vat-total th { border-top: 2px solid #ccc; }
+
+.nav-vat-payable {
+    margin-top: 16px;
+    font-size: 18px;
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border-left: 4px solid #1a73e8;
+}
+
+.nav-vat-positive { color: #c0392b; }
+.nav-vat-negative { color: #27ae60; }
+
+/* Sortable column headers: a button in the <th>; the arrow follows aria-sort. */
+.nav-sort-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-align: inherit; }
+.nav-sort-btn:hover { text-decoration: underline; }
+.nav-sort-btn:focus-visible { outline: 2px solid #4a90d9; outline-offset: 2px; }
+.nav-sortable[aria-sort="ascending"]  .nav-sort-arrow::after { content: " \25B2"; }
+.nav-sortable[aria-sort="descending"] .nav-sort-arrow::after { content: " \25BC"; }
+.nav-sortable[aria-sort="ascending"], .nav-sortable[aria-sort="descending"] { color: #1a5fb4; }
+
+/* VAT summary: how complete the selected month is. */
+.nav-vat-coverage { margin: 8px 0; font-size: 13px; }
+.nav-vat-coverage-ok   { color: #1a7f37; }
+.nav-vat-coverage-none { color: #888; }
+.nav-vat-coverage-warn { color: #7a5200; background: #fff8c5; border: 1px solid #eac54f; border-radius: 4px; padding: 6px 10px; margin-bottom: 4px; }
+

@@ -16,6 +16,7 @@
 | [DotEnv](DotEnv/)                   | Lightweight framework-agnostic PHP .env parser, zero dependencies, phpdotenv-compatible API   |
 | [ErrorHandling](ErrorHandling/)     | Framework-agnostic PHP error and exception logging with severity levels                       |
 | [MFA](MFA/)                         | RFC 6238 TOTP multi-factor authentication with built-in QR code generator                     |
+| [NavSync](NavSync/)                 | NAV Online Számla v3 invoice sync into a local MariaDB store, payment tracking, VAT report    |
 | [LicenseModule](LicenseModule/)     | Framework-agnostic PHP module for license validation and tier-based feature gating            |
 | [PatchModule](PatchModule/)         | Framework-agnostic patch management with update checking, installation, and rollback          |
 | [SzamlazzHuAgent](SzamlazzHuAgent/) | Framework-agnostic PHP module for Szamlazz.hu invoice integration                             |
