@@ -124,4 +124,5 @@ Simplified invoices (`invoiceCategory` SIMPLIFIED) have no net or VAT amount in 
 - `nav_sign_key` is AES-256-GCM encrypted at rest; the encryption key lives only in `.env`
 - `CompanyRepository::encrypt()` / `decrypt()` are public so the host app can store its own per-company secrets (e.g. the Számlázz.hu Számla Agent key, kept in the host's `szamlazz_agent_keys` table) encrypted under the same key; the module itself never touches them
 - Authentication and authorisation must be enforced by the host app before delegating to `AdminActions`
+- CSRF protection is the host app's job too: `AdminActions` checks no token. The state-changing POST actions (`nav_mark_paid`, `nav_sync`) must only be reachable through a route that already verifies a CSRF token, and `js/nav-sync.js` sends it as the `_csrf` field read from `<meta name="csrf-token">`
 - The module only calls NAV query endpoints — no invoice submission

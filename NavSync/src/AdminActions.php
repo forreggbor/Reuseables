@@ -14,8 +14,9 @@ use ErrorHandling\ErrorHandler;
 /**
  * Handles HTTP requests from the NavSync admin UI.
  *
- * The host app must perform authentication and authorization before
- * delegating to any method here. All methods emit JSON and terminate.
+ * The host app must perform authentication, authorization and CSRF token verification
+ * (the POST actions change data) before delegating to any method here.
+ * All methods emit JSON and terminate.
  */
 class AdminActions
 {
