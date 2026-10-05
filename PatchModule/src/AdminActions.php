@@ -12,6 +12,7 @@ namespace PatchModule;
 use PatchModule\Contracts\AuthAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
 use PatchModule\Contracts\CsrfRotatableInterface;
+use PatchModule\Contracts\LoggerInterface;
 use PatchModule\Contracts\TranslatorInterface;
 
 /**
@@ -46,6 +47,7 @@ class AdminActions
         private readonly string $rootPath,
         private readonly ?TranslatorInterface $translator = null,
         private readonly int $maxUploadSize = 104857600,
+        private readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -492,6 +494,80 @@ class AdminActions
      * @return array Response array with patch_history_id and optional version-gap warning, or error details
      */
     public function upload(string $csrfToken, array $files): array
+    {
+        $result = $this->performUpload($csrfToken, $files);
+        $this->logUploadOutcome($result, $files);
+        return $result;
+    }
+
+    /**
+     * Record the outcome of a manual upload in the activity log
+     *
+     * One entry per upload request: patch_upload_accepted (with the version, size and
+     * hash of the staged archive) or patch_upload_rejected (with the HTTP status and
+     * the stable error code, e.g. a failed sysadmin or CSRF check). Silent when the
+     * host passed no logger. A failing logger never changes the upload answer.
+     *
+     * @param array $result Response array of performUpload()
+     * @param array $files  $_FILES array of the request
+     * @return void
+     */
+    private function logUploadOutcome(array $result, array $files): void
+    {
+        if ($this->logger === null) {
+            return;
+        }
+
+        try {
+            $data     = is_array($result['data'] ?? null) ? $result['data'] : [];
+            $accepted = ($data['success'] ?? false) === true;
+            $file     = is_array($files['patch_file'] ?? null) ? $files['patch_file'] : [];
+            $fileName = mb_substr(basename((string) ($file['name'] ?? '')), 0, 120);
+
+            if ($accepted) {
+                $this->logger->activity(
+                    'patch_upload_accepted',
+                    'patch',
+                    isset($data['patch_history_id']) ? (int) $data['patch_history_id'] : null,
+                    null,
+                    [
+                        'version'   => (string) ($data['version'] ?? ''),
+                        'file_size' => (int) ($data['file_size'] ?? 0),
+                        'sha256'    => (string) ($data['sha256'] ?? ''),
+                        'file_name' => $fileName,
+                        'warning'   => $data['warning'] ?? null,
+                    ],
+                    $this->auth->getCurrentUserId()
+                );
+                return;
+            }
+
+            $this->logger->activity(
+                'patch_upload_rejected',
+                'patch',
+                null,
+                null,
+                [
+                    'status'     => (int) ($result['status'] ?? 0),
+                    'error_code' => (string) ($data['error_code'] ?? ''),
+                    'file_size'  => (int) ($file['size'] ?? 0),
+                    'file_name'  => $fileName,
+                ],
+                $this->auth->getCurrentUserId()
+            );
+        } catch (\Throwable $e) {
+            error_log('[PatchModule] upload: the activity log entry could not be written: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Validate, stage and register an uploaded patch archive
+     *
+     * @param string $csrfToken CSRF token from the request
+     * @param array  $files     $_FILES array containing 'patch_file'
+     * @return array Response array with patch_history_id and optional version-gap warning, or error details
+     */
+    private function performUpload(string $csrfToken, array $files): array
     {
         if (!$this->auth->isSysadmin()) {
             return $this->forbidden();

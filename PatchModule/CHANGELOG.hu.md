@@ -5,6 +5,16 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.8.0] - 2026-10-05
+
+| Kategória | Leírás |
+|-----------|--------|
+| Hozzáadva | A kézi patch-feltöltés eredménye bekerül a tevékenységnaplóba: `patch_upload_accepted` vagy `patch_upload_rejected` |
+
+### Hozzáadva
+
+- **A feltöltés eredménye a tevékenységnaplóban** — az `AdminActions::upload()` mostantól kérésenként egy bejegyzést ír a gazdaalkalmazás `LoggerInterface::activity()` metódusán keresztül, ahogy az install, a rollback és a dismiss is teszi. Az elfogadott feltöltés `patch_upload_accepted` (a `patch` entitás, a patch history azonosító, a verzióval, mérettel, SHA-256 értékkel és fájlnévvel), az elutasított `patch_upload_rejected` (HTTP státusz, a stabil hibakód, például `csrf_invalid` vagy feltöltési hiba, a méret és a fájlnév). Az `AdminActions` új, opcionális utolsó konstruktorparaméterként kapja a naplózót, a `PatchModule::getAdminActions()` pedig átadja a modul naplózóját, így a már beállított naplózóval rendelkező gazdaalkalmazások változtatás nélkül megkapják a bejegyzéseket; naplózó nélkül semmi nem íródik. A naplózó hibája `error_log()`-ba kerül, és sosem változtatja meg a feltöltés válaszát. A feltöltési logika változatlan: módosítás nélkül átkerült egy privát `performUpload()` metódusba.
+
 ## [2.7.5] - 2026-08-28
 
 | Kategória | Leírás |

@@ -5,6 +5,16 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-10-05
+
+| Category | Description |
+|----------|-------------|
+| Added    | A manual patch upload now writes its outcome to the activity log: `patch_upload_accepted` or `patch_upload_rejected` |
+
+### Added
+
+- **Upload outcome in the activity log** — `AdminActions::upload()` now records one entry per request through the host's `LoggerInterface::activity()`, the same way install, rollback and dismiss already do. An accepted upload is logged as `patch_upload_accepted` (entity `patch`, the patch history id, with the version, size, SHA-256 and file name); a refused one as `patch_upload_rejected` (the HTTP status, the stable error code such as `csrf_invalid` or an upload error, the size and file name). `AdminActions` takes the logger as a new optional last constructor argument and `PatchModule::getAdminActions()` passes the module's logger, so hosts that already configured a logger get the entries without any change; without a logger nothing is written. A failing logger is reported through `error_log()` and never changes the upload answer. The upload logic itself is unchanged: it moved unchanged into a private `performUpload()`.
+
 ## [2.7.5] - 2026-08-28
 
 | Category | Description |

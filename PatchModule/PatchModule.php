@@ -57,7 +57,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 2.7.5
+ * @version 2.8.0
  * @license MIT
  */
 class PatchModule
@@ -565,6 +565,7 @@ class PatchModule
                 $this->config['root_path'],
                 $this->translator,
                 $this->getMaxUploadSize(),
+                $this->logger,
             );
         }
 
