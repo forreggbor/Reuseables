@@ -138,7 +138,8 @@ class SzamlazzHuAgent
      * What a failed call means for the document. Nothing was sent, the XML could not be built, or Számlázz.hu answered
      * with its own error code: a refusal (error result, code kept; the document was not created). Any other failure after
      * sending (transport error, timeout, empty or unreadable answer, maintenance, missing PDF): uncertain, the document
-     * may exist.
+     * may exist. Known limitation: a failure the SDK raises while building the request XML, before sending, is not recognised
+     * (the SDK does not wrap it) and counts as uncertain; that is the safe direction (see the README, Reusables #50).
      *
      * @param \Throwable $e    The failure.
      * @param bool       $sent Whether the request had been handed to the SDK for sending.

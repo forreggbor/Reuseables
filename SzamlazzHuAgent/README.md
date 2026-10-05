@@ -228,6 +228,7 @@ The result tells three outcomes apart:
 | Uncertain | false | true | Sent, then the answer was lost or unusable: the invoice **may exist** — look it up before sending again |
 
 - Invalid or missing values (currency, VAT code, buyer type, dates, address, rate) throw inside the builder, and the call is refused before anything is sent. Nothing is defaulted silently.
+- **Known limitation:** the SDK builds the request XML outside its own error handling, so an exception or `Error` thrown there (nothing has been sent yet) is not recognised as a build failure and comes back as **uncertain** instead of an error. This is the safe direction: the host treats the document as unknown and looks it up with `findInvoiceByExternalId()` before sending again, so no duplicate invoice can follow. The input checks of `issueInvoice()` keep the known triggers (such as an empty buyer ledger booking date) from reaching the SDK. It is not fixed in the module because the `szamlaagent/` folder must stay unmodified and the SDK's internals are not a stable basis for guessing (Reusables #50).
 - A preview answered with a real invoice number is an error (logged), never hidden.
 - `findInvoiceByExternalId(string $externalId, array $notFoundCodes)`:
   - found → success with the number and PDF;
