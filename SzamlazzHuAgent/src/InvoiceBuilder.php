@@ -90,7 +90,12 @@ class InvoiceBuilder
      *
      * @param array<string,mixed>       $header  issue_date, fulfillment_date, payment_due (Y-m-d), payment_method (key) or
      *                                           payment_method_label, paid, currency (ISO), exchange_rate + exchange_bank
-     *                                           (not HUF), language (hu|en|de), order_number, comment, invoice_type (paper|e).
+     *                                           (not HUF), language (hu|en|de), order_number, comment, invoice_type (paper|e);
+     *                                           optional continued fulfillment: continued_fulfillment (bool) with settlement_from and
+     *                                           settlement_to (Y-m-d, both required when it is on, from <= to, refused without the flag):
+     *                                           sent as the buyer ledger block (folyamatosTelj, elszDatumTol/Ig) and as the same
+     *                                           period on every item; optional seller bank: bank_account (printed on the invoice) with
+     *                                           an optional bank_name, sent as the seller block (bank, bankszamlaszam), bank_name alone is refused.
      * @param array<string,mixed>       $buyer   name, zip, city, address (required), country, tax_number, tax_number_eu,
      *                                           tax_payer (a TaxPayer constant), email, phone.
      * @param list<array<string,mixed>> $items   name, quantity, unit, net_unit_price, vat (SDK VAT code), net_amount,
@@ -140,12 +145,21 @@ class InvoiceBuilder
         if ($preview) {
             $h->setPreviewPdf(true);
         }
-        $invoice->setBuyer($this->netBuyer($buyer));
+        $period = self::settlementPeriod($header);
+        $invoice->setBuyer($this->netBuyer($buyer, $period));
+        $bankAccount = trim((string)($header['bank_account'] ?? ''));
+        $bankName    = trim((string)($header['bank_name'] ?? ''));
+        if ($bankAccount === '' && $bankName !== '') {
+            throw new \InvalidArgumentException('bank_name needs bank_account');
+        }
+        if ($bankAccount !== '') {
+            $invoice->setSeller(new \SzamlaAgent\Seller($bankName, $bankAccount));
+        }
         if ($items === []) {
             throw new \InvalidArgumentException('An invoice needs at least one item');
         }
         foreach ($items as $i => $item) {
-            $invoice->addItem($this->netItem($item, $i));
+            $invoice->addItem($this->netItem($item, $i, $period));
         }
         return $invoice;
     }
@@ -153,11 +167,12 @@ class InvoiceBuilder
     /**
      * The buyer of a net-based invoice.
      *
-     * @param array<string,mixed> $buyer See buildNet().
+     * @param array<string,mixed>           $buyer  See buildNet().
+     * @param array{0:string,1:string}|null $period Settlement period of a continued-fulfillment invoice (from, to), null otherwise.
      * @return \SzamlaAgent\Buyer
      * @throws \InvalidArgumentException When a required address part or the buyer type is missing or invalid.
      */
-    private function netBuyer(array $buyer): \SzamlaAgent\Buyer
+    private function netBuyer(array $buyer, ?array $period = null): \SzamlaAgent\Buyer
     {
         foreach (['name', 'zip', 'city', 'address'] as $key) {
             if (trim((string)($buyer[$key] ?? '')) === '') {
@@ -176,18 +191,49 @@ class InvoiceBuilder
             }
         }
         $b->setSendEmail(false);
+        if ($period !== null) {
+            // explicit nulls: the SDK's '' defaults make the date check of the booking date fail with an Error while the XML is built
+            $ledger = new \SzamlaAgent\BuyerLedger(null, null, null, true);
+            $ledger->setSettlementPeriodStart($period[0]);
+            $ledger->setSettlementPeriodEnd($period[1]);
+            $b->setLedgerData($ledger);
+        }
         return $b;
+    }
+
+    /**
+     * The settlement period of a continued-fulfillment invoice from the header keys continued_fulfillment, settlement_from and settlement_to.
+     *
+     * @param array<string,mixed> $header See buildNet().
+     * @return array{0:string,1:string}|null [from, to], or null when the invoice is not continued-fulfillment.
+     * @throws \InvalidArgumentException When the flag is on and a date is missing, not a real date or after the other, or when a date is given without the flag.
+     */
+    private static function settlementPeriod(array $header): ?array
+    {
+        if (!(bool)($header['continued_fulfillment'] ?? false)) {
+            if (trim((string)($header['settlement_from'] ?? '')) !== '' || trim((string)($header['settlement_to'] ?? '')) !== '') {
+                throw new \InvalidArgumentException('A settlement period needs continued_fulfillment');
+            }
+            return null;
+        }
+        $from = self::date($header, 'settlement_from');
+        $to   = self::date($header, 'settlement_to');
+        if ($from > $to) {
+            throw new \InvalidArgumentException('settlement_from is after settlement_to');
+        }
+        return [$from, $to];
     }
 
     /**
      * One line of a net-based invoice, its amounts exactly as given.
      *
-     * @param array<string,mixed> $item  See buildNet().
-     * @param int                 $index Line index (for the message).
+     * @param array<string,mixed>           $item   See buildNet().
+     * @param int                           $index  Line index (for the message).
+     * @param array{0:string,1:string}|null $period Settlement period of a continued-fulfillment invoice (from, to), null otherwise.
      * @return \SzamlaAgent\Item\InvoiceItem
      * @throws \InvalidArgumentException On a missing name, an unknown VAT code or a malformed amount.
      */
-    private function netItem(array $item, int $index): \SzamlaAgent\Item\InvoiceItem
+    private function netItem(array $item, int $index, ?array $period = null): \SzamlaAgent\Item\InvoiceItem
     {
         $vat = (string)($item['vat'] ?? '');
         $codes = array_filter((new \ReflectionClass(\SzamlaAgent\Item\Item::class))->getConstants(), static fn(string $k): bool => str_starts_with($k, 'VAT_'), ARRAY_FILTER_USE_KEY);
@@ -210,6 +256,12 @@ class InvoiceBuilder
         $line->setGrossAmount($amount('gross_amount'));
         if (trim((string)($item['comment'] ?? '')) !== '') {
             $line->setComment((string)$item['comment']);
+        }
+        if ($period !== null) {
+            $ledger = new \SzamlaAgent\Ledger\InvoiceItemLedger();
+            $ledger->setSettlementPeriodStart($period[0]);
+            $ledger->setSettlementPeriodEnd($period[1]);
+            $line->setLedgerData($ledger);
         }
         return $line;
     }

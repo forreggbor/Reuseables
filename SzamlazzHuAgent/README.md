@@ -199,6 +199,10 @@ $result = $agent->issueInvoice(
         'order_number' => 'PO-77', 'comment' => 'Ref.: AJ-2026-19',
         'invoice_type' => 'paper',                       // paper | e
         'external_id' => 'PMERP-1-AJ-2026-19',           // szamlaKulsoAzon, required unless preview
+        // optional, continued fulfillment (folyamatos teljesítés): the flag with both dates of the settlement period
+        // 'continued_fulfillment' => true, 'settlement_from' => '2026-09-01', 'settlement_to' => '2026-09-30',
+        // optional, the bank account printed on the invoice (Számlázz.hu otherwise prints the default one of its own settings)
+        // 'bank_name' => 'OTP Bank Nyrt.', 'bank_account' => '11111111-22222222',
     ],
     buyer: [
         'name' => 'Beispiel GmbH', 'zip' => '74321', 'city' => 'Musterstadt', 'address' => 'Beispielweg 1',   // required
@@ -233,6 +237,8 @@ The result tells three outcomes apart:
 - Both methods write **no files**: no request/response XML (which carries the agent key) and no PDF. The PDF comes back in `pdfContent`.
 - Errors are caught as `\Throwable`, and the log callback never receives the key.
 - The agent is a per-key singleton inside the SDK. `issueInvoice()` sets the external id on every call (empty for a preview).
+- Seller bank account: with `bank_account` (and optionally `bank_name`) in the header, the invoice carries them as the seller block (`bank`, `bankszamlaszam`); without it nothing is sent and Számlázz.hu prints the default account of its own settings. A `bank_name` without an account is refused before anything is sent. The module does not validate the number; the NAV-reported value should be a Hungarian giro number or an IBAN.
+- Continued fulfillment: with `continued_fulfillment` set, `settlement_from` and `settlement_to` are required (real dates, from <= to) and go out as the buyer ledger block (`folyamatosTelj`, `elszDatumTol`, `elszDatumIg`) and as the same period on every item (`tetelFokonyv`). Dates without the flag, or a missing, invalid or reversed date, are refused before anything is sent. The module does not check the fulfillment date against the period.
 
 ### Delivery Note Methods
 

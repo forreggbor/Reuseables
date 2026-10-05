@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.7.0   | 2026-10-05 | Add continued fulfillment with a settlement period and the seller bank account to net-based invoicing |
 | 1.6.0   | 2026-10-02 | Add taxpayer (tax number) lookup from NAV through Számlázz.hu |
 | 1.5.0   | 2026-09-30 | Add net-based invoicing, lookup by external id, invoice PDF download |
 | 1.4.1   | 2026-09-30 | Stop writing the Agent key to disk, fix invoice_prefix crash |
@@ -26,6 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.7.0] - 2026-10-05
+
+| Category | Description |
+|----------|-------------|
+| Added    | A net-based invoice can be a continued-fulfillment invoice with a settlement period (closes #49) |
+| Added    | A net-based invoice can carry the seller's bank account and bank name (closes #51) |
+
+### Added
+
+- `issueInvoice()` (and its preview) accepts the optional header keys `continued_fulfillment`, `settlement_from` and `settlement_to`: with the flag on, both dates are required (real dates, from not after to) and go out as the buyer ledger block (`folyamatosTelj`, `elszDatumTol`, `elszDatumIg`) and as the same period on every item. Dates without the flag, or a missing, invalid or reversed date, are refused before anything is sent. The module does not check the fulfillment date against the period (closes #49).
+- `issueInvoice()` accepts the optional header keys `bank_account` and `bank_name`: they go out as the seller block (`bank`, `bankszamlaszam`); without them nothing is sent and Számlázz.hu prints the default account of its own settings. A `bank_name` without an account is refused before anything is sent. The module does not validate the account number (closes #51).
+- Nothing changes for callers that do not pass these keys: the other invoice, storno, delivery note, proforma and receipt methods are untouched.
 
 ## [1.6.0] - 2026-10-02
 
