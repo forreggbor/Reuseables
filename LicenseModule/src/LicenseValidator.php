@@ -124,7 +124,18 @@ class LicenseValidator
                 'message'   => 'License server is temporarily rate-limiting this client; please retry later.',
                 'throttled' => true,
             ];
-        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
+            // Deliberately \Exception and NOT \Throwable (Reusables#57; it was widened to
+            // \Throwable by mistake in #56). This branch falls back to offline grace mode,
+            // which keeps a cached license valid for the whole grace period. Only a genuine
+            // "no usable answer from the license server" failure may take that path, and
+            // all of those are \Exceptions thrown by sendValidationRequest() (connection
+            // failure, empty body, invalid JSON, unexpected format). An \Error (TypeError,
+            // ValueError, ...) is a programming error, for example in parseServerResponse():
+            // catching it here would make a bug look like an unreachable license server and
+            // silently extend the grace period. Let it reach the host's error handler.
+            // The "catch \Throwable" rule is for write/transaction paths, not for this branch.
+            //
             // Unfiltered — see the identical comment in the success branch above.
             $licenseInfo = $this->database->getLatestLicenseInfo();
             if ($licenseInfo !== null) {

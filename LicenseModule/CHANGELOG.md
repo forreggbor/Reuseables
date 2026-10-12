@@ -5,6 +5,16 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | An unexpected internal error during license validation is no longer mistaken for an unreachable license server and no longer silently extends the offline grace period (closes #57) |
+
+### Fixed
+
+- **Internal errors no longer count as "license server unreachable"** — version 2.1.2 made the fallback in `validate()` catch every kind of error, so a programming error (for example a type error while reading the server answer) took the offline grace path and kept the cached license valid, looking exactly like a network outage. Only real failures to get a usable answer from the server (connection failure, empty or invalid response) use the offline grace path again; any other error reaches the host's error handler. The code now explains why this one place deliberately does not catch everything. A regression fixture, `tests/offline_fallback_regression.php`, covers it (closes #57).
+
 ## [2.1.2] - 2026-10-12
 
 | Category | Description |

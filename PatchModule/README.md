@@ -39,7 +39,7 @@ Import the database schema (order matters — `patch_migrations` has a FK to `pa
 
 ```bash
 mysql -u user -p database < lib/PatchModule/schema/patch_history.sql
-mysql -u user -p database < lib/PatchModule/schema/patch_backups.sql      # if using MysqldumpBackupAdapter
+mysql -u user -p database < lib/PatchModule/schema/patch_backups.sql      # only for MysqldumpBackupAdapter (the built-in backup creates it itself)
 mysql -u user -p database < lib/PatchModule/schema/patch_migrations.sql   # required for SQL migration tracking
 ```
 
@@ -87,6 +87,8 @@ $result = $module->install($patchHistoryId, true, $userId);
 | `root_path`        | `string`                    | Yes      | —              | Project root directory                     |
 | `temp_path`        | `string`                    | Yes      | —              | Writable temp directory                    |
 | `backup_adapter`   | `BackupAdapterInterface`    | No       | `null`         | Backup service (null = skip backup)        |
+| `builtin_backup`   | `bool`                      | No       | `false`        | `true` selects the built-in PDO backup when no `backup_adapter` is given (no credentials, no exec) |
+| `backup_path`      | `string`                    | No       | `patch-backups` next to `temp_path` | Directory for the built-in backup files |
 | `archive_adapter`  | `ArchiveAdapterInterface`   | No       | auto-detect    | Archive extractor                          |
 | `http_client`      | `HttpClientInterface`       | No       | CurlHttpClient | HTTP client                                |
 | `logger`           | `LoggerInterface`           | No       | `null`         | Logger (null = silent)                     |
@@ -152,7 +154,10 @@ Extracts .tar.gz archives. Auto-detected: `ExecTarAdapter` (shell exec) or `Phar
 
 Pre-patch backup creation and rollback. If not provided, backup/restore steps are skipped and only file-snapshot rollback is available.
 
-The module ships with `MysqldumpBackupAdapter` (in `Adapters/Backup/`) as a ready-to-use implementation. It auto-detects `mariadb-dump` or `mysqldump` for dumps and `mariadb` or `mysql` for restores. It requires the database schema extension in `schema/patch_backups.sql`.
+The module ships with two ready-to-use implementations in `Adapters/Backup/`:
+
+- **`PdoDumpBackupAdapter`** (built-in, opt-in) — set `'builtin_backup' => true`; no adapter object, no database credentials, no `exec()` and no schema import. It dumps the whole database through the module's own PDO into one gzip-compressed JSON-lines file (tables, views, routines, events, triggers; rows are streamed in bounded chunks) and replays it with prepared statements on rollback. The `patch_backups` table is created on first use. For typical application databases; system-versioned tables and sequences are not supported. An explicit `backup_adapter` takes precedence, and hosts that set neither key behave exactly as before. See `doc/INTEGRATION-GUIDE.md`.
+- **`MysqldumpBackupAdapter`** — auto-detects `mariadb-dump` or `mysqldump` for dumps and `mariadb` or `mysql` for restores; needs `exec()`, bash, the DB credentials, and the database schema extension in `schema/patch_backups.sql`. Produces plain `.sql.gz` dumps and suits large databases.
 
 ### LoggerInterface (optional)
 

@@ -5,6 +5,24 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.9.0] - 2026-10-12
+
+| Kategória | Leírás |
+|-----------|--------|
+| Hozzáadva | Beépített adatbázis-mentés, amelyhez nem kell adapter, adatbázis-hitelesítő adat és `exec()`: a `builtin_backup` kapcsolóval kapcsolható be (#54) |
+| Hozzáadva | A beépített mentés fájljainak mappája a `backup_path` beállítással választható meg (#54) |
+| Javítva | Az integrációs útmutató egy nem létező mentés-adapterre hivatkozott |
+
+### Hozzáadva
+
+- **Beépített patch előtti adatbázis-mentés** — új `PdoDumpBackupAdapter`, amely a `'builtin_backup' => true` beállítással kapcsolható be, ha nincs megadva `backup_adapter`. A modul saját adatbázis-kapcsolatát használja, így a gazdaalkalmazásnak nem kell adapter-objektum, adatbázis-hitelesítő adat, séma-import és `exec()`, jelszó pedig nem kerülhet a folyamatlistába. A teljes adatbázis (táblák, nézetek, rutinok, események, triggerek) egyetlen tömörített fájlba kerül, a sorok korlátos darabokban, folyamatosan olvasva, a meglévő visszagörgetés pedig előkészített utasításokkal állítja vissza. A `patch_backups` tábla az első használatkor jön létre. Önkéntesen bekapcsolható: akinél egyik kulcs sincs beállítva, pontosan úgy működik tovább, mint eddig, és a kifejezetten megadott `backup_adapter` mindig elsőbbséget élvez. Átlagos alkalmazás-adatbázisokra szól; a rendszer-verziózott táblákat és a sorozatokat (sequence) érthető üzenettel elutasítja, a nagyon nagy adatbázisokhoz pedig továbbra is a `MysqldumpBackupAdapter` való (#54).
+- **`backup_path` beállítás** — a beépített mentés fájljainak mappája; alapértelmezetten a `temp_path` melletti `patch-backups`. A modul egy mindent tiltó `.htaccess` fájlt tesz bele. A rosszul típusozott `builtin_backup` vagy `backup_path`, illetve a hiányzó `pdo_mysql`/`zlib` kiterjesztés bekapcsolt `builtin_backup` mellett a modul létrehozásakor hibát ad (#54).
+- **Ellenőrző szkript** `tests/pdo_backup_harness.php` az új mentéshez (oda-vissza kör, visszagörgetés a `PatchModule::rollback()`-en át, folyamatfüggvények nélkül, korlátos memóriahasználat).
+
+### Javítva
+
+- **Integrációs útmutató** — a nem létező `DbAndFilesBackupAdapter`-re hivatkozott; mostantól a `MysqldumpBackupAdapter`-t és az új beépített lehetőséget mutatja, és jelzi, hogy a `patch_backups.sql` csak az előbbihez kell (#54).
+
 ## [2.8.1] - 2026-10-12
 
 | Kategória | Leírás |

@@ -55,3 +55,33 @@ The harness cleans up everything it creates (the scratch marker table, its
 own rows in `patch_migrations`, its own temp migration directory) and
 verifies the database is left exactly as it was found. Idempotent — safe to
 re-run repeatedly against the same database.
+
+---
+
+# pdo_backup_harness.php — built-in backup (Reusables#54)
+
+A second manual script, `tests/pdo_backup_harness.php`, verifies
+`Adapters/Backup/PdoDumpBackupAdapter` and its opt-in wiring in `PatchModule`:
+
+- backup and restore round trip on a database with tables, a foreign key,
+  generated columns, binary/unicode/NULL values, a view that depends on a later
+  view, a trigger, a stored procedure and function and an event; the restored
+  schema and rows equal the original and triggers do not fire during restore;
+- `PatchModule::rollback()` restores the database from the built-in backup;
+- truncated, foreign-format and path-traversal backups are refused, a database
+  with a sequence fails loudly without leaving a partial file;
+- the adapter source calls no process function and takes no credentials;
+- a 250,000-row table is dumped and restored with bounded memory;
+- `builtin_backup` / `backup_path` / `backup_adapter` precedence and validation.
+
+Run it against a **dedicated, empty** database — the adapter dumps and restores the
+whole database, so the harness aborts when it finds any table, view, routine,
+event or trigger. It removes everything it creates and leaves the database empty:
+
+```bash
+php -d disable_functions=exec,shell_exec,system,passthru,popen,proc_open \
+    tests/pdo_backup_harness.php --db-name=SCRATCH_DB --db-user=USER --db-pass=PASS
+```
+
+The user needs the privileges listed in `doc/INTEGRATION-GUIDE.md` (built-in backup), which
+cover the fixture too. The unsupported-object check uses `CREATE SEQUENCE` and is skipped on MySQL.

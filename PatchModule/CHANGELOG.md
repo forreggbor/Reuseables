@@ -5,6 +5,24 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Added    | A built-in database backup that needs no adapter, no database credentials and no `exec()`: set `builtin_backup` (closes #54) |
+| Added    | The folder of the built-in backup files can be chosen with `backup_path` (closes #54) |
+| Fixed    | The integration guide pointed at a backup adapter that does not exist |
+
+### Added
+
+- **Built-in pre-patch database backup** — new `PdoDumpBackupAdapter`, switched on with `'builtin_backup' => true` when no `backup_adapter` is given. It uses the module's own database connection, so a host needs no adapter object, no database credentials, no schema import and no `exec()`, and no password can appear in a process list. The whole database (tables, views, routines, events, triggers) is written to one compressed file with rows streamed in bounded chunks, and the existing rollback restores it through prepared statements. The `patch_backups` table is created on first use. It is opt-in: hosts that set neither key behave exactly as before, and an explicit `backup_adapter` always wins. Meant for typical application databases; system-versioned tables and sequences are refused with a clear message, and very large databases should keep using `MysqldumpBackupAdapter` (closes #54).
+- **`backup_path` setting** — folder for the built-in backup files; defaults to `patch-backups` next to `temp_path`. The module places a deny-all `.htaccess` in it. A wrongly typed `builtin_backup` or `backup_path`, or missing `pdo_mysql`/`zlib` extensions with `builtin_backup` on, is rejected when the module is created (closes #54).
+- **Verification script** `tests/pdo_backup_harness.php` for the new backup (round trip, rollback through `PatchModule::rollback()`, no process functions, bounded memory).
+
+### Fixed
+
+- **Integration guide** — it referred to `DbAndFilesBackupAdapter`, which does not exist; it now shows `MysqldumpBackupAdapter` and the new built-in option, and notes that `patch_backups.sql` is only needed for the former (closes #54).
+
 ## [2.8.1] - 2026-10-12
 
 | Category | Description |

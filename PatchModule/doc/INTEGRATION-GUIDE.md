@@ -81,7 +81,7 @@ Import the schema files in order (FK dependencies):
 
 ```bash
 mariadb -u root -p your_db < lib/PatchModule/schema/patch_history.sql      # 1: FK target for patch_migrations
-mariadb -u root -p your_db < lib/PatchModule/schema/patch_backups.sql      # 2: existing
+mariadb -u root -p your_db < lib/PatchModule/schema/patch_backups.sql      # 2: only for MysqldumpBackupAdapter; the built-in backup creates it itself
 mariadb -u root -p your_db < lib/PatchModule/schema/patch_migrations.sql   # 3: new in v1.8.0; FK depends on patch_history
 ```
 
@@ -281,7 +281,7 @@ and resolver to match your project:
 
 use App\Services\Patch\AuthAdapter;
 use App\Services\Patch\CsrfAdapter;
-use PatchModule\Adapters\Backup\DbAndFilesBackupAdapter;
+use PatchModule\Adapters\Backup\MysqldumpBackupAdapter;
 use PatchModule\Adapters\Version\FileVersionResolver;
 use PatchModule\PatchModule;
 
@@ -305,14 +305,49 @@ $module = new PatchModule([
     // ── Optional translator (omit to use module's built-in en_US locale) ────
     // 'translator'    => new MyTranslatorAdapter($container->get(Translator::class)),
 
-    // ── Optional: enable backups ─────────────────────────────────────────────
-    // 'backup_adapter' => new DbAndFilesBackupAdapter($pdo, BASE_PATH . '/storage/backups'),
+    // ── Optional: pre-patch database backup (pick one; without either, no DB backup is made) ──
+    // Built-in: no credentials, no exec(); files go to storage/patch-backups next to temp_path.
+    // 'builtin_backup' => true,
+    // 'backup_path'    => BASE_PATH . '/storage/patch-backups',   // optional override
+    // Dump-binary based: needs exec(), mariadb-dump/mysqldump and the DB credentials.
+    // 'backup_adapter' => new MysqldumpBackupAdapter($pdo, BASE_PATH . '/storage/backups', $dbHost, $dbName, $dbUser, $dbPass),
 
     // ── Optional settings ────────────────────────────────────────────────────
     'check_cache_hours'   => 6,
     'keep_last_snapshots' => 3,
 ]);
 ```
+
+### Built-in database backup (opt-in)
+
+Set `'builtin_backup' => true` and the module backs up the database before a patch that ships SQL
+migrations, and restores it when the install fails or is rolled back. Nothing else is needed: no
+adapter object, no database credentials, no `patch_backups` schema import and no `exec()`. The
+`patch_backups` table is created on first use (this needs the same `CREATE` privilege as
+`patch_migrations`), and the backup directory is created next to `temp_path` unless `backup_path`
+says otherwise. Point `backup_path` somewhere outside the web root; the module also drops a
+deny-all `.htaccess` into the directory as a second line of defence.
+
+Hosts that do not set `builtin_backup` behave exactly as before, and an explicit `backup_adapter`
+always wins over it.
+
+Things to know before switching it on:
+
+- The whole database is dumped, in a module-internal format (gzip-compressed JSON lines), not as a
+  `.sql` file you can feed to the `mysql` client. Use `MysqldumpBackupAdapter` when you need that.
+- Tables, views, routines, events and triggers are covered. System-versioned tables and sequences
+  are not supported and make the backup fail with a clear message, which stops the install; use
+  `MysqldumpBackupAdapter` for such databases. Spatial columns are untested.
+- It is meant for typical application databases (tens of MB); memory use is bounded, but a very
+  large database is better served by the dump-binary adapter.
+- Restore drops and recreates every table that is in the backup; tables created after the backup
+  are left alone. The `patch_backups` table itself is never dumped or restored, so the record of a
+  backup survives restoring it.
+- `DEFINER` clauses are dropped, so views, routines, events and triggers are recreated as the
+  connected database user.
+- The connected user needs `SELECT`, `CREATE`, `DROP`, `INSERT`, `ALTER`, `TRIGGER`, `CREATE VIEW`,
+  `SHOW VIEW`, `CREATE ROUTINE`, `ALTER ROUTINE` and (if events are used) `EVENT` on the project database, the same
+  rights a migration run needs.
 
 ---
 

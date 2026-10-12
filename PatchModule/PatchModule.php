@@ -12,6 +12,7 @@ namespace PatchModule;
 
 use PatchModule\Adapters\Archive\ExecTarAdapter;
 use PatchModule\Adapters\Archive\PharTarAdapter;
+use PatchModule\Adapters\Backup\PdoDumpBackupAdapter;
 use PatchModule\Adapters\Database\CallableAdapter;
 use PatchModule\Adapters\Database\PdoAdapter;
 use PatchModule\Adapters\Http\CurlHttpClient;
@@ -170,6 +171,11 @@ class PatchModule
      *   - keep_last_snapshots: int      — Number of completed installs whose snapshot and DB backup
      *                                     are retained for later rollback; older ones are pruned
      *                                     (default: 3)
+     *   - builtin_backup: bool          — true selects the built-in PDO backup (PdoDumpBackupAdapter)
+     *                                     when no backup_adapter is given; needs no credentials and no
+     *                                     exec() (default: false = backup skipped, as before)
+     *   - backup_path: string           — Directory for the built-in backup files
+     *                                     (default: "patch-backups" next to temp_path)
      *
      * @throws \InvalidArgumentException If required configuration is missing
      */
@@ -660,6 +666,35 @@ class PatchModule
         }
 
         $this->validateBaseUrl($config);
+        $this->validateBuiltinBackup($config);
+    }
+
+    /**
+     * Validate the built-in backup keys
+     *
+     * Fails at construction rather than at install time: a host that asked for the
+     * built-in backup must not end up with an install that silently skips it.
+     *
+     * @param array $config Configuration array
+     * @return void
+     * @throws \InvalidArgumentException If a key has the wrong type or the PHP extensions are missing
+     */
+    private function validateBuiltinBackup(array $config): void
+    {
+        if (isset($config['builtin_backup']) && !is_bool($config['builtin_backup'])) {
+            throw new \InvalidArgumentException('PatchModule "builtin_backup" must be a bool');
+        }
+
+        if (isset($config['backup_path']) && (!is_string($config['backup_path']) || trim($config['backup_path']) === '')) {
+            throw new \InvalidArgumentException('PatchModule "backup_path" must be a non-empty string');
+        }
+
+        if (($config['builtin_backup'] ?? false) === true
+            && ($config['backup_adapter'] ?? null) === null
+            && !PdoDumpBackupAdapter::isAvailable()
+        ) {
+            throw new \InvalidArgumentException('PatchModule "builtin_backup" needs the pdo_mysql and zlib PHP extensions');
+        }
     }
 
     /**
@@ -758,8 +793,17 @@ class PatchModule
         $this->versionResolver = $config['version_resolver'];
 
         // Optional adapters
-        $this->backupAdapter = $config['backup_adapter'] ?? null;
         $this->logger = $config['logger'] ?? null;
+
+        // An explicit backup_adapter always wins; the built-in one is strictly opt-in.
+        $this->backupAdapter = $config['backup_adapter'] ?? null;
+        if ($this->backupAdapter === null && ($config['builtin_backup'] ?? false) === true) {
+            $this->backupAdapter = new PdoDumpBackupAdapter(
+                $this->database,
+                $config['backup_path'] ?? dirname(rtrim($config['temp_path'], '/')) . '/patch-backups',
+                $this->logger
+            );
+        }
 
         // Signature verifier: use provided adapter or default to OpenSSL implementation
         if (isset($config['signature_verifier']) && $config['signature_verifier'] instanceof SignatureVerifierInterface) {
