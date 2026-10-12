@@ -307,7 +307,7 @@ class PatchChecker
         $completedVersions = [];
         try {
             $completedVersions = $this->database->getCompletedVersions();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('getAvailablePatches: failed to query completed versions - ' . $e->getMessage(), 'WARNING');
         }
 

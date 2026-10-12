@@ -857,7 +857,7 @@ class PatchFileManager
                         $this->log("Patch: removed stale tmp file: " . $file->getPathname(), 'DEBUG');
                     }
                 }
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $this->log("Patch: stale tmp sweep failed: " . $e->getMessage(), 'WARNING');
             }
         }

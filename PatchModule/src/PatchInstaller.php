@@ -261,7 +261,7 @@ class PatchInstaller
 
             return ['success' => true, 'error' => null, 'error_code' => null, 'retry_after' => null];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return $this->handleInstallFailure(
                 $e, $patchHistoryId, $ctx['version'], $ctx['backupId'],
                 $ctx['extractDir'], $ctx['downloadedFile'], $userId,
@@ -378,7 +378,7 @@ class PatchInstaller
 
             return ['success' => true, 'error' => null, 'error_code' => null, 'retry_after' => null];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return $this->handleInstallFailure(
                 $e, $patchHistoryId, $ctx['version'], $ctx['backupId'],
                 $ctx['extractDir'], $ctx['downloadedFile'], $userId,
@@ -767,7 +767,7 @@ class PatchInstaller
                 'status'          => 'rolled_back',
                 'rolled_back_at'  => date('Y-m-d H:i:s'),
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log("Patch rollback: could not update status - " . $e->getMessage(), 'WARNING');
         }
 
@@ -858,7 +858,8 @@ class PatchInstaller
         try {
             $pdo = $this->database->getPdo();
             $pdo->query("SELECT 1");
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            $this->log('Patch verify: database connection test failed: ' . $e->getMessage(), 'ERROR');
             return ['success' => false, 'error' => 'Database connection test failed: ' . $e->getMessage()];
         }
 
@@ -918,7 +919,7 @@ class PatchInstaller
     {
         try {
             $completed = $this->database->getHistory();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log("Patch prune: could not load history - " . $e->getMessage(), 'WARNING');
             return;
         }
@@ -944,7 +945,7 @@ class PatchInstaller
                 $this->backupAdapter->deleteBackup((int) $row['backup_id']);
                 try {
                     $this->database->updateHistoryRecord($id, ['backup_id' => null]);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     $this->log("Patch prune: could not clear backup_id for #{$id}: " . $e->getMessage(), 'WARNING');
                 }
             }
@@ -971,7 +972,7 @@ class PatchInstaller
      * @return array{success: bool, error: string, error_code: ?string, retry_after: ?int}
      */
     private function handleInstallFailure(
-        \Exception $e,
+        \Throwable $e,
         int $patchHistoryId,
         string $version,
         ?int $backupId,
@@ -994,7 +995,7 @@ class PatchInstaller
                 'status'        => 'failed',
                 'error_message' => $dbErrorMsg,
             ]);
-        } catch (\Exception $dbException) {
+        } catch (\Throwable $dbException) {
             $this->log("Could not update patch_history failure status: " . $dbException->getMessage(), 'WARNING');
         }
 

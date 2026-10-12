@@ -5,6 +5,20 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.3.4] - 2026-10-12
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva | Az archiválás, kicsomagolás és adatbázis-mentés/-import hibái mostantól bekerülnek az alkalmazás naplójába (#56) |
+| Javítva | Az archiválás váratlan belső hibája hibás eredményként jelenik meg, nem szakítja meg a kérést (#56) |
+| Javítva | A standalone visszaállító szkript a kicsomagolás és az importálás hibáit a szerver hibanaplójába írja (#56) |
+
+### Javítva
+
+- **Néma hibák az archiváló és adatbázis-segédekben** — az archívum létrehozása, kicsomagolása és ellenőrzése, az adatbázis-mentés és -import, valamint a könyvtárszinkron most hibabejegyzést ír az alkalmazás naplójába, mielőtt a hibát visszaadja. Ezek közül több korábban bejegyzés nélkül jelzett hibát (#56).
+- **Kezeletlen belső hibák archiválás közben** — az archiválás közbeni belső hiba, például hiányzó forráskönyvtár esetén, mostantól elkapásra kerül, és hibás eredményként tér vissza, nem állítja le a kérést (#56).
+- **A standalone visszaállító szkript naplózása** — a katasztrófa-helyreállító szkript a kicsomagolás és az importálás hibáit a szerver hibanaplójába írja. Nem függ az alkalmazás naplózójától, így akkor is működik, ha a többi rendszer hibás (#56).
+
 ## [0.3.3] - 2026-10-12
 
 | Kategória | Leírás |

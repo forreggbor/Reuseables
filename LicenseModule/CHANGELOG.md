@@ -5,6 +5,16 @@ All notable changes to the LicenseModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Unexpected internal errors during license validation now fall back to offline mode instead of escaping (closes #56) |
+
+### Fixed
+
+- **Validation error fallback** — any unexpected error during license validation now takes the same offline-mode path as other validation failures, instead of escaping into the host application (closes #56).
+
 ## [2.1.1] - 2026-08-28
 
 | Category | Description                                                                                   |

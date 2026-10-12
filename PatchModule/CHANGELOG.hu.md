@@ -5,6 +5,20 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.8.1] - 2026-10-12
+
+| Kategória | Leírás |
+|-----------|--------|
+| Javítva | Ha egy patch telepítése váratlan belső hibába ütközik, most visszagörgetésre kerül, és sikertelenként rögzítődik (#56) |
+| Javítva | A patch-ellenőrzés, a takarítás és az archívum kicsomagolás váratlan hibái most kezelésre kerülnek, nem szöknek ki (#56) |
+| Javítva | A telepítés-ellenőrzés során sikertelen adatbázis-kapcsolat-ellenőrzés most bekerül a naplóba (#56) |
+
+### Javítva
+
+- **Telepítési hibák váratlan okból** — a patch telepítése közben fellépő váratlan belső hibát most ugyanúgy kezeli a rendszer, mint a többi telepítési hibát: a telepítés visszagörgetésre kerül, az előzménybejegyzése pedig sikertelenként jelölődik. Korábban egy ilyen hiba a patchet folyamatban hagyhatta (#56).
+- **Váratlan hibák a patch-ellenőrzésben és takarításban** — az elérhető patchek ellenőrzése, az elavult ideiglenes fájlok takarítása és az archívum kicsomagolása közben fellépő hibák most elkapásra kerülnek, nem szöknek ki a gazdaalkalmazásba (#56).
+- **Adatbázis-ellenőrzés naplózása** — ha az adatbázis-kapcsolat ellenőrzése a telepítés utáni ellenőrzés során sikertelen, a hiba most bekerül a naplóba (#56).
+
 ## [2.8.0] - 2026-10-05
 
 | Kategória | Leírás |

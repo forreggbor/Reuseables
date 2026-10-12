@@ -128,7 +128,7 @@ class SzamlazzHuAgent
             $agent->setRequestXmlFileSave(false);
 
             return $agent;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Failed to create SzamlaAgent: ' . $e->getMessage(), 'ERROR');
             return null;
         }
@@ -222,7 +222,8 @@ class SzamlazzHuAgent
                 'success' => false,
                 'message' => 'HTTP error: ' . $httpCode,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            $this->log('Connection validation failed: ' . $e->getMessage(), 'ERROR');
             return [
                 'success' => false,
                 'message' => 'Connection error: ' . $e->getMessage(),
@@ -468,7 +469,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Preview generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Preview generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Preview generation failed: ' . $e->getMessage());
         }
@@ -614,7 +615,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Storno generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Storno generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Storno generation failed: ' . $e->getMessage());
         }
@@ -661,7 +662,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Delivery note generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Delivery note generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Delivery note generation failed: ' . $e->getMessage());
         }
@@ -708,7 +709,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Proforma generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Proforma generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Proforma generation failed: ' . $e->getMessage());
         }
@@ -744,7 +745,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Proforma deletion failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Proforma deletion failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Proforma deletion failed: ' . $e->getMessage());
         }
@@ -783,7 +784,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Proforma deletion failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Proforma deletion failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Proforma deletion failed: ' . $e->getMessage());
         }
@@ -829,7 +830,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Receipt generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Receipt generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Receipt generation failed: ' . $e->getMessage());
         }
@@ -909,7 +910,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Receipt PDF retrieval failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Receipt PDF retrieval failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Receipt PDF retrieval failed: ' . $e->getMessage());
         }
@@ -946,7 +947,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Receipt data retrieval failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Receipt data retrieval failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Receipt data retrieval failed: ' . $e->getMessage());
         }
@@ -1004,7 +1005,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Receipt sending failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Receipt sending failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Receipt sending failed: ' . $e->getMessage());
         }
@@ -1049,7 +1050,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Reverse receipt generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Reverse receipt generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Reverse receipt generation failed: ' . $e->getMessage());
         }
@@ -1089,7 +1090,7 @@ class SzamlazzHuAgent
                 $result->getErrorMessage() ?? 'Invoice generation failed.',
                 $result->getErrorCode()
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('Invoice generation failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Invoice generation failed: ' . $e->getMessage());
         }
@@ -1134,7 +1135,8 @@ class SzamlazzHuAgent
 
             // Parse response
             return $this->parseInvoiceResponse($response);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            $this->log('Invoice generation via cURL failed: ' . $e->getMessage(), 'ERROR');
             return InvoiceResult::error('Invoice generation failed: ' . $e->getMessage());
         }
     }

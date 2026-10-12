@@ -124,7 +124,7 @@ class LicenseValidator
                 'message'   => 'License server is temporarily rate-limiting this client; please retry later.',
                 'throttled' => true,
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Unfiltered — see the identical comment in the success branch above.
             $licenseInfo = $this->database->getLatestLicenseInfo();
             if ($licenseInfo !== null) {

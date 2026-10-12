@@ -824,15 +824,17 @@ function extractManifest(string $archivePath, string $tempDir): ?array
                     $phar->extractTo($tempDir, $path, true);
                     $extracted = true;
                     break;
-                } catch (Exception $e) {
+                } catch (\Throwable $e) {
                     continue;
                 }
             }
 
             if (!$extracted) {
+                error_log('[BackupRestore standalone] extractManifest: manifest.json not found in archive: ' . $archivePath);
                 return null;
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            error_log('[BackupRestore standalone] extractManifest failed: ' . $e->getMessage());
             return null;
         }
     }
@@ -915,7 +917,8 @@ function executeRestore(string $archivePath, string $tempDir, array $creds, arra
             $phar->extractTo($tempDir, null, true);
         } catch (RuntimeException $e) {
             return ['success' => false, 'error' => 'Refusing to extract unsafe archive: ' . $e->getMessage()];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            error_log('[BackupRestore standalone] executeRestore archive extraction failed: ' . $e->getMessage());
             return ['success' => false, 'error' => 'Failed to extract archive: ' . $e->getMessage()];
         } finally {
             if ($normalizedArchive !== null) {
@@ -1774,7 +1777,8 @@ function phpImportSql(array $creds, string $database, string $sqlFilePath): arra
         }
 
         return ['success' => true, 'error' => null];
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
+        error_log('[BackupRestore standalone] phpImportSql failed: ' . $e->getMessage());
         if (isset($handle) && is_resource($handle)) {
             fclose($handle);
         }
@@ -1904,7 +1908,8 @@ function phpSyncDirectories(string $source, string $dest, array $excludes = []):
         }
 
         return ['success' => true, 'error' => null];
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
+        error_log('[BackupRestore standalone] phpSyncDirectories failed: ' . $e->getMessage());
         return ['success' => false, 'error' => $e->getMessage()];
     }
 }

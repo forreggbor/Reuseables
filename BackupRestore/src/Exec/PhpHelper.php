@@ -557,7 +557,7 @@ class PhpHelper
             }
 
             return ['success' => true, 'files' => $files, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return ['success' => false, 'files' => [], 'error' => $e->getMessage()];
         } finally {
             @unlink($normalized['path']);
@@ -591,7 +591,7 @@ class PhpHelper
                 $count++;
             }
             return $count;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Logger::log("[PhpHelper] tarCount failed: " . $e->getMessage(), 'WARNING');
             return 0;
         } finally {
@@ -683,7 +683,8 @@ class PhpHelper
             $phar->buildFromIterator($flatIterator, $sourceDir);
 
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] tarCreate failed: " . $e->getMessage(), 'ERROR');
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -738,7 +739,8 @@ class PhpHelper
             }
 
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] tarCreateGz failed: " . $e->getMessage(), 'ERROR');
             // Cleanup on failure
             if (isset($tempTarPath) && file_exists($tempTarPath)) {
                 unlink($tempTarPath);
@@ -823,7 +825,8 @@ class PhpHelper
             }
 
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] tarExtract failed: " . $e->getMessage(), 'ERROR');
             return ['success' => false, 'error' => $e->getMessage()];
         } finally {
             @unlink($normalized['path']);
@@ -868,7 +871,8 @@ class PhpHelper
 
             $phar->extractTo($destDir, null, true);
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] tarExtractUncompressed failed: " . $e->getMessage(), 'ERROR');
             return ['success' => false, 'error' => $e->getMessage()];
         } finally {
             @unlink($normalized['path']);
@@ -1121,7 +1125,8 @@ class PhpHelper
             fclose($handle);
 
             return ['success' => true, 'tables_count' => $tablesCount, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] mysqldump failed: " . $e->getMessage(), 'ERROR');
             if (isset($handle) && is_resource($handle)) {
                 fclose($handle);
             }
@@ -1252,7 +1257,8 @@ class PhpHelper
             }
 
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] mysqlImport failed: " . $e->getMessage(), 'ERROR');
             if (isset($handle) && is_resource($handle)) {
                 fclose($handle);
             }
@@ -1389,7 +1395,8 @@ class PhpHelper
             }
 
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Logger::log("[PhpHelper] syncDirectories failed: " . $e->getMessage(), 'ERROR');
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }

@@ -5,6 +5,20 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | A patch install that hits an unexpected internal error is now rolled back and recorded as failed (closes #56) |
+| Fixed    | Unexpected errors during patch checks, cleanup and archive extraction are now handled instead of escaping (closes #56) |
+| Fixed    | A failed database connection check during install verification is now recorded in the log (closes #56) |
+
+### Fixed
+
+- **Install failures from unexpected errors** — an unexpected internal error during a patch install is now handled like any other install failure: the install is rolled back and its history entry is marked as failed. Previously such an error could leave the patch in progress (closes #56).
+- **Unexpected errors in patch checks and cleanup** — errors during the available-patch check, the stale temporary file sweep and archive extraction are now caught and handled instead of escaping into the host application (closes #56).
+- **Database check logging** — when the database connection check fails during install verification, the failure is now recorded in the log (closes #56).
+
 ## [2.8.0] - 2026-10-05
 
 | Category | Description |

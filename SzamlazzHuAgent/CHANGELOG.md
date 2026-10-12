@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date       | Summary                                                  |
 |---------|------------|----------------------------------------------------------|
+| 1.7.1   | 2026-10-12 | Unexpected invoice errors return failed results, connection failures are logged |
 | 1.7.0   | 2026-10-05 | Add continued fulfillment with a settlement period and the seller bank account to net-based invoicing |
 | 1.6.0   | 2026-10-02 | Add taxpayer (tax number) lookup from NAV through Számlázz.hu |
 | 1.5.0   | 2026-09-30 | Add net-based invoicing, lookup by external id, invoice PDF download |
@@ -27,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 1.1.0   | 2026-01-18 | Add delivery note, proforma invoice, receipt support     |
 | 1.0.1   | 2026-01-18 | Fix cURL XML typos, add OTP Simple and Cheque methods    |
 | 1.0.0   | 2025-01-18 | Initial release with invoice generation and SDK/cURL     |
+
+## [1.7.1] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Unexpected internal errors while creating or fetching invoices are returned as failed requests instead of escaping (closes #56) |
+| Fixed    | Connection check and invoice creation failures are now written to the log (closes #56) |
+
+### Fixed
+
+- **Unexpected errors during invoice requests** — an unexpected internal error while creating, previewing, cancelling, fetching or sending an invoice or receipt is now returned as a failed request, the same way other failures are, instead of escaping into the host application (closes #56).
+- **Failures recorded in the log** — a failed connection check and a failed cURL invoice request are now written to the module log, not only returned to the caller (closes #56).
 
 ## [1.7.0] - 2026-10-05
 

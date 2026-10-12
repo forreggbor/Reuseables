@@ -5,6 +5,16 @@ All notable changes to ActivityLogger will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Timezone setting validation now catches every kind of error, not only standard exceptions (closes #56) |
+
+### Fixed
+
+- **Timezone setting validation** — the check that the admin timezone setting is valid now catches every kind of error, so an unexpected failure there is reported as an invalid setting instead of escaping unhandled (closes #56).
+
 ## [1.4.3] - 2026-09-08
 
 | Category | Description                                                                                      |

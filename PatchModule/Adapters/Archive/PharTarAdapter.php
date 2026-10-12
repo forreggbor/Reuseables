@@ -50,7 +50,7 @@ class PharTarAdapter implements ArchiveAdapterInterface
             }
 
             return ['success' => true, 'error' => null];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return ['success' => false, 'error' => 'PharData extraction failed: ' . $e->getMessage()];
         }
     }

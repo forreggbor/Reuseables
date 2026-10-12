@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-10-12
+
+| Category | Description |
+|----------|-------------|
+| Fixed    | Archive, extraction and database dump/import failures are now recorded in the application log (closes #56) |
+| Fixed    | An unexpected internal error during archive creation is returned as a failed result instead of stopping the request (closes #56) |
+| Fixed    | The standalone restore script records extraction and import failures in the server error log (closes #56) |
+
+### Fixed
+
+- **Silent failures in archive and database helpers** — creating, extracting and checking archives, the database dump and import, and directory sync now write an error entry to the application log before reporting the failure. Several of these used to report a failure without any record (closes #56).
+- **Unhandled internal errors during archive creation** — an internal error during archive creation, for example a missing source directory, is now caught and returned as a failed result instead of stopping the request (closes #56).
+- **Standalone restore script logging** — the disaster-recovery script now writes extraction and import failures to the server error log. It has no dependency on the application logger, so it still works when the rest of the application is broken (closes #56).
+
 ## [0.3.3] - 2026-10-12
 
 | Category | Description |

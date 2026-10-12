@@ -534,7 +534,7 @@ class ActivityLogsAdmin
         }
         try {
             new \DateTimeZone($tz);
-        } catch (\Exception) {
+        } catch (\Throwable) {
             throw new \InvalidArgumentException(
                 'ActivityLogsAdmin "timezone" "' . $tz . '" is not a valid PHP timezone identifier.'
             );
