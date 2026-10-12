@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-10-12
+
+| Category | Description |
+|----------|--------------|
+| Security | Audit entries for backup profile and remote server changes could be attributed to any user ID sent by the client (#55) |
+| Changed  | Hosts must pass the acting admin as a parameter to profile and remote server create, update, delete and test calls |
+
+### Security
+- Audit entries for backup profile and remote server create, update, delete and connection test were attributed using an `acting_user_id` field read from the request data, which the client controls. A logged-in admin could therefore write any user ID into the activity log, and a missing field recorded the change as a system action. `ProfileService::create()`/`update()` and `RemoteService::create()`/`update()` now take the acting admin as an optional trailing `$actingUserId` parameter, and the request-data field is no longer read (#55).
+
+### Changed
+- Hosts must pass the acting admin as the trailing `$actingUserId` argument to `ProfileService::create()`/`update()` and `RemoteService::create()`/`update()`, taken from the server-side session, the same way `delete()` and `testConnection()` already work. A host that still only sets `acting_user_id` in the request data will see those changes recorded without an actor.
+
 ## [0.3.2] - 2026-09-22
 
 | Category | Description |

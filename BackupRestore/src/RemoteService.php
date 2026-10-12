@@ -84,9 +84,10 @@ final class RemoteService
      * Create a new remote server configuration. Credentials are encrypted before storage.
      *
      * @param array $data Server configuration data
+     * @param int|null $actingUserId Admin performing the change, recorded on the audit entry
      * @return array{success: bool, id: ?int, error: ?string}
      */
-    public function create(array $data): array
+    public function create(array $data, ?int $actingUserId = null): array
     {
         $table = $this->tableNames['backup_remote_servers'];
 
@@ -115,7 +116,7 @@ final class RemoteService
             $id = (int) $this->pdo->lastInsertId();
             $auditData = $data;
             unset($auditData['credentials']);
-            $this->audit('create_remote_server', $id, null, $auditData, $data['acting_user_id'] ?? null);
+            $this->audit('create_remote_server', $id, null, $auditData, $actingUserId);
 
             return ['success' => true, 'id' => $id, 'error' => null];
         } catch (\Throwable $e) {
@@ -134,11 +135,11 @@ final class RemoteService
      * @param array $data Updated server data. `reset_host_key` (bool): clears
      *        the pinned SSH host-key fingerprint so the next connection
      *        re-pins via trust-on-first-use — use only after confirming a
-     *        legitimate key rotation. `acting_user_id` (int|null): attributed
-     *        on the reset's audit entry.
+     *        legitimate key rotation.
+     * @param int|null $actingUserId Admin performing the change, recorded on the audit entries
      * @return array{success: bool, error: ?string}
      */
-    public function update(int $id, array $data): array
+    public function update(int $id, array $data, ?int $actingUserId = null): array
     {
         $table = $this->tableNames['backup_remote_servers'];
 
@@ -195,7 +196,7 @@ final class RemoteService
 
             $auditData = $data;
             unset($auditData['credentials']);
-            $this->audit('update_remote_server', $id, null, $auditData, $data['acting_user_id'] ?? null);
+            $this->audit('update_remote_server', $id, null, $auditData, $actingUserId);
 
             // Explicit, audited opt-in only — clearing the pinned host key is a
             // deliberate trust decision (e.g. the operator confirmed a legitimate
@@ -208,7 +209,7 @@ final class RemoteService
                 $resetStmt = $this->pdo->prepare("UPDATE {$table} SET host_key_fingerprint = NULL WHERE id = :id");
                 $resetStmt->execute([':id' => $id]);
                 $this->log("[Remote] Host key fingerprint reset for server #{$id} — will re-pin (TOFU) on next connection", 'WARNING');
-                $this->audit('remote_server_host_key_reset', $id, ['fingerprint' => $priorFingerprint], null, $data['acting_user_id'] ?? null);
+                $this->audit('remote_server_host_key_reset', $id, ['fingerprint' => $priorFingerprint], null, $actingUserId);
             }
 
             return ['success' => true, 'error' => null];

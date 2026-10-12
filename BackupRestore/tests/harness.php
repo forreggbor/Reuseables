@@ -17,7 +17,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$activityLoggerPath = '/home/gabor/development/Reusables/ActivityLogs/ActivityLogger.php';
+$activityLoggerPath = '/home/gabor/Development/Reusables/ActivityLogs/ActivityLogger.php';
 if (is_file($activityLoggerPath)) {
     require $activityLoggerPath;
 } else {
@@ -103,7 +103,7 @@ foreach (['backup_remote_servers.sql', 'backup_profiles.sql', 'backups.sql'] as 
 }
 // activity_logs is a sibling-module table, not this module's own schema — install it too
 // so the audit-trail assertions below have somewhere to write.
-$activityLogsSchema = '/home/gabor/development/Reusables/ActivityLogs/schema.sql';
+$activityLogsSchema = '/home/gabor/Development/Reusables/ActivityLogs/schema.sql';
 if (is_file($activityLogsSchema)) {
     foreach (array_filter(explode(';', file_get_contents($activityLogsSchema))) as $stmt) {
         // Strip full-line `--` comments before checking for meaningful SQL —
@@ -251,12 +251,18 @@ $profileService = $mod->profileService();
 $profCreate = $profileService->create([
     'name' => 'harness-audit-profile',
     'type' => 'full',
-    'acting_user_id' => 1,
-]);
+], 1);
 check('ProfileService::create() succeeds', $profCreate['success'], $profCreate['error'] ?? '');
 if ($profCreate['success'] && class_exists(ActivityLogs\ActivityLogger::class)) {
     $profCreateAuditCount = auditCount($pdo, 'create_backup_profile', (string) $profCreate['id']);
     check('Fix 39a: ProfileService::create() writes a create_backup_profile audit row', $profCreateAuditCount === 1, $profCreateAuditCount === null ? 'activity_logs table unavailable' : "count={$profCreateAuditCount}");
+
+    // Regression: a client-supplied acting_user_id in the payload must be ignored; the actor is the explicit parameter
+    $profileService->update($profCreate['id'], ['name' => 'harness-audit-profile', 'type' => 'full', 'acting_user_id' => 999], 1);
+    $spoofStmt = $pdo->prepare("SELECT user_id FROM activity_logs WHERE action = 'update_backup_profile' AND entity_id = :entity_id ORDER BY id DESC LIMIT 1");
+    $spoofStmt->execute([':entity_id' => (string) $profCreate['id']]);
+    $spoofActor = $spoofStmt->fetchColumn();
+    check('Regression: payload acting_user_id is ignored, audit actor comes from the parameter', $spoofActor !== false && (int) $spoofActor === 1, 'user_id=' . var_export($spoofActor, true));
 
     $profDelete = $profileService->delete($profCreate['id'], 1);
     check('ProfileService::delete() succeeds', $profDelete['success'], $profDelete['error'] ?? '');
@@ -270,8 +276,7 @@ $remoteCreate = $remoteService->create([
     'host' => 'example.invalid',
     'username' => 'harness',
     'credentials' => 'harness-secret',
-    'acting_user_id' => 1,
-]);
+], 1);
 check('RemoteService::create() succeeds', $remoteCreate['success'], $remoteCreate['error'] ?? '');
 if ($remoteCreate['success'] && class_exists(ActivityLogs\ActivityLogger::class)) {
     $remoteCreateAuditCount = auditCount($pdo, 'create_remote_server', (string) $remoteCreate['id']);

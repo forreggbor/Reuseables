@@ -9,7 +9,7 @@ host application is untouched.
 ## 1. Sync into the host
 
 ```bash
-rsync -av --delete /home/gabor/development/Reusables/BackupRestore/ lib/BackupRestore/
+rsync -av --delete /home/gabor/Development/Reusables/BackupRestore/ lib/BackupRestore/
 ```
 
 Register the classmap in the host's root `composer.json` (mirrors

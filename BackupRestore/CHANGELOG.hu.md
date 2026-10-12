@@ -5,6 +5,19 @@ Ez a fájl a projekt lényeges változásait dokumentálja.
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) elveit követi,
 a verziószámozás pedig a [Semantic Versioning](https://semver.org/spec/v2.0.0.html) szabványt.
 
+## [0.3.3] - 2026-10-12
+
+| Kategória | Leírás |
+|-----------|--------|
+| Biztonság | A mentési profilok és távoli szerverek módosításainak naplóbejegyzése bármilyen, a kliens által küldött felhasználó-azonosítóra hivatkozhatott (#55) |
+| Módosítva | A hosztoknak a módosító adminisztrátort paraméterként kell átadniuk a profil- és távoli szerver létrehozás, módosítás, törlés és tesztelés hívásaiban |
+
+### Biztonság
+- A mentési profilok és távoli szerverek létrehozásának, módosításának, törlésének és kapcsolat-tesztjének naplóbejegyzése a kérés adataiból olvasott `acting_user_id` mezőt használta, amit a kliens szabadon megadhatott. Egy bejelentkezett adminisztrátor így tetszőleges felhasználó-azonosítót írathatott be az aktivitásnaplóba, a mező hiánya pedig rendszer-műveletként rögzítette a változtatást. A `ProfileService::create()`/`update()` és a `RemoteService::create()`/`update()` mostantól opcionális, záró `$actingUserId` paramétert kap a módosító adminisztrátorral, a kérés adatában lévő mezőt pedig már nem olvassák (#55).
+
+### Módosítva
+- A hosztoknak a módosító adminisztrátort a `ProfileService::create()`/`update()` és a `RemoteService::create()`/`update()` záró `$actingUserId` argumentumaként kell átadniuk, a szerveroldali munkamenetből, ahogy a `delete()` és a `testConnection()` már eddig is működött. Az a host, amely csak a kérés adataiban állítja be az `acting_user_id` mezőt, a változtatásokat felhasználó nélkül fogja látni a naplóban.
+
 ## [0.3.2] - 2026-09-22
 
 | Kategória | Leírás |

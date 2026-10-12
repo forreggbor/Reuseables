@@ -37,8 +37,8 @@ Framework-agnostic PHP 8.3+ cron job administration module. Provides a manifest-
 
 ```bash
 # Rsync both reusables into lib/
-rsync -av --delete /home/gabor/development/Reusables/CronAdmin/   lib/CronAdmin/
-rsync -av --delete /home/gabor/development/Reusables/ActivityLogs/ lib/ActivityLogs/
+rsync -av --delete /home/gabor/Development/Reusables/CronAdmin/   lib/CronAdmin/
+rsync -av --delete /home/gabor/Development/Reusables/ActivityLogs/ lib/ActivityLogs/
 ```
 
 Add to `composer.json` once:

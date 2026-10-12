@@ -17,7 +17,7 @@ MySQL/MariaDB server.
 - `composer install` run once inside this module directory (pulls
   `phpseclib/phpseclib`, generates the classmap autoloader).
 - `ActivityLogs\ActivityLogger` autoloadable — the harness `require`s it
-  directly from `/home/gabor/development/Reusables/ActivityLogs/ActivityLogger.php`
+  directly from `/home/gabor/Development/Reusables/ActivityLogs/ActivityLogger.php`
   (adjust the path in `harness.php` if ActivityLogs lives elsewhere on your
   machine; there is no Composer package for it, matching the sibling
   reusable-module convention).

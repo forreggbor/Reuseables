@@ -113,9 +113,10 @@ final class ProfileService
      * Create a new backup profile.
      *
      * @param array $data Profile data
+     * @param int|null $actingUserId Admin performing the change, recorded on the audit entry
      * @return array{success: bool, id: ?int, error: ?string}
      */
-    public function create(array $data): array
+    public function create(array $data, ?int $actingUserId = null): array
     {
         $profilesTable = $this->tableNames['backup_profiles'];
 
@@ -154,7 +155,7 @@ final class ProfileService
             ]);
 
             $id = (int) $this->pdo->lastInsertId();
-            $this->audit('create_backup_profile', $id, null, $data, $data['acting_user_id'] ?? null);
+            $this->audit('create_backup_profile', $id, null, $data, $actingUserId);
 
             return ['success' => true, 'id' => $id, 'error' => null];
         } catch (\Throwable $e) {
@@ -168,9 +169,10 @@ final class ProfileService
      *
      * @param int $id Profile ID
      * @param array $data Updated profile data
+     * @param int|null $actingUserId Admin performing the change, recorded on the audit entry
      * @return array{success: bool, error: ?string}
      */
-    public function update(int $id, array $data): array
+    public function update(int $id, array $data, ?int $actingUserId = null): array
     {
         $profilesTable = $this->tableNames['backup_profiles'];
 
@@ -215,7 +217,7 @@ final class ProfileService
                 ':id' => $id,
             ]);
 
-            $this->audit('update_backup_profile', $id, null, $data, $data['acting_user_id'] ?? null);
+            $this->audit('update_backup_profile', $id, null, $data, $actingUserId);
 
             return ['success' => true, 'error' => null];
         } catch (\Throwable $e) {
