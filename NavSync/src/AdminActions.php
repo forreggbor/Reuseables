@@ -27,7 +27,9 @@ class AdminActions
         private readonly InvoiceRepository  $invoiceRepo,
         private readonly CompanyRepository  $companyRepo,
         private readonly VatReportService   $vatReport,
-        private readonly InvoiceSyncService $syncService
+        private readonly InvoiceSyncService $syncService,
+        private readonly CashRegisterRepository $cashRepo,
+        private readonly CashRegisterSyncService $cashSync
     ) {}
 
     /**
@@ -157,6 +159,183 @@ class AdminActions
         }
 
         $this->json($this->guarded('vat_report', fn(): array => $this->vatReport->monthly($companyId, $month)));
+    }
+
+    /**
+     * Returns one page of cash register receipts as JSON.
+     *
+     * GET params: company_id, ap (AP number, optional), dateFrom, dateTo (Y-m-d, optional), limit (1..200, default 50), offset (>= 0).
+     *
+     * @return never
+     */
+    public function listCashReceipts(): never
+    {
+        $companyId = self::positiveInt(self::param($_GET, 'company_id'));
+        $ap        = self::param($_GET, 'ap');
+        $dateFrom  = self::param($_GET, 'dateFrom');
+        $dateTo    = self::param($_GET, 'dateTo');
+        $rawLimit  = self::param($_GET, 'limit');
+        $limit     = ctype_digit($rawLimit) && strlen($rawLimit) <= 9 ? min(200, max(1, (int)$rawLimit)) : 50;
+        $offset    = max(0, (int)self::param($_GET, 'offset'));
+
+        if ($companyId === 0
+            || ($ap !== '' && !self::isValidApNumber($ap))
+            || ($dateFrom !== '' && !self::isValidDate($dateFrom))
+            || ($dateTo !== '' && !self::isValidDate($dateTo))) {
+            $this->json(['error' => 'bad_request'], 400);
+        }
+
+        $result = $this->guarded('cash_list', fn(): array => $this->cashRepo->listReceipts(
+            $companyId, $ap === '' ? null : $ap, $dateFrom === '' ? null : $dateFrom, $dateTo === '' ? null : $dateTo, $limit, $offset
+        ));
+        $this->json(['rows' => $result['rows'], 'total' => $result['total'], 'limit' => $limit, 'offset' => $offset]);
+    }
+
+    /**
+     * Returns the lines of one cash register receipt as JSON (empty when the receipt is not the company's).
+     *
+     * GET params: company_id, receipt_id.
+     *
+     * @return never
+     */
+    public function getCashReceiptLines(): never
+    {
+        $companyId = self::positiveInt(self::param($_GET, 'company_id'));
+        $receiptId = self::positiveInt(self::param($_GET, 'receipt_id'));
+        if ($companyId === 0 || $receiptId === 0) {
+            $this->json(['error' => 'bad_request'], 400);
+        }
+
+        $this->json(['lines' => $this->guarded('cash_lines', fn(): array => $this->cashRepo->receiptLines($receiptId, $companyId))]);
+    }
+
+    /**
+     * Returns the cash registers of a company (with file counters), its unparsed files and the newest cash register sync log entry as JSON.
+     *
+     * GET params: company_id.
+     *
+     * @return never
+     */
+    public function cashRegisterStatus(): never
+    {
+        $companyId = self::positiveInt(self::param($_GET, 'company_id'));
+        if ($companyId === 0) {
+            $this->json(['error' => 'bad_request'], 400);
+        }
+
+        $this->json($this->guarded('cash_status', fn(): array => [
+            'registers' => $this->cashRepo->registerStatus($companyId),
+            'problem_files' => $this->cashRepo->problemFiles($companyId),
+            'last_sync' => $this->invoiceRepo->lastSyncLog($companyId, 'CASH_REGISTER'),
+        ]));
+    }
+
+    /**
+     * Runs a time-boxed cash register sync for a company that has it switched on and returns the result.
+     *
+     * POST params: company_id.
+     *
+     * @return never
+     */
+    public function triggerCashRegisterSync(): never
+    {
+        $companyId = self::positiveInt(self::param($_POST, 'company_id'));
+        if ($companyId === 0) {
+            $this->json(['error' => 'bad_request'], 400);
+        }
+
+        $company = $this->guarded('cash_sync', fn(): ?object => $this->companyRepo->findById($companyId));
+        if ($company === null || !(bool)$company->active) {
+            $this->json(['error' => 'company_not_found'], 404);
+        }
+        if ((int)($company->cash_register_sync ?? 0) !== 1) {
+            $this->json(['error' => 'not_enabled'], 400);
+        }
+
+        $result = $this->guarded('cash_sync', fn(): array => $this->cashSync->sync($company, self::WEB_SYNC_BUDGET_SECONDS));
+        $this->json(['success' => empty($result['errors']), 'complete' => $result['complete'], 'result' => $result]);
+    }
+
+    /**
+     * Reprocesses one stored cash register file from disk (no NAV contact) and answers whether it succeeded.
+     *
+     * POST params: company_id, file_id.
+     *
+     * @return never
+     */
+    public function reparseCashRegisterFile(): never
+    {
+        $companyId = self::positiveInt(self::param($_POST, 'company_id'));
+        $fileId    = self::positiveInt(self::param($_POST, 'file_id'));
+        if ($companyId === 0 || $fileId === 0) {
+            $this->json(['error' => 'bad_request'], 400);
+        }
+
+        $company = $this->guarded('cash_reparse', fn(): ?object => $this->companyRepo->findById($companyId));
+        if ($company === null || !(bool)$company->active) {
+            $this->json(['error' => 'company_not_found'], 404);
+        }
+        if ((int)($company->cash_register_sync ?? 0) !== 1) {
+            $this->json(['error' => 'not_enabled'], 400);
+        }
+
+        $result = $this->guarded('cash_reparse', fn(): array => $this->cashSync->reprocessFile($fileId, $companyId));
+        if ($result['code'] === 'file_not_found') {
+            $this->json(['error' => 'file_not_found'], 404);
+        }
+        if ($result['code'] === 'sync_running') {
+            $this->json(['error' => 'sync_running'], 409);
+        }
+        $this->json(['success' => $result['ok'], 'code' => $result['code'], 'message' => $result['message']]);
+    }
+
+    /**
+     * Whether a string is a real calendar date in the exact form Y-m-d.
+     *
+     * @param string $value Candidate.
+     * @return bool
+     */
+    public static function isValidDate(string $value): bool
+    {
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})\z/', $value, $m) !== 1) {
+            return false;
+        }
+        return checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
+    }
+
+    /**
+     * Whether a string is a cash register AP number (one capital letter and eight digits).
+     *
+     * @param string $value Candidate.
+     * @return bool
+     */
+    public static function isValidApNumber(string $value): bool
+    {
+        return preg_match(CashRegisterClientInterface::AP_NUMBER_PATTERN, $value) === 1;
+    }
+
+    /**
+     * Parses a request value as a positive integer.
+     *
+     * @param string $value Raw request value.
+     * @return int The number, or 0 when it is not a positive integer.
+     */
+    public static function positiveInt(string $value): int
+    {
+        return ctype_digit($value) && strlen($value) <= 9 ? (int)$value : 0;
+    }
+
+    /**
+     * Reads one request value as a string; a missing or non-scalar (array) value counts as empty.
+     *
+     * @param array<string,mixed> $source $_GET or $_POST.
+     * @param string              $key    Parameter name.
+     * @return string
+     */
+    private static function param(array $source, string $key): string
+    {
+        $value = $source[$key] ?? '';
+        return is_string($value) ? $value : '';
     }
 
     /**

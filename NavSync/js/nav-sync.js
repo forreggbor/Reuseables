@@ -1,5 +1,61 @@
+/**
+ * Shared helpers, published on window.NavSyncUi so that other NavSync scripts (nav-cash-register.js, loaded after this file)
+ * use them instead of carrying copies. This file still works when it is loaded alone.
+ */
 (function () {
     'use strict';
+
+    /** HTML-escapes a value for use inside innerHTML or an attribute. */
+    function esc(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    /** Hungarian number format with the thousands separator from 1 000 up (hu-HU alone groups only from 10 000). */
+    function number(val, minDecimals, maxDecimals) {
+        return parseFloat(val).toLocaleString('hu-HU', { useGrouping: 'always', minimumFractionDigits: minDecimals, maximumFractionDigits: maxDecimals });
+    }
+
+    /** A whole-number amount in the Hungarian format; '–' when empty. */
+    function fmt(val) {
+        if (val === null || val === undefined || val === '') return '–';
+        return number(val, 0, 0);
+    }
+
+    /** Replaces {name} placeholders (named, because word order differs between languages). */
+    function fill(template, values) {
+        return String(template).replace(/\{(\w+)\}/g, (m, key) => (key in values ? values[key] : m));
+    }
+
+    /** The CSRF token the host publishes in <meta name="csrf-token">. */
+    function csrfToken() {
+        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    }
+
+    /**
+     * Calls an admin action and resolves with its parsed JSON answer (error answers such as {error:'bad_request'} included,
+     * so the caller checks them); rejects only when the request fails or the answer is not JSON.
+     * POST requests carry the CSRF token; GET parameters go into the query string.
+     */
+    function request(url, params, method = 'GET') {
+        const query = new URLSearchParams(params);
+        if (method === 'POST') {
+            query.set('_csrf', csrfToken());
+            return fetch(url, { method: 'POST', body: query }).then(r => r.json());
+        }
+        return fetch(url + '?' + query).then(r => r.json());
+    }
+
+    window.NavSyncUi = Object.assign(window.NavSyncUi || {}, { esc, number, fmt, fill, csrfToken, request });
+})();
+
+(function () {
+    'use strict';
+
+    const { esc, number, fmt, csrfToken } = window.NavSyncUi;
 
     const state = {
         companyId:  0,
@@ -433,11 +489,6 @@
         });
     }
 
-    function fmt(val) {
-        if (val === null || val === undefined || val === '') return '–';
-        return number(val, 0, 0);
-    }
-
     /** A line quantity without trailing zeros, in the Hungarian format of the amounts ("3.0000000000" => "3", "2.5000000000" => "2,5"); '–' when unknown. */
     function quantity(val) {
         if (val === null || val === undefined || val === '' || !isFinite(parseFloat(val))) return '–';
@@ -451,11 +502,6 @@
         const alias = raw.toLowerCase().replace(/\.+$/, '');
         const label = Object.prototype.hasOwnProperty.call(state.unitLabels, alias) ? state.unitLabels[alias] : undefined;
         return label === undefined || label === raw ? ` ${esc(raw)}` : ` <span title="${esc(raw)}">${esc(label)}</span>`;
-    }
-
-    /** Hungarian number format with the thousands separator from 1 000 up (hu-HU alone groups only from 10 000). */
-    function number(val, minDecimals, maxDecimals) {
-        return parseFloat(val).toLocaleString('hu-HU', { useGrouping: 'always', minimumFractionDigits: minDecimals, maximumFractionDigits: maxDecimals });
     }
 
     /** Amount of a foreign-currency invoice: the original amount with its currency, the forint value below it ('–' when neither is known). */
@@ -476,20 +522,8 @@
         return net && !isNaN(netHuf) && !isNaN(unit) ? String(unit * netHuf / net) : null;
     }
 
-    function esc(str) {
-        return String(str ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
     function today() {
         return new Date().toISOString().slice(0, 10);
-    }
-
-    function csrfToken() {
-        return document.querySelector('meta[name="csrf-token"]')?.content ?? '';
     }
 
     function debounce(fn, ms) {
@@ -506,6 +540,8 @@
     const vatWrap = document.querySelector('.nav-sync-vat-report');
     if (!vatWrap) return;
 
+    const { esc, fill } = window.NavSyncUi;
+
     const companyId   = parseInt(vatWrap.dataset.companyId, 10);
     const ajaxUrl     = vatWrap.dataset.ajaxUrl;
     const i18nTotal   = vatWrap.dataset.i18nTotal;
@@ -516,12 +552,10 @@
         none:    vatWrap.dataset.i18nCovNone,
         nodate:  vatWrap.dataset.i18nCovNodate,
         novat:   vatWrap.dataset.i18nCovNovat,
+        cashUnmapped:  vatWrap.dataset.i18nCovCashUnmapped,
+        cashFileError: vatWrap.dataset.i18nCovCashFileError,
+        cashUnsynced:  vatWrap.dataset.i18nCovCashUnsynced,
     };
-
-    // Replaces {name} placeholders (named, because word order differs between languages).
-    function fill(template, values) {
-        return String(template).replace(/\{(\w+)\}/g, (m, key) => (key in values ? values[key] : m));
-    }
 
     // How complete the month is: the amounts come from each invoice's VAT summary, downloaded newest-first.
     function renderCoverage(cov) {
@@ -551,14 +585,16 @@
         if (cov.no_completion_date > 0) {
             add(fill(i18nCov.nodate, { count: cov.no_completion_date }), 'warn');
         }
-    }
-
-    function esc(str) {
-        return String(str ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+        // Cash register completeness (absent when an older server answers without these keys).
+        if (cov.cash && cov.cash.unmapped_lines > 0) {
+            add(fill(i18nCov.cashUnmapped, { count: cov.cash.unmapped_lines }), 'warn');
+        }
+        if (cov.cash_files_not_processed > 0) {
+            add(fill(i18nCov.cashFileError, { count: cov.cash_files_not_processed }), 'warn');
+        }
+        if (cov.cash_unsynced > 0) {
+            add(fill(i18nCov.cashUnsynced, { count: cov.cash_unsynced }), 'warn');
+        }
     }
 
     function fmt(val) {
@@ -579,10 +615,14 @@
     function render(data) {
         renderCoverage(data.coverage);
         const byRate = {};
+        const bucket = rate => byRate[rate] ?? (byRate[rate] = { outNet: 0, outVat: 0, cashNet: 0, cashVat: 0, inNet: 0, inVat: 0 });
+        (data.cash_rows || []).forEach(r => {
+            const b = bucket(r.vat_rate);
+            b.cashNet += parseFloat(r.net_huf);
+            b.cashVat += parseFloat(r.vat_huf);
+        });
         (data.rows || []).forEach(r => {
-            if (!byRate[r.vat_rate]) {
-                byRate[r.vat_rate] = { outNet: 0, outVat: 0, inNet: 0, inVat: 0 };
-            }
+            bucket(r.vat_rate);
             if (r.direction === 'OUTBOUND') {
                 byRate[r.vat_rate].outNet += parseFloat(r.net_huf);
                 byRate[r.vat_rate].outVat += parseFloat(r.vat_huf);
@@ -599,6 +639,8 @@
                 <td>${parseFloat(rate) > 0 ? parseFloat(rate) + '%' : esc(rate)}</td>
                 <td class="text-right">${fmt(byRate[rate].outNet)}</td>
                 <td class="text-right">${fmt(byRate[rate].outVat)}</td>
+                <td class="text-right">${fmt(byRate[rate].cashNet)}</td>
+                <td class="text-right">${fmt(byRate[rate].cashVat)}</td>
                 <td class="text-right">${fmt(byRate[rate].inNet)}</td>
                 <td class="text-right">${fmt(byRate[rate].inVat)}</td>
             </tr>`).join('');
@@ -608,6 +650,8 @@
                 <th>${esc(i18nTotal)}</th>
                 <th class="text-right"></th>
                 <th class="text-right">${fmt(data.outbound_vat_total)}</th>
+                <th class="text-right"></th>
+                <th class="text-right">${fmt(data.cash_vat_total)}</th>
                 <th class="text-right"></th>
                 <th class="text-right">${fmt(data.inbound_vat_total)}</th>
             </tr>`;

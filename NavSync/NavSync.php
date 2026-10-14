@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace NavSync;
 
+use ErrorHandling\ErrorHandler;
 use PDO;
 
 /**
@@ -27,20 +28,23 @@ class NavSync
     private CompanyRepository  $companyRepo;
     private InvoiceRepository  $invoiceRepo;
     private VatReportService   $vatReportService;
+    private CashRegisterRepository $cashRegisterRepo;
 
     public function __construct(
         private readonly PDO    $pdo,
         private readonly string $encryptionKey,
         private readonly array  $software,
-        private readonly string $syncFrom = '2020-01-01'
+        private readonly string $syncFrom = '2020-01-01',
+        private readonly string $cashRegisterEnvironment = 'production'
     ) {
         $this->companyRepo      = new CompanyRepository($pdo, $encryptionKey);
         $this->invoiceRepo      = new InvoiceRepository($pdo);
         $this->vatReportService = new VatReportService($pdo);
+        $this->cashRegisterRepo = new CashRegisterRepository($pdo);
     }
 
     /**
-     * Returns the AdminActions handler with an InvoiceSyncService ready to use.
+     * Returns the AdminActions handler with the invoice and cash register sync services ready to use.
      *
      * The NavApiClient is built per-sync inside InvoiceSyncService::sync(),
      * so no company ID is needed here.
@@ -55,7 +59,9 @@ class NavSync
             $this->invoiceRepo,
             $this->companyRepo,
             $this->vatReportService,
-            $syncService
+            $syncService,
+            $this->cashRegisterRepo,
+            $this->buildCashRegisterService()
         );
     }
 
@@ -113,6 +119,49 @@ class NavSync
             $results[$company->id] = $syncService->sync($company, $budgetSeconds);
         }
         return $results;
+    }
+
+    /**
+     * Runs the cash register log sync for every active company that has it switched on — call this from a daily cron job.
+     *
+     * NAV keeps the files only about 14 days, so a missed week of runs loses data; the run logs and reports any gap.
+     *
+     * @param int|null $budgetSeconds Stop each company cleanly after roughly this many seconds; null = unlimited.
+     * @return array<int, array{files:int, receipts:int, errors:string[], complete:bool}> Keyed by company ID.
+     */
+    public function syncCashRegisters(?int $budgetSeconds = null): array
+    {
+        $service = $this->buildCashRegisterService();
+        $results = [];
+        foreach ($this->companyRepo->findAllActive() as $company) {
+            if ((int)($company->cash_register_sync ?? 0) !== 1) {
+                continue;
+            }
+            try {
+                $results[$company->id] = $service->sync($company, $budgetSeconds);
+            } catch (\Throwable $e) {
+                // One company's failure must never stop the others.
+                ErrorHandler::logException($e, 'ERROR', ['module' => 'NavSync', 'step' => 'cash_register_sync_company', 'company_id' => (int)$company->id]);
+                $results[$company->id] = ['files' => 0, 'receipts' => 0, 'errors' => [CashRegisterSyncService::GENERIC_ERROR], 'complete' => false];
+            }
+        }
+        return $results;
+    }
+
+    /**
+     * Builds the cash register sync service; raw files go to the host's storage directory (two levels above lib/NavSync).
+     *
+     * @return CashRegisterSyncService
+     */
+    protected function buildCashRegisterService(): CashRegisterSyncService
+    {
+        return new CashRegisterSyncService(
+            $this->cashRegisterRepo,
+            $this->invoiceRepo,
+            $this->software,
+            dirname(__DIR__, 2) . '/storage',
+            $this->cashRegisterEnvironment
+        );
     }
 
     /**

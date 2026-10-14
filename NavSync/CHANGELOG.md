@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.1.0 — 2026-10-14
+
+| Category | Description                                                                                    |
+|----------|------------------------------------------------------------------------------------------------|
+| Added    | Online cash register receipts can be downloaded from NAV and stored for each company           |
+| Added    | A cash register screen lists the registers, their files and receipts, and offers a manual sync |
+| Added    | Files that could not be processed can be reprocessed from the stored copy                      |
+| Added    | Companies are switched on for the cash register sync one by one                                |
+| Changed  | The monthly VAT report has separate columns for cash register sales                            |
+| Changed  | The VAT report warns when cash register data is incomplete                                     |
+| Changed  | The "last sync" shown for the invoices is no longer replaced by a cash register run            |
+| Fixed    | An error answer from NAV no longer changes how the application handles XML errors              |
+
+### Added
+
+- Receipts and simplified invoices of the company's online cash registers are downloaded from NAV every day, the original files are kept, and the receipts with their items are stored (closes #61)
+- A cash register screen shows each register with its files and warnings, the receipts with filters and paging, and the items of a receipt; a manual "sync now" button is included (closes #61)
+- A file that failed to process, or is still waiting, can be processed again from the stored copy without asking NAV again (closes #61)
+- The cash register sync is off for every company until it is switched on for that company (closes #61)
+- Files that NAV deleted before they were downloaded are reported in the logs, so a gap can be traced (closes #61)
+
+### Changed
+
+- The monthly VAT report shows the cash register sales in their own columns and includes them in the VAT payable; practice-mode and interrupted receipts are left out (closes #61)
+- The report warns when cash register items have no VAT rate yet, when files were not processed, or when newer files are waiting at NAV (closes #61)
+- The "last sync" of the invoices is no longer replaced by a cash register run (closes #61)
+- The VAT rate of cash register items is not available yet: it is read from the cash register log, whose format is still to be confirmed with real NAV data, so the cash register VAT shows as zero and the items are reported without a rate (closes #61)
+
+### Fixed
+
+- An error answer from NAV no longer leaves the application's XML error handling switched on (closes #61)
+
 ## 1.0.0 — 2026-10-05
 
 | Category | Description                                                                       |

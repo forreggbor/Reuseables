@@ -166,3 +166,21 @@
 .nav-vat-coverage-none { color: #888; }
 .nav-vat-coverage-warn { color: #7a5200; background: #fff8c5; border: 1px solid #eac54f; border-radius: 4px; padding: 6px 10px; margin-bottom: 4px; }
 
+
+/* Cash registers screen (everything below is scoped under .nav-sync-cash). */
+.nav-sync-cash { font-size: 14px; }
+.nav-sync-cash .nav-cash-title { margin: 0; font-size: 18px; }
+.nav-sync-cash .nav-cash-heading { margin: 20px 0 8px; font-size: 15px; }
+.nav-sync-cash .nav-cash-filters { margin-bottom: 8px; }
+.nav-sync-cash .nav-cash-filters label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #666; }
+.nav-sync-cash .nav-sync-table td { white-space: normal; }
+.nav-sync-cash .nav-cash-error-text { max-width: 420px; overflow-wrap: anywhere; color: #721c24; }
+.nav-sync-cash .nav-sync-row:focus-visible { outline: 2px solid #4a90d9; outline-offset: -2px; }
+.nav-sync-cash .nav-cash-selected { background: #e3efff; }
+.nav-sync-cash .nav-cash-btn-reparse { padding: 3px 10px; border: 1px solid #ccc; background: #fff; border-radius: 3px; cursor: pointer; }
+.nav-sync-cash .nav-cash-btn-reparse:disabled { opacity: .5; cursor: default; }
+.nav-sync-cash .nav-cash-pager { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.nav-sync-cash .nav-pg-btn:disabled { opacity: .5; cursor: default; }
+.nav-sync-cash .nav-sync-empty { padding: 10px; color: #888; }
+.nav-sync-cash .nav-cash-lines { margin-top: 16px; }
+.nav-sync-cash [hidden] { display: none; }

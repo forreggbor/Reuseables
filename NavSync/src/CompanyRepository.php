@@ -139,6 +139,20 @@ class CompanyRepository
     }
 
     /**
+     * Switches the daily cash register (OPF) log sync of a company on or off.
+     *
+     * Kept apart from insert() and update() so their signatures (and the host calls) stay unchanged.
+     *
+     * @param int  $id nav_companies.id
+     * @param bool $on True to run the cash register sync for this company.
+     * @return void
+     */
+    public function setCashRegisterSync(int $id, bool $on): void
+    {
+        $this->pdo->prepare('UPDATE nav_companies SET cash_register_sync = :on WHERE id = :id')->execute(['on' => $on ? 1 : 0, 'id' => $id]);
+    }
+
+    /**
      * Advances the sync cursor (last_sync_at) of a company; it never moves backwards.
      *
      * @param int    $id        nav_companies.id

@@ -263,7 +263,7 @@ XML;
         if ($body === false || trim($body) === '') {
             return '';
         }
-        libxml_use_internal_errors(true);
+        $previous = libxml_use_internal_errors(true);
         try {
             $doc  = new \SimpleXMLElement($body);
             $code = (string)($doc->xpath("//*[local-name()='errorCode']")[0] ?? '');
@@ -275,7 +275,10 @@ XML;
             // Not XML: fall through to the plain-text summary (the caller logs the failed request itself).
             ErrorHandler::debug('[NavSync] error response is not XML, using a plain-text summary', ['reason' => $e->getMessage()]);
         } finally {
-            libxml_clear_errors();
+            if ($previous === false) {
+                libxml_clear_errors();   // only drop what this call collected; a host that collects errors keeps its own
+            }
+            libxml_use_internal_errors($previous);
         }
         $text = trim((string)preg_replace('/\s+/', ' ', strip_tags($body)));
         return mb_substr($text, 0, 300);

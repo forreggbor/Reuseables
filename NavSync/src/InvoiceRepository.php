@@ -437,16 +437,26 @@ class InvoiceRepository
     /**
      * The newest sync log entry of a company, or null when it never ran.
      *
-     * @param int $companyId nav_companies.id
+     * Without a direction the invoice sync's entries are meant: cash register runs ('CASH_REGISTER') are excluded.
+     *
+     * @param int         $companyId nav_companies.id
+     * @param string|null $direction Only entries of this direction (e.g. 'CASH_REGISTER'); null = invoice sync entries.
      * @return array{started_at:string, finished_at:?string, fetched_count:int, error:?string}|null
      */
-    public function lastSyncLog(int $companyId): ?array
+    public function lastSyncLog(int $companyId, ?string $direction = null): ?array
     {
-        $stmt = $this->pdo->prepare('
+        $params = ['company_id' => $companyId];
+        if ($direction === null) {
+            $filter = "AND direction <> 'CASH_REGISTER'";
+        } else {
+            $filter              = 'AND direction = :direction';
+            $params['direction'] = $direction;
+        }
+        $stmt = $this->pdo->prepare("
             SELECT started_at, finished_at, fetched_count, error
-            FROM nav_sync_log WHERE company_id = :company_id ORDER BY id DESC LIMIT 1
-        ');
-        $stmt->execute(['company_id' => $companyId]);
+            FROM nav_sync_log WHERE company_id = :company_id {$filter} ORDER BY id DESC LIMIT 1
+        ");
+        $stmt->execute($params);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $row;
     }
@@ -454,38 +464,41 @@ class InvoiceRepository
     /**
      * Tries to take the per-company sync lock (a database named lock, held by this connection).
      *
-     * @param int $companyId nav_companies.id
+     * @param int    $companyId nav_companies.id
+     * @param string $scope     Lock family; the invoice sync uses 'nav_sync', the cash register sync 'nav_cr_sync'.
      * @return bool True when the lock was acquired; false when another sync of the company is running.
      */
-    public function tryLock(int $companyId): bool
+    public function tryLock(int $companyId, string $scope = 'nav_sync'): bool
     {
         $stmt = $this->pdo->prepare('SELECT GET_LOCK(:name, 0)');
-        $stmt->execute(['name' => self::lockName($companyId)]);
+        $stmt->execute(['name' => self::lockName($companyId, $scope)]);
         return (int)$stmt->fetchColumn() === 1;
     }
 
     /**
      * Releases the per-company sync lock taken by tryLock().
      *
-     * @param int $companyId nav_companies.id
+     * @param int    $companyId nav_companies.id
+     * @param string $scope     Lock family; the invoice sync uses 'nav_sync', the cash register sync 'nav_cr_sync'.
      * @return void
      */
-    public function unlock(int $companyId): void
+    public function unlock(int $companyId, string $scope = 'nav_sync'): void
     {
         $stmt = $this->pdo->prepare('SELECT RELEASE_LOCK(:name)');
-        $stmt->execute(['name' => self::lockName($companyId)]);
+        $stmt->execute(['name' => self::lockName($companyId, $scope)]);
         $stmt->fetchColumn();
     }
 
     /**
      * Name of the sync lock of a company.
      *
-     * @param int $companyId nav_companies.id
+     * @param int    $companyId nav_companies.id
+     * @param string $scope     Lock family prefix.
      * @return string
      */
-    private static function lockName(int $companyId): string
+    private static function lockName(int $companyId, string $scope): string
     {
-        return 'nav_sync_' . $companyId;
+        return $scope . '_' . $companyId;
     }
 
     /**

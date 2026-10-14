@@ -17,7 +17,10 @@ declare(strict_types=1);
      data-i18n-cov-partial="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_PARTIAL')) ?>"
      data-i18n-cov-none="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_NONE')) ?>"
      data-i18n-cov-nodate="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_NO_DATE')) ?>"
-     data-i18n-cov-novat="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_NO_VAT')) ?>">
+     data-i18n-cov-novat="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_NO_VAT')) ?>"
+     data-i18n-cov-cash-unmapped="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_CASH_UNMAPPED')) ?>"
+     data-i18n-cov-cash-file-error="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_CASH_FILE_ERROR')) ?>"
+     data-i18n-cov-cash-unsynced="<?= htmlspecialchars($t('TEXT_NAV_VAT_COVERAGE_CASH_UNSYNCED')) ?>">
 
     <div class="nav-vat-toolbar">
         <input type="month" class="nav-vat-month" value="<?= date('Y-m') ?>">
@@ -33,6 +36,8 @@ declare(strict_types=1);
                     <th><?= htmlspecialchars($t('TEXT_NAV_VAT_RATE')) ?></th>
                     <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_OUTBOUND_BASE')) ?></th>
                     <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_OUTBOUND_VAT')) ?></th>
+                    <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_CASH_BASE')) ?></th>
+                    <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_CASH_VAT')) ?></th>
                     <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_INBOUND_BASE')) ?></th>
                     <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_INBOUND_VAT')) ?></th>
                 </tr>
