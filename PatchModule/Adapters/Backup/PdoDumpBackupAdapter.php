@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 namespace PatchModule\Adapters\Backup;
 
+use PatchModule\Contracts\BackupAdapterHealthInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
 use PatchModule\Contracts\DatabaseAdapterInterface;
 use PatchModule\Contracts\LoggerInterface;
@@ -34,7 +35,7 @@ use PDO;
  * Session settings that influence data round-trips (sql_mode, time zone, charset,
  * foreign key checks) are changed for the duration of a call and put back after it.
  */
-class PdoDumpBackupAdapter implements BackupAdapterInterface
+class PdoDumpBackupAdapter implements BackupAdapterInterface, BackupAdapterHealthInterface
 {
     /** Dump format identifier written to the header record. */
     private const FORMAT = 'patchmodule-pdo-dump';
@@ -108,6 +109,33 @@ class PdoDumpBackupAdapter implements BackupAdapterInterface
     public static function isAvailable(): bool
     {
         return extension_loaded('pdo_mysql') && function_exists('gzopen');
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * Checks the PHP extensions, the backup directory and a trivial query on the module's connection.
+     */
+    public function checkOperational(): array
+    {
+        if (!self::isAvailable()) {
+            return ['ok' => false, 'reason' => 'The pdo_mysql and zlib PHP extensions are required.'];
+        }
+
+        $dirProblem = BackupDirectoryCheck::problem($this->backupDir);
+        if ($dirProblem !== null) {
+            return ['ok' => false, 'reason' => $dirProblem];
+        }
+
+        try {
+            if ($this->database->getPdo()->query('SELECT 1') === false) {
+                return ['ok' => false, 'reason' => 'The database connection does not answer a trivial query.'];
+            }
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'reason' => 'The database connection failed: ' . $e->getMessage()];
+        }
+
+        return ['ok' => true, 'reason' => null];
     }
 
     /**

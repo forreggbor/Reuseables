@@ -9,6 +9,9 @@
  *
  * Variables expected (passed via extract($data) or included scope):
  *   $tr (callable) — translator callable
+ *   $backupAvailable (bool, optional) — false when no working backup can be made (no backup_adapter /
+ *       builtin_backup, or an adapter whose health check fails): the backup checkbox and its label are then
+ *       replaced by a notice. Absent = unknown, the checkbox behaves as before (checked, enabled).
  *
  * Once-guard: this partial renders only once per request even if included
  * from both _banner.php and index.php.
@@ -75,7 +78,9 @@ $GLOBALS['__PATCH_MODAL_RENDERED'] = true;
                 </div>
             </div>
 
-            <!-- Backup checkbox -->
+            <!-- Backup option: only when a working backup adapter exists; otherwise a notice replaces it -->
+            <?php $patchBackupAvailable = (bool) ($backupAvailable ?? true); ?>
+            <?php if ($patchBackupAvailable): ?>
             <div class="patch-form-check patch-form-group">
                 <input class="patch-form-check-input" type="checkbox" id="patchCreateBackup" checked>
                 <label class="patch-form-check-label" for="patchCreateBackup">
@@ -83,6 +88,12 @@ $GLOBALS['__PATCH_MODAL_RENDERED'] = true;
                 </label>
                 <div class="patch-form-text"><?= htmlspecialchars($tr('TEXT_PATCH_BACKUP_RECOMMENDED')) ?></div>
             </div>
+            <?php else: ?>
+            <div class="patch-alert patch-alert-warning patch-small patch-form-group" id="patchBackupUnavailable">
+                <?= PatchIcon::svg('exclamation-triangle') ?>
+                <?= htmlspecialchars($tr('TEXT_PATCH_BACKUP_NOT_AVAILABLE')) ?>
+            </div>
+            <?php endif; ?>
 
             <!-- Warning -->
             <div class="patch-alert patch-alert-warning patch-small">

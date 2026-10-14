@@ -5,6 +5,36 @@ All notable changes to PatchModule will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] - 2026-10-14
+
+| Category | Description                                                                                                                                          |
+|----------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Added    | The install modal shows a notice instead of the backup option when no working backup can be made (closes #58)                                        |
+| Added    | `PatchModule::getBackupStatus()` and the optional `BackupAdapterHealthInterface` report whether a backup can really be made (closes #58, closes #60) |
+| Changed  | The pre-patch database backup is made for every patch, not only for patches with SQL migrations (closes #60)                                         |
+| Changed  | The backup option text now says that a full database backup is made before every update (closes #60)                                                 |
+| Security | `MysqldumpBackupAdapter` no longer passes the database password on the command line (closes #59)                                                     |
+| Fixed    | A database password containing quotes no longer breaks the dump and restore commands (closes #59)                                                    |
+
+### Added
+
+- **Backup option only when a backup is possible** — the install modal now replaces the backup checkbox and its label with a notice when there is no working backup (no `backup_adapter` and no `builtin_backup`, or an adapter whose health check fails); no backup is requested then. The host passes the new optional `$backupAvailable` flag to the views; `AdminActions::index()` already carries it (closes #58).
+- **`PatchModule::getBackupStatus()`** — returns `['available' => bool, 'reason' => ?string]`, and the static `PatchModule::describeBackup()` does the same for any adapter. New optional **`BackupAdapterHealthInterface`** (`checkOperational()`) lets an adapter report that it can really work; both built-in adapters implement it (executable and `exec()` availability, backup folder, `patch_backups` table or database connection). Custom adapters without the interface are assumed to work, so nothing changes for them (closes #58, closes #60).
+- **Regression scripts** `tests/modal_backup_checkbox_test.php`, `tests/backup_status_test.php`, `tests/installer_backup_step_test.php` and `tests/mysqldump_password_test.php` (plain PHP, no database server needed).
+
+### Changed
+
+- **Backup before every patch** — the pre-patch database backup used to be skipped for patches without SQL migrations, although their PHP code can still change data and the progress list still showed the backup step as done. It is now made for every install (the backup option on, a working adapter present). **Heads-up:** a rollback of any completed patch now restores the database from that patch's backup (while it is retained, see `keep_last_snapshots`), so data entered after the install is lost, exactly as it already was for patches with migrations. The disk-space check and the pruning of old backups apply to every patch (closes #60).
+- **Backup option texts** — the hint now states that a full database backup is made before every update (hu_HU and en_US).
+
+### Security
+
+- **`MysqldumpBackupAdapter`: no password in the process list** — the database credentials are passed to the dump and client binaries through a temporary option file (`--defaults-extra-file`, mode 0600, wiped and removed right after the command, also on failure) instead of `--password=...` on the command line. The constructor is unchanged (closes #59).
+
+### Fixed
+
+- **Passwords with quotes** — a database password containing `"` or `'` broke the shell command of the dump and restore. The option file quotes the value, so any password works; a credential containing a line break is refused (closes #59).
+
 ## [2.9.0] - 2026-10-12
 
 | Category | Description |

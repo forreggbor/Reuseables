@@ -520,7 +520,9 @@ const PatchUpdate = {
 
         var currentPatch = this.patches[this.currentPatchIndex];
         var isFirstPatch = this.currentPatchIndex === 0;
-        var createBackup = isFirstPatch && document.getElementById('patchCreateBackup').checked;
+        // The checkbox is absent when no working backup adapter exists: then no backup is requested.
+        var backupBox    = document.getElementById('patchCreateBackup');
+        var createBackup = isFirstPatch && backupBox !== null && backupBox.checked;
 
         this.setupInstallUI(currentPatch, createBackup);
         this.startPolling();

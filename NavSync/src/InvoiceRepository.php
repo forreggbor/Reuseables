@@ -16,6 +16,9 @@ use PDO;
  */
 class InvoiceRepository
 {
+    /** @var string|null Short tag of the connection's default database, read once (see lockName()). */
+    private ?string $databaseTag = null;
+
     public function __construct(private readonly PDO $pdo) {}
 
     /**
@@ -471,7 +474,7 @@ class InvoiceRepository
     public function tryLock(int $companyId, string $scope = 'nav_sync'): bool
     {
         $stmt = $this->pdo->prepare('SELECT GET_LOCK(:name, 0)');
-        $stmt->execute(['name' => self::lockName($companyId, $scope)]);
+        $stmt->execute(['name' => $this->lockName($companyId, $scope)]);
         return (int)$stmt->fetchColumn() === 1;
     }
 
@@ -485,20 +488,28 @@ class InvoiceRepository
     public function unlock(int $companyId, string $scope = 'nav_sync'): void
     {
         $stmt = $this->pdo->prepare('SELECT RELEASE_LOCK(:name)');
-        $stmt->execute(['name' => self::lockName($companyId, $scope)]);
+        $stmt->execute(['name' => $this->lockName($companyId, $scope)]);
         $stmt->fetchColumn();
     }
 
     /**
      * Name of the sync lock of a company.
      *
+     * MariaDB's GET_LOCK names are global to the database SERVER, not to a database, so the name carries a
+     * 12-character tag derived from the connection's default database: two databases (test and dev, or two
+     * host applications) on one server no longer block each other's syncs when company ids match. A hash
+     * keeps the name inside the 64-character limit whatever the database name is.
+     *
      * @param int    $companyId nav_companies.id
-     * @param string $scope     Lock family prefix.
-     * @return string
+     * @param string $scope     Lock family; the invoice sync uses 'nav_sync', the cash register sync 'nav_cr_sync'.
+     * @return string "<database tag>_<scope>_<company id>"
      */
-    private static function lockName(int $companyId, string $scope): string
+    public function lockName(int $companyId, string $scope = 'nav_sync'): string
     {
-        return $scope . '_' . $companyId;
+        if ($this->databaseTag === null) {
+            $this->databaseTag = substr(md5((string)$this->pdo->query('SELECT DATABASE()')->fetchColumn()), 0, 12);
+        }
+        return $this->databaseTag . '_' . $scope . '_' . $companyId;
     }
 
     /**

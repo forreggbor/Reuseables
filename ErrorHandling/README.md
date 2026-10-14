@@ -268,6 +268,10 @@ $appLogger->write('Application started', 'INFO');
 $auditLogger->write('Admin logged in', 'INFO', ['user_id' => 1]);
 ```
 
+## Secret masking
+
+Secrets never reach the log file. In the context array, a key containing `password`, `passwd`, `pwd`, `secret`, `token`, `api key` (`api_key`, `api-key`, `apikey`), `authorization`, `bearer`, `cookie`, `session` or `credential` (case-insensitive, substring match, so `session_id` and `Set-Cookie` too) has its **whole value** replaced with `***`, at any nesting depth and whether the value is a scalar or an array. In all other string values and in the message, `password=...` fragments and the credential of `Bearer <token>` / `Basic <base64>` (8 or more characters) are replaced as well. The pattern is deliberately broad (a key such as `session_timeout` is masked too) and errs on the side of masking. Regression script: `tests/redaction_test.php`.
+
 ## Log Format
 
 Log entries follow this format:

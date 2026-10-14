@@ -5,6 +5,36 @@ A PatchModule összes jelentős változása ebben a fájlban kerül dokumentál�
 A formátum a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) szabványon alapul,
 a verziókövetés a [Szemantikus verziózás](https://semver.org/spec/v2.0.0.html) elvei szerint történik.
 
+## [2.10.0] - 2026-10-14
+
+| Kategória | Leírás                                                                                                                                    |
+|-----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Hozzáadva | A telepítő-modal értesítést mutat a mentés-lehetőség helyett, ha nem készíthető működő mentés (#58)                                       |
+| Hozzáadva | A `PatchModule::getBackupStatus()` és az opcionális `BackupAdapterHealthInterface` megmondja, hogy valóban készíthető-e mentés (#58, #60) |
+| Módosítva | A patch előtti adatbázis-mentés minden patchnél elkészül, nem csak az SQL-migrációs patcheknél (#60)                                      |
+| Módosítva | A mentés opció szövege kimondja, hogy minden frissítés előtt teljes adatbázis-mentés készül (#60)                                         |
+| Biztonság | A `MysqldumpBackupAdapter` már nem adja át az adatbázis jelszót a parancssorban (#59)                                                     |
+| Javítva   | Az idézőjelet tartalmazó adatbázis jelszó már nem rontja el a mentés és a visszaállítás parancsát (#59)                                   |
+
+### Hozzáadva
+
+- **Mentés-opció csak akkor, ha mentés készíthető** — a telepítő-modal a mentés jelölőnégyzetét és feliratát értesítésre cseréli, ha nincs működő mentés (nincs `backup_adapter` és `builtin_backup`, vagy az adapter állapotellenőrzése sikertelen); ilyenkor mentést sem kér. A host az új, opcionális `$backupAvailable` jelzőt adja át a nézeteknek; az `AdminActions::index()` adata már tartalmazza (#58).
+- **`PatchModule::getBackupStatus()`** — `['available' => bool, 'reason' => ?string]` értéket ad, a statikus `PatchModule::describeBackup()` pedig bármely adapterre ugyanezt. Új, opcionális **`BackupAdapterHealthInterface`** (`checkOperational()`): az adapter jelezheti, hogy valóban tud működni; mindkét beépített adapter megvalósítja (futtatható bináris és `exec()`, mentési mappa, `patch_backups` tábla vagy adatbázis-kapcsolat). Az interfész nélküli egyedi adapterek működőnek számítanak, így náluk semmi nem változik (#58, #60).
+- **Regressziós szkriptek**: `tests/modal_backup_checkbox_test.php`, `tests/backup_status_test.php`, `tests/installer_backup_step_test.php` és `tests/mysqldump_password_test.php` (sima PHP, adatbázis-szerver nélkül).
+
+### Módosítva
+
+- **Mentés minden patch előtt** — a patch előtti adatbázis-mentés korábban kimaradt az SQL-migráció nélküli patcheknél, pedig a PHP kódjuk is módosíthat adatot, a haladásjelző pedig késznek mutatta a mentés lépést. Mostantól minden telepítésnél elkészül (ha a mentés opció be van kapcsolva és van működő adapter). **Figyelem:** bármely befejezett patch visszagörgetése mostantól az adott patch mentéséből állítja vissza az adatbázist (amíg a mentés megvan, lásd `keep_last_snapshots`), tehát a telepítés után bevitt adat elvész, ahogy az a migrációs patcheknél eddig is volt. A lemezhely-ellenőrzés és a régi mentések törlése minden patchre érvényes (#60).
+- **Mentés-opció szövegei** — a súgószöveg kimondja, hogy minden frissítés előtt teljes adatbázis-mentés készül (hu_HU és en_US).
+
+### Biztonság
+
+- **`MysqldumpBackupAdapter`: nincs jelszó a folyamatlistában** — az adatbázis hitelesítő adatai ideiglenes opciófájlon (`--defaults-extra-file`, 0600 jogosultság, a parancs után azonnal felülírva és törölve, hiba esetén is) jutnak el a dump és kliens programokhoz a parancssori `--password=...` helyett. A konstruktor nem változott (#59).
+
+### Javítva
+
+- **Idézőjeles jelszavak** — a `"` vagy `'` jelet tartalmazó adatbázis jelszó eltörte a mentés és a visszaállítás shell-parancsát. Az opciófájl idézőjelezi az értéket, így bármilyen jelszó működik; a sortörést tartalmazó hitelesítő adatot a modul elutasítja (#59).
+
 ## [2.9.0] - 2026-10-12
 
 | Kategória | Leírás |

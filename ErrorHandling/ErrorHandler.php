@@ -17,7 +17,7 @@ namespace ErrorHandling;
  * file logging, and optional PHP error/exception handler registration.
  *
  * @package ErrorHandling
- * @version 1.3.0
+ * @version 1.3.1
  * @license MIT
  */
 class ErrorHandler
@@ -31,6 +31,11 @@ class ErrorHandler
         'INFO' => 3,
         'DEBUG' => 4,
     ];
+
+    /**
+     * Context keys whose whole value is masked (case-insensitive substring match)
+     */
+    private const SECRET_KEY_PATTERN = '/password|passwd|pwd|secret|token|api[-_ ]?key|authorization|bearer|cookie|session|credential/i';
 
     /**
      * PHP error type to log level mapping
@@ -423,17 +428,37 @@ class ErrorHandler
     private static function sanitizeMessage(string $message): string
     {
         $message = preg_replace('/[\x00-\x1F\x7F]/', ' ', $message) ?? $message;
-        $message = preg_replace('/\b(password|passwd|pwd)\b\s*([=:])\s*[^\s;,&]+/i', '$1$2***', $message) ?? $message;
 
-        return $message;
+        return self::redactSecrets($message);
     }
 
     /**
-     * Recursively mask credential-like values in a context array.
+     * Replace credential-looking fragments inside a string.
      *
-     * Any key matching password/passwd/pwd/secret/token/api_key/apikey
-     * (case-insensitive, substring match) has its value replaced with '***'
-     * so secrets passed as structured context never reach the log file.
+     * Redacts the value of password-like key/value fragments (password=..., pwd: ...) and the credential of
+     * "Bearer <token>" / "Basic <base64>" authorization values (at least 8 token characters), keeping the key
+     * name or scheme. It errs on the side of masking: an ordinary word of 8 or more letters after "Basic" or
+     * "Bearer" is masked too.
+     *
+     * @param string $text Raw text
+     * @return string Text with the credentials replaced by ***
+     */
+    private static function redactSecrets(string $text): string
+    {
+        $text = preg_replace('/\b(password|passwd|pwd)\b\s*([=:])\s*[^\s;,&]+/i', '$1$2***', $text) ?? $text;
+        $text = preg_replace('/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]{8,}/i', '$1 ***', $text) ?? $text;
+
+        return $text;
+    }
+
+    /**
+     * Recursively mask credential-like data in a context array.
+     *
+     * Any key matching password/passwd/pwd/secret/token/api key/authorization/bearer/cookie/session/credential
+     * (case-insensitive, substring match, so also e.g. session_id or Set-Cookie) has its WHOLE value replaced
+     * with '***' at any nesting depth, whether the value is a scalar or an array. All other string values are
+     * scanned for password=... fragments and Bearer/Basic credentials (see redactSecrets()). Note that the key
+     * pattern is deliberately broad: a key such as session_timeout is masked as well.
      *
      * @param array $context Raw context data
      * @return array Context with sensitive values masked
@@ -441,10 +466,12 @@ class ErrorHandler
     private static function sanitizeContext(array $context): array
     {
         foreach ($context as $key => $value) {
-            if (is_array($value)) {
-                $context[$key] = self::sanitizeContext($value);
-            } elseif (is_string($key) && preg_match('/password|passwd|pwd|secret|token|api[-_]?key/i', $key) === 1) {
+            if (is_string($key) && preg_match(self::SECRET_KEY_PATTERN, $key) === 1) {
                 $context[$key] = '***';
+            } elseif (is_array($value)) {
+                $context[$key] = self::sanitizeContext($value);
+            } elseif (is_string($value)) {
+                $context[$key] = self::redactSecrets($value);
             }
         }
 

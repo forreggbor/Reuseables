@@ -1,4 +1,14 @@
-# PatchModule — regression fixture for Reusables#13
+# PatchModule — regression fixtures
+
+Besides the database harness below, plain PHP scripts that need **no database server** guard the backup behaviour
+(run each with `php tests/<name>.php`):
+
+- `modal_backup_checkbox_test.php` — the install modal shows a notice instead of the backup checkbox when no working backup exists (#58)
+- `backup_status_test.php` — `PatchModule::describeBackup()` and the health checks of both built-in adapters (#58, #60)
+- `installer_backup_step_test.php` — the pre-patch backup is made for every patch (#60)
+- `mysqldump_password_test.php` — the database password never appears on a command line (#59)
+
+# Regression fixture for Reusables#13
 
 This is a **manual verification script**, not a PHPUnit suite. It proves
 `PatchMigrator::ensureMigrationsTable()`'s fresh-install detection fix works

@@ -340,6 +340,9 @@ Things to know before switching it on:
   `MysqldumpBackupAdapter` for such databases. Spatial columns are untested.
 - It is meant for typical application databases (tens of MB); memory use is bounded, but a very
   large database is better served by the dump-binary adapter.
+- `MysqldumpBackupAdapter` passes the database credentials to the dump and client binaries through a
+  temporary option file (`--defaults-extra-file`, mode 0600, removed right after the command, also on
+  failure), so the password is not visible in the process list. The built-in backup needs no credentials at all.
 - Restore drops and recreates every table that is in the backup; tables created after the backup
   are left alone. The `patch_backups` table itself is never dumped or restored, so the record of a
   backup survives restoring it.
@@ -604,6 +607,7 @@ if (isset($isSysadmin) && $isSysadmin) {
     $baseUrl      = $module->getBaseUrl(); // reads the 'base_url' you configured in the factory
     $csrfToken    = $csrfAdapter->getToken();
     $disabled     = !$availability['enabled'];
+    $backupAvailable = $module->getBackupStatus()['available']; // false: the install modal shows a notice instead of the backup checkbox
 
     include __DIR__ . '/../../../lib/PatchModule/views/admin/_banner.php';
 }
@@ -620,7 +624,10 @@ no DB query is executed.
 The `_modal.php` partial is included automatically by `_banner.php` via a
 once-guard, so it will render only once even when both the toast and the
 index page include it on the same request. `_modal.php` does **not** require
-`$baseUrl` in scope — no host action is needed for it.
+`$baseUrl` in scope. It reads the optional `$backupAvailable` (`$module->getBackupStatus()['available']`; the
+`index()` data already carries it): when it is `false` (no adapter, or one whose health check fails) the
+backup checkbox and its label are replaced by a notice and no backup is requested; when the host does not
+pass it the checkbox behaves as before.
 
 ---
 

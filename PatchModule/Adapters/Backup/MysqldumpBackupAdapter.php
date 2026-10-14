@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 namespace PatchModule\Adapters\Backup;
 
+use PatchModule\Contracts\BackupAdapterHealthInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
 use PDO;
 
@@ -24,8 +25,12 @@ use PDO;
  * binaries, auto-detecting whichever is available. Uses pipefail and stderr
  * redirection to avoid warning pollution in SQL dumps and to correctly
  * propagate exit codes through pipes.
+ *
+ * The database credentials never appear on a command line (and so never in the process list): they are
+ * handed to the dump and client binaries through a temporary option file (`--defaults-extra-file`,
+ * mode 0600) that is wiped and removed as soon as the command has finished, on success and on failure.
  */
-class MysqldumpBackupAdapter implements BackupAdapterInterface
+class MysqldumpBackupAdapter implements BackupAdapterInterface, BackupAdapterHealthInterface
 {
     /** @var PDO Database connection. */
     private PDO $pdo;
@@ -112,18 +117,21 @@ class MysqldumpBackupAdapter implements BackupAdapterInterface
         $timestamp  = date('Y-m-d_His');
         $filename   = 'patch_backup_' . $timestamp . '.sql.gz';
         $filePath   = $this->backupDir . '/' . $filename;
+        try {
+            $optionFile = $this->createOptionFile();
+        } catch (\RuntimeException $e) {
+            return ['success' => false, 'backup_id' => null, 'error' => $e->getMessage()];
+        }
+
         $stderrFile = tempnam(sys_get_temp_dir(), 'mysqldump_stderr_');
 
-        // All arguments are sanitised with escapeshellarg(). stderr is redirected
-        // to a temp file to keep it out of the SQL stream. pipefail ensures the
-        // dump binary's exit code is returned, not gzip's.
+        // All arguments are sanitised with escapeshellarg(). The credentials come from the option file,
+        // which must be the first option. stderr is redirected to a temp file to keep it out of the SQL
+        // stream. pipefail ensures the dump binary's exit code is returned, not gzip's.
         $command = sprintf(
-            'bash -c "set -o pipefail; %s --host=%s --port=%s --user=%s --password=%s --single-transaction --routines --triggers --quick %s 2>%s | gzip > %s"',
+            'bash -c "set -o pipefail; %s --defaults-extra-file=%s --single-transaction --routines --triggers --quick %s 2>%s | gzip > %s"',
             $this->dumpBinary,
-            escapeshellarg($this->dbHost),
-            escapeshellarg((string)$this->dbPort),
-            escapeshellarg($this->dbUser),
-            escapeshellarg($this->dbPass),
+            escapeshellarg($optionFile),
             escapeshellarg($this->dbName),
             escapeshellarg($stderrFile),
             escapeshellarg($filePath)
@@ -131,7 +139,11 @@ class MysqldumpBackupAdapter implements BackupAdapterInterface
 
         $output     = [];
         $returnCode = 0;
-        exec($command, $output, $returnCode);
+        try {
+            exec($command, $output, $returnCode);
+        } finally {
+            self::removeOptionFile($optionFile);
+        }
 
         $stderrContent = '';
         if (file_exists($stderrFile)) {
@@ -195,27 +207,34 @@ class MysqldumpBackupAdapter implements BackupAdapterInterface
             return ['success' => false, 'error' => 'Backup file not found: ' . $filePath];
         }
 
+        try {
+            $optionFile = $this->createOptionFile();
+        } catch (\RuntimeException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+
         $stderrFile = tempnam(sys_get_temp_dir(), 'mysqlrestore_stderr_');
 
-        // All arguments are sanitised with escapeshellarg(). Both gunzip and
-        // client stderr go to the same temp file (append mode for the client).
-        // pipefail ensures a gunzip failure propagates as the command exit code.
+        // All arguments are sanitised with escapeshellarg(). The credentials come from the option file,
+        // which must be the first option. Both gunzip and client stderr go to the same temp file (append
+        // mode for the client). pipefail ensures a gunzip failure propagates as the command exit code.
         $command = sprintf(
-            'bash -c "set -o pipefail; gunzip -c %s 2>%s | %s --host=%s --port=%s --user=%s --password=%s %s 2>>%s"',
+            'bash -c "set -o pipefail; gunzip -c %s 2>%s | %s --defaults-extra-file=%s %s 2>>%s"',
             escapeshellarg($filePath),
             escapeshellarg($stderrFile),
             $this->clientBinary,
-            escapeshellarg($this->dbHost),
-            escapeshellarg((string)$this->dbPort),
-            escapeshellarg($this->dbUser),
-            escapeshellarg($this->dbPass),
+            escapeshellarg($optionFile),
             escapeshellarg($this->dbName),
             escapeshellarg($stderrFile)
         );
 
         $output     = [];
         $returnCode = 0;
-        exec($command, $output, $returnCode);
+        try {
+            exec($command, $output, $returnCode);
+        } finally {
+            self::removeOptionFile($optionFile);
+        }
 
         $stderrContent = '';
         if (file_exists($stderrFile)) {
@@ -279,24 +298,129 @@ class MysqldumpBackupAdapter implements BackupAdapterInterface
      */
     public static function isAvailable(): bool
     {
+        return self::execEnabled() && self::detectBinary(['mariadb-dump', 'mysqldump']) !== null;
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * Checks exec(), the backup directory and the patch_backups table; the binaries were resolved in the
+     * constructor. Cheap enough to run on every admin page render (no process is started).
+     */
+    public function checkOperational(): array
+    {
+        if (!self::execEnabled()) {
+            return ['ok' => false, 'reason' => 'exec() is not available (missing or listed in disable_functions).'];
+        }
+
+        $dirProblem = BackupDirectoryCheck::problem($this->backupDir);
+        if ($dirProblem !== null) {
+            return ['ok' => false, 'reason' => $dirProblem];
+        }
+
+        try {
+            if ($this->pdo->query('SELECT 1 FROM patch_backups LIMIT 1') === false) {
+                return ['ok' => false, 'reason' => 'The patch_backups table is not readable (run schema/patch_backups.sql).'];
+            }
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'reason' => 'The patch_backups table is not readable (run schema/patch_backups.sql): ' . $e->getMessage()];
+        }
+
+        return ['ok' => true, 'reason' => null];
+    }
+
+    // =========================================================================
+    // Private helpers
+    // =========================================================================
+
+    /**
+     * Write the credentials into a temporary MySQL/MariaDB option file (mode 0600).
+     *
+     * Values are double-quoted with `\` and `"` escaped, so characters such as `#` or quotes in the
+     * password survive. A line break or NUL byte in any value is refused: it would let the value inject
+     * further option-file directives.
+     *
+     * @return string Path of the option file; the caller removes it with removeOptionFile().
+     *
+     * @throws \RuntimeException If a credential contains a line break or NUL byte, or the file cannot be written.
+     */
+    private function createOptionFile(): string
+    {
+        foreach (['host' => $this->dbHost, 'user' => $this->dbUser, 'password' => $this->dbPass] as $name => $value) {
+            if (preg_match('/[\r\n\0]/', $value) === 1) {
+                throw new \RuntimeException('Database credential "' . $name . '" must not contain a line break or NUL byte.');
+            }
+        }
+
+        $tempDir = sys_get_temp_dir();
+        if (!is_dir($tempDir) || !is_writable($tempDir)) {
+            throw new \RuntimeException('Cannot create the temporary option file: the temp directory is not writable.');
+        }
+        $path = tempnam($tempDir, 'patch_mysql_');
+        if ($path === false) {
+            throw new \RuntimeException('Cannot create the temporary option file.');
+        }
+
+        $content = "[client]\n"
+            . 'host=' . self::quoteOptionValue($this->dbHost) . "\n"
+            . 'port=' . $this->dbPort . "\n"
+            . 'user=' . self::quoteOptionValue($this->dbUser) . "\n"
+            . 'password=' . self::quoteOptionValue($this->dbPass) . "\n";
+
+        // tempnam() already creates the file with mode 0600; set it again before the secret is written.
+        if (!chmod($path, 0600) || file_put_contents($path, $content) === false) {
+            self::removeOptionFile($path);
+            throw new \RuntimeException('Cannot write the temporary option file.');
+        }
+
+        return $path;
+    }
+
+    /**
+     * Quote a value for an option file: double quotes around it, backslash and double quote escaped.
+     *
+     * @param string $value Raw value (already checked for line breaks).
+     *
+     * @return string Quoted value.
+     */
+    private static function quoteOptionValue(string $value): string
+    {
+        return '"' . strtr($value, ['\\' => '\\\\', '"' => '\\"']) . '"';
+    }
+
+    /**
+     * Wipe and delete a temporary option file.
+     *
+     * @param string $optionFile Path returned by createOptionFile().
+     *
+     * @return void
+     */
+    private static function removeOptionFile(string $optionFile): void
+    {
+        if (is_file($optionFile)) {
+            file_put_contents($optionFile, str_repeat("\0", 256));
+            unlink($optionFile);
+        }
+    }
+
+    /**
+     * Whether PHP's exec() exists and is not disabled.
+     *
+     * @return bool
+     */
+    private static function execEnabled(): bool
+    {
         if (!function_exists('exec')) {
             return false;
         }
 
         $disabled = ini_get('disable_functions');
         if ($disabled !== false && $disabled !== '') {
-            $disabledFunctions = array_map('trim', explode(',', $disabled));
-            if (in_array('exec', $disabledFunctions, true)) {
-                return false;
-            }
+            return !in_array('exec', array_map('trim', explode(',', $disabled)), true);
         }
 
-        return self::detectBinary(['mariadb-dump', 'mysqldump']) !== null;
+        return true;
     }
-
-    // =========================================================================
-    // Private helpers
-    // =========================================================================
 
     /**
      * Return the first candidate binary that is executable on this system.

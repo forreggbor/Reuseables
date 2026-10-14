@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.1.1 — 2026-10-14
+
+| Category | Description                                                                                |
+|----------|--------------------------------------------------------------------------------------------|
+| Fixed    | The sync locks of two databases on the same server no longer block each other (closes #62) |
+
+### Fixed
+
+- Two databases on one server (for example the test and the development database, or two applications) no longer block each other's invoice and cash register syncs when their company numbers match; the sync lock now belongs to its own database (closes #62)
+
 ## 1.1.0 — 2026-10-14
 
 | Category | Description                                                                                    |

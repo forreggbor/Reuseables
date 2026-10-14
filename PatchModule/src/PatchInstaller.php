@@ -184,7 +184,6 @@ class PatchInstaller
             'extractDir'        => null,
             'manifest'          => null,
             'hasMigrationsDir'  => false,
-            'hasMigration'      => false,
             'backupId'          => null,
             'downloadedFile'    => null,
             'installErrorCode'  => null,
@@ -341,7 +340,6 @@ class PatchInstaller
             'extractDir'        => null,
             'manifest'          => null,
             'hasMigrationsDir'  => false,
-            'hasMigration'      => false,
             'backupId'          => null,
             'downloadedFile'    => $archivePath,   // deleted by cleanupStep
             'installErrorCode'  => null,
@@ -421,7 +419,6 @@ class PatchInstaller
         $ctx['extractDir']        = $extractResult['extract_dir'];
         $ctx['manifest']          = $extractResult['manifest'];
         $ctx['hasMigrationsDir']  = is_dir($ctx['extractDir'] . '/migrations');
-        $ctx['hasMigration']      = $ctx['hasMigrationsDir'];
 
         $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
             'manifest_json' => json_encode($ctx['manifest']),
@@ -429,10 +426,11 @@ class PatchInstaller
     }
 
     /**
-     * Create a pre-patch database backup when a SQL migration is present
+     * Create the pre-patch database backup
      *
-     * If there is no migration, the step is still ticked for progress tracking
-     * and a skip message is logged. Only called when canBackup is true.
+     * Made for every patch, with or without SQL migrations: a patch without migrations can still change
+     * data through its PHP code, and a rollback can only restore the database from this backup.
+     * Only called when canBackup is true.
      *
      * @param array &$ctx Installation context (mutated: backupId set on success)
      * @return void
@@ -442,28 +440,24 @@ class PatchInstaller
     {
         $this->progressTracker->stepProgress('create_backup');
 
-        if ($ctx['hasMigration']) {
-            $this->log("Patch install: creating pre-patch backup", 'INFO');
+        $this->log("Patch install: creating pre-patch backup", 'INFO');
 
-            $backupResult = $this->backupAdapter->createBackup(
-                "Pre-patch backup (v{$ctx['previousVersion']} → v{$ctx['version']})",
-                $ctx['userId']
-            );
+        $backupResult = $this->backupAdapter->createBackup(
+            "Pre-patch backup (v{$ctx['previousVersion']} → v{$ctx['version']})",
+            $ctx['userId']
+        );
 
-            if (!$backupResult['success']) {
-                throw new \RuntimeException('Backup creation failed: ' . ($backupResult['error'] ?? 'Unknown error'));
-            }
-
-            $ctx['backupId'] = $backupResult['backup_id'];
-
-            $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
-                'backup_id' => $ctx['backupId'],
-            ]);
-
-            $this->log("Patch install: backup created (ID: {$ctx['backupId']})", 'INFO');
-        } else {
-            $this->log("Patch install: no SQL migrations, skipping backup", 'INFO');
+        if (!$backupResult['success']) {
+            throw new \RuntimeException('Backup creation failed: ' . ($backupResult['error'] ?? 'Unknown error'));
         }
+
+        $ctx['backupId'] = $backupResult['backup_id'];
+
+        $this->database->updateHistoryRecord($ctx['patchHistoryId'], [
+            'backup_id' => $ctx['backupId'],
+        ]);
+
+        $this->log("Patch install: backup created (ID: {$ctx['backupId']})", 'INFO');
     }
 
     /**

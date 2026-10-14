@@ -157,7 +157,7 @@ Pre-patch backup creation and rollback. If not provided, backup/restore steps ar
 The module ships with two ready-to-use implementations in `Adapters/Backup/`:
 
 - **`PdoDumpBackupAdapter`** (built-in, opt-in) — set `'builtin_backup' => true`; no adapter object, no database credentials, no `exec()` and no schema import. It dumps the whole database through the module's own PDO into one gzip-compressed JSON-lines file (tables, views, routines, events, triggers; rows are streamed in bounded chunks) and replays it with prepared statements on rollback. The `patch_backups` table is created on first use. For typical application databases; system-versioned tables and sequences are not supported. An explicit `backup_adapter` takes precedence, and hosts that set neither key behave exactly as before. See `doc/INTEGRATION-GUIDE.md`.
-- **`MysqldumpBackupAdapter`** — auto-detects `mariadb-dump` or `mysqldump` for dumps and `mariadb` or `mysql` for restores; needs `exec()`, bash, the DB credentials, and the database schema extension in `schema/patch_backups.sql`. Produces plain `.sql.gz` dumps and suits large databases.
+- **`MysqldumpBackupAdapter`** — auto-detects `mariadb-dump` or `mysqldump` for dumps and `mariadb` or `mysql` for restores; needs `exec()`, bash, the DB credentials, and the database schema extension in `schema/patch_backups.sql`. Produces plain `.sql.gz` dumps and suits large databases. The database credentials are handed to the binaries through a temporary option file (`--defaults-extra-file`, mode 0600, wiped and removed right after the command, also on failure), so the password never appears in the process list.
 
 ### LoggerInterface (optional)
 
@@ -315,6 +315,7 @@ Without a callback the module behaves as before: a 403 precondition failure caus
 | `getProgressTracker()`          | `ProgressTracker`                    | Returns the progress tracker                    |
 | `getMaintenanceMode()`          | `MaintenanceMode`                    | Returns the maintenance mode manager            |
 | `getMaxUploadSize()`            | `int`                                | Returns the configured max upload size in bytes |
+| `getBackupStatus()`             | `array{available: bool, reason: ?string}` | Whether a backup can really be made: an adapter exists and, if it implements `BackupAdapterHealthInterface`, reports itself operational. The install modal shows the backup checkbox only then; otherwise a notice |
 | `getExpectedPublicKeyPem()`     | `?string`                            | Returns the pinned public key PEM, or null      |
 
 ### Views
@@ -392,7 +393,7 @@ files/             # Optional: files to copy to project root
 1. **Preflight checks** — Disk space, writable root, version not already installed
 2. **Download patch** — From patch server with SHA-256 verification
 3. **Extract patch** — .tgz archive, validate manifest.json (including `migrations[]`); symlink and path-traversal scan rejects unsafe archives
-4. **Create backup** — Full DB dump via BackupAdapter, only if `migrations/` directory is present (skipped if no adapter or no migrations)
+4. **Create backup** — Full DB dump via BackupAdapter before **every** patch (with or without `migrations/`, since a patch's PHP code can change data too); skipped only when the backup option is off or no working adapter exists, in which case the install modal shows a notice instead of the checkbox
 5. **Execute migration** — Runs each `*.sql` file in `migrations/` in lexicographic order; tracks applied filenames in `patch_migrations`; bootstraps the table on first use
 6. **Copy files** — With per-file OPcache invalidation; all paths validated against traversal
 7. **Remove obsolete files** — Delete files listed in `manifest.removed_files`; backed-up to snapshot before deletion for rollback
@@ -400,7 +401,7 @@ files/             # Optional: files to copy to project root
 9. **Verify installation** — Database connection test
 10. **Cleanup** — Remove temp files, delete backup on success
 
-On failure at any step, automatic rollback is attempted (DB from backup + files from snapshot, including restoration of deleted files).
+On failure at any step, automatic rollback is attempted (DB from backup + files from snapshot, including restoration of deleted files). A manual rollback of a completed patch likewise restores the database from that patch's backup (while it is retained, see `keep_last_snapshots`), so data entered after the install is lost.
 
 ## Maintenance Mode Integration
 

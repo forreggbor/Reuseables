@@ -20,6 +20,7 @@ use PatchModule\Adapters\Signature\OpenSslSignatureVerifier;
 use PatchModule\AdminActions;
 use PatchModule\Contracts\ArchiveAdapterInterface;
 use PatchModule\Contracts\AuthAdapterInterface;
+use PatchModule\Contracts\BackupAdapterHealthInterface;
 use PatchModule\Contracts\BackupAdapterInterface;
 use PatchModule\Contracts\CsrfAdapterInterface;
 use PatchModule\Contracts\DatabaseAdapterInterface;
@@ -58,7 +59,7 @@ use PDO;
  * $result = $module->install($patchHistoryId);
  *
  * @package PatchModule
- * @version 2.8.0
+ * @version 2.10.0
  * @license MIT
  */
 class PatchModule
@@ -467,6 +468,45 @@ class PatchModule
     public function getDatabase(): DatabaseAdapterInterface
     {
         return $this->database;
+    }
+
+    /**
+     * Whether a backup can actually be made (an adapter exists and, if it reports its health, is operational)
+     *
+     * The install modal offers the backup option only when "available" is true. An adapter that does not
+     * implement BackupAdapterHealthInterface is assumed to work.
+     *
+     * @return array{available: bool, reason: ?string} "reason" explains why not (English, for diagnostics).
+     */
+    public function getBackupStatus(): array
+    {
+        return self::describeBackup($this->backupAdapter);
+    }
+
+    /**
+     * Describe whether the given backup adapter (or its absence) allows backups
+     *
+     * @param BackupAdapterInterface|null $adapter The configured adapter, or null.
+     *
+     * @return array{available: bool, reason: ?string}
+     */
+    public static function describeBackup(?BackupAdapterInterface $adapter): array
+    {
+        if ($adapter === null) {
+            return ['available' => false, 'reason' => 'No backup adapter is configured (set backup_adapter or builtin_backup).'];
+        }
+
+        if (!$adapter instanceof BackupAdapterHealthInterface) {
+            return ['available' => true, 'reason' => null];
+        }
+
+        try {
+            $check = $adapter->checkOperational();
+        } catch (\Throwable $e) {
+            return ['available' => false, 'reason' => 'The backup adapter health check failed: ' . $e->getMessage()];
+        }
+
+        return ['available' => $check['ok'] === true, 'reason' => $check['ok'] === true ? null : ($check['reason'] ?? 'The backup adapter reports it cannot work.')];
     }
 
     /**

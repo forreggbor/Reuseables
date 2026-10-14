@@ -5,6 +5,21 @@ All notable changes to ErrorHandler will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-10-14
+
+| Category | Description                                                                                                   |
+|----------|---------------------------------------------------------------------------------------------------------------|
+| Security | Secrets are masked at any nesting depth: the whole value of a secret-named key is replaced (closes #63)       |
+| Security | More key names are recognised: authorization, bearer, cookie, session, credential and api key (closes #63)    |
+| Security | Bearer and Basic credentials and password fragments inside text values and messages are replaced (closes #63) |
+
+### Security
+
+- **Whole value masked** — a secret-looking key whose value is an array (for example `{"token":{"v":"abc"}}`) used to be recursed into and never masked; its whole value is now replaced with `***` at any depth.
+- **Wider key pattern** — keys containing `authorization`, `bearer`, `cookie`, `session`, `credential` or `api key` (with a space) are masked in addition to the existing `password`, `passwd`, `pwd`, `secret`, `token` and `api_key`. The match is by substring, so a key such as `session_timeout` is masked too.
+- **Values are inspected** — in the other string values and in the log message, `password=...` fragments and the credential of `Bearer <token>` / `Basic <base64>` (at least 8 characters) are replaced with `***`, keeping the key name or scheme (`{"note":"Bearer ***"}`). It errs on the side of masking: an ordinary word of 8 or more letters right after "Basic" or "Bearer" is masked as well.
+- **Regression script** `tests/redaction_test.php` (plain PHP, writes to a temporary log file).
+
 ## [1.3.0] - 2026-09-03
 
 | Category | Description                                                                    |

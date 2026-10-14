@@ -244,7 +244,6 @@ Messages are emitted in pipeline order during a successful installation.
 | INFO    | `Patch install: extracting patch`                                           | :413        |
 | INFO    | `Patch install: creating pre-patch backup`                                  | :446        |
 | INFO    | `Patch install: backup created (ID: {backupId})`                            | :463        |
-| INFO    | `Patch install: no SQL migrations, skipping backup`                                                                       | :465        |
 | INFO    | `Patch install: no SQL migrations, skipping`                                                                              | :485        |
 | WARNING | `Patch install: manifest.migrations[] disagrees with archive contents; proceeding from on-disk listing`                   | :493        |
 | INFO    | `Patch install: executing {N} SQL migration(s)`                                                                           | :496        |

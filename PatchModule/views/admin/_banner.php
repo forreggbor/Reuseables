@@ -8,6 +8,9 @@
  *
  * Variables expected (passed via extract($data) or included scope):
  *   $tr         (callable) — translator callable
+ *   $backupAvailable (bool, optional) — pass `$data['backupAvailable']` from AdminActions::index() (or
+ *                          `$module->getBackupStatus()['available']`); false replaces the backup checkbox of
+ *                          the install modal by a notice (see _modal.php)
  *   $baseUrl    (string)   — base URL for patch-management routes
  *   $csrfToken  (string)   — CSRF token
  *   $disabled   (bool)     — true when module is unavailable

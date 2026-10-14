@@ -110,6 +110,7 @@ class AdminActions
                 'disabledReason' => $availability['reason'] ?? '',
                 'csrfToken'      => $this->csrf->getToken(),
                 'baseUrl'        => $this->module->getBaseUrl(),
+                'backupAvailable' => $this->module->getBackupStatus()['available'],
                 'tr'             => $this->getViewTranslator(),
             ],
         ];
