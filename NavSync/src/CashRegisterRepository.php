@@ -298,6 +298,30 @@ class CashRegisterRepository
     }
 
     /**
+     * Already parsed files that still hold counted receipt lines without a VAT rate (e.g. parsed before the VAT table could be read).
+     *
+     * @param int $companyId nav_companies.id
+     * @return list<array<string,mixed>> Columns id, register_id, company_id, ap_number, file_number, stored_name.
+     */
+    public function filesWithUnmappedLines(int $companyId): array
+    {
+        $stmt = $this->pdo->prepare("
+            SELECT f.id, f.register_id, r.company_id, r.ap_number, f.file_number, f.stored_name
+            FROM nav_cash_register_files f
+            JOIN nav_cash_registers r ON r.id = f.register_id
+            WHERE r.company_id = :company_id AND f.parse_status = 'PARSED' AND f.validation_code <> 'ERROR'
+              AND EXISTS (
+                  SELECT 1 FROM nav_cash_receipts x
+                  JOIN nav_cash_receipt_lines l ON l.receipt_id = x.id
+                  WHERE x.file_id = f.id AND x.practice = 0 AND x.interrupted = 0 AND l.vat_rate IS NULL
+              )
+            ORDER BY r.ap_number, f.file_number
+        ");
+        $stmt->execute(['company_id' => $companyId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Marks a file as not to be parsed (NAV validated it as ERROR).
      *
      * @param int $fileId nav_cash_register_files.id

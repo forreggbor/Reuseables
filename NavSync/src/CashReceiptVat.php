@@ -15,16 +15,19 @@ namespace NavSync;
 final class CashReceiptVat
 {
     /**
-     * Sets each line's vat_rate from the collector → rate map; lines whose collector is not in the map keep NULL.
+     * Sets each line's vat_rate from the VAT table; lines whose collector is not in the table keep NULL.
+     *
+     * A collector is the table letter plus two digits (C00): the full code is tried first, then its first letter.
      *
      * @param list<array<string,mixed>>  $lines Receipt lines (keys vat_collector, vat_rate, ...).
-     * @param array<string,string>|null  $map   Collector → rate, or null when the log's VAT table was unreadable.
+     * @param array<string,string>|null  $map   Table letter (or full collector) → rate, or null when the log's VAT table was unreadable.
      * @return list<array<string,mixed>> The lines with vat_rate filled where known.
      */
     public static function applyRates(array $lines, ?array $map): array
     {
         foreach ($lines as $i => $line) {
-            $lines[$i]['vat_rate'] = $map[$line['vat_collector']] ?? null;
+            $collector = (string)$line['vat_collector'];
+            $lines[$i]['vat_rate'] = $map[$collector] ?? $map[substr($collector, 0, 1)] ?? null;
         }
         return $lines;
     }

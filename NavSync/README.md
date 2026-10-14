@@ -171,6 +171,7 @@ Route them like the invoice actions (all through the host's auth and CSRF-protec
 | `nav_cr_status`    | `cashRegisterStatus()`      | GET  | `company_id` (registers with file counters, files needing attention, last sync) |
 | `nav_cr_sync`      | `triggerCashRegisterSync()` | POST | `company_id` (time-boxed to 20 s, like `nav_sync`)                |
 | `nav_cr_reparse`   | `reparseCashRegisterFile()` | POST | `company_id`, `file_id` (reprocesses the stored file, no NAV contact) |
+| `nav_cr_reparse_unmapped` | `reparseUnmappedCashRegisterFiles()` | POST | `company_id` (reprocesses every parsed file that still has lines without a VAT rate, time-boxed to 20 s, no NAV contact; the status answer's `unmapped_files` tells whether any are left) |
 
 ```php
 'nav_cr_list'    => $actions->listCashReceipts(),
@@ -178,9 +179,10 @@ Route them like the invoice actions (all through the host's auth and CSRF-protec
 'nav_cr_status'  => $actions->cashRegisterStatus(),
 'nav_cr_sync'    => $actions->triggerCashRegisterSync(),
 'nav_cr_reparse' => $actions->reparseCashRegisterFile(),
+'nav_cr_reparse_unmapped' => $actions->reparseUnmappedCashRegisterFiles(),
 ```
 
-The two POST actions must only be reachable through a route that verifies the CSRF token (`nav-sync.js` sends it as `_csrf`).
+The POST actions must only be reachable through a route that verifies the CSRF token (`nav-sync.js` sends it as `_csrf`).
 
 ### View and assets
 
@@ -215,7 +217,7 @@ Only receipts that count are included, selected by closing time (Budapest wall-c
 
 ### Known limitations
 
-- **The VAT rate mapping is unverified.** Rates are read from the log's `INF.VAT` table, and its format has not yet been checked against real NAV data. Until that is confirmed, receipt lines get no VAT rate (shown as unmapped lines in the coverage) and no cash register VAT appears in the report.
+- **VAT table:** rates are read from the log's `INF.VAT` text (`VATUPD~<AP>~<timestamp>~A-5-4,76-04,76%~...~<check>`, format taken from real FISCAT AEE logs); a line is mapped by the first letter of its collector (`C00` → table letter `C`). The groups without a numeric rate (`D-0-0-AJT`, `E-0-0-AM`) are stored with their label (`AJT`, `AM`) as the rate and carry no VAT; they are not normalised to the invoice keys (`AAM`, ...). The 10 character check value is only checked for its shape, not recomputed. When a file holds more than one different VAT table, the first is applied to all its lines and a warning is logged.
 - Files that NAV deleted before they were downloaded are not recorded in the database, only in the sync log and the application log.
 - The signature of the downloaded `.p7b` files (P7B) is not verified.
 

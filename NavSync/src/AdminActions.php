@@ -227,6 +227,7 @@ class AdminActions
             'registers' => $this->cashRepo->registerStatus($companyId),
             'problem_files' => $this->cashRepo->problemFiles($companyId),
             'last_sync' => $this->invoiceRepo->lastSyncLog($companyId, 'CASH_REGISTER'),
+            'unmapped_files' => count($this->cashRepo->filesWithUnmappedLines($companyId)),
         ]));
     }
 
@@ -287,6 +288,35 @@ class AdminActions
             $this->json(['error' => 'sync_running'], 409);
         }
         $this->json(['success' => $result['ok'], 'code' => $result['code'], 'message' => $result['message']]);
+    }
+
+    /**
+     * Reprocesses, from disk, every parsed file that still has lines without a VAT rate (no NAV contact), time-boxed like the sync.
+     *
+     * POST params: company_id.
+     *
+     * @return never
+     */
+    public function reparseUnmappedCashRegisterFiles(): never
+    {
+        $companyId = self::positiveInt(self::param($_POST, 'company_id'));
+        if ($companyId === 0) {
+            $this->json(['error' => 'bad_request'], 400);
+        }
+
+        $company = $this->guarded('cash_reparse', fn(): ?object => $this->companyRepo->findById($companyId));
+        if ($company === null || !(bool)$company->active) {
+            $this->json(['error' => 'company_not_found'], 404);
+        }
+        if ((int)($company->cash_register_sync ?? 0) !== 1) {
+            $this->json(['error' => 'not_enabled'], 400);
+        }
+
+        $result = $this->guarded('cash_reparse', fn(): array => $this->cashSync->reprocessUnmapped($companyId, self::WEB_SYNC_BUDGET_SECONDS));
+        if ($result['code'] === 'sync_running') {
+            $this->json(['error' => 'sync_running'], 409);
+        }
+        $this->json(['success' => $result['ok'], 'complete' => $result['complete'], 'code' => $result['code'], 'message' => $result['message'], 'files' => $result['files']]);
     }
 
     /**

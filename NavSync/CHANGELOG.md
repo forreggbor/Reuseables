@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.2.0 — 2026-10-14
+
+| Category | Description                                                                                            |
+|----------|--------------------------------------------------------------------------------------------------------|
+| Fixed    | Cash register VAT now appears in the monthly VAT report (closes #64)                                   |
+| Added    | Already downloaded cash register files can be reprocessed in one step to fill in the missing VAT rates |
+| Added    | A warning is logged when a cash register file contains more than one different VAT table               |
+| Changed  | The items of a cash register receipt open in a pop-up window instead of below the list (closes #65)    |
+
+### Added
+
+- A "Reprocess files with lines without a VAT rate" button appears on the cash register screen while already downloaded files still have items without a VAT rate; one click reprocesses them from the stored copies, without contacting NAV (closes #64)
+- When a cash register file contains more than one different VAT table, a warning is logged; the first table is applied to the whole file (closes #64)
+
+### Changed
+
+- The items of a cash register receipt open in a pop-up window with the receipt number as its title; it closes with the Close button, the Esc key or a click outside it (closes #65)
+
+### Fixed
+
+- Cash register items now get their VAT rate from the register's VAT table, so the cash register columns of the monthly VAT report are filled instead of showing zero (closes #64)
+- Tax-exempt groups the register labels with text (for example AJT, AM) are kept under that label with no VAT, so they show up as a separate line in the report (closes #64)
+
 ## 1.1.1 — 2026-10-14
 
 | Category | Description                                                                                |

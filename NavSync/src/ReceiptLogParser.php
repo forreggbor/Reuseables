@@ -32,7 +32,7 @@ final class ReceiptLogParser
      * Parses a log file XML.
      *
      * @param string $xml UTF-8 XML text.
-     * @return array{receipts: list<array<string,mixed>>, vat_table_text: string} "vat_table_text" is the first INF/VAT text ('' when absent).
+     * @return array{receipts: list<array<string,mixed>>, vat_table_text: string, vat_table_count: int} "vat_table_text" is the first INF/VAT text ('' when absent); "vat_table_count" the number of different non-empty INF/VAT texts in the file (more than 1 means the VAT table changed inside it).
      * @throws \RuntimeException On malformed XML or a receipt without its record number, number or closing time.
      */
     public function parse(string $xml): array
@@ -61,19 +61,24 @@ final class ReceiptLogParser
 
         $receipts = [];
         $vatText  = null;
+        $vatTexts = [];
         foreach ($root->childNodes as $node) {
             if (!$node instanceof \DOMElement) {
                 continue;
             }
             $name = $node->localName ?? '';
-            if ($name === 'INF' && $vatText === null) {
-                $vatText = $this->childText($node, 'VAT') ?? '';
+            if ($name === 'INF') {
+                $text     = $this->childText($node, 'VAT') ?? '';
+                $vatText ??= $text;
+                if ($text !== '') {
+                    $vatTexts[$text] = true;
+                }
             } elseif (isset(self::RECEIPT_TAGS[$name])) {
                 [$kind, $practice] = self::RECEIPT_TAGS[$name];
                 $receipts[] = $this->parseReceipt($node, $kind, $practice);
             }
         }
-        return ['receipts' => $receipts, 'vat_table_text' => $vatText ?? ''];
+        return ['receipts' => $receipts, 'vat_table_text' => $vatText ?? '', 'vat_table_count' => count($vatTexts)];
     }
 
     /**

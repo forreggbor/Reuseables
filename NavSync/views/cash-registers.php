@@ -24,6 +24,8 @@ declare(strict_types=1);
      data-i18n-reparse="<?= htmlspecialchars($t('TEXT_NAV_CR_REPARSE')) ?>"
      data-i18n-reparse-done="<?= htmlspecialchars($t('TEXT_NAV_CR_REPARSE_DONE')) ?>"
      data-i18n-reparse-failed="<?= htmlspecialchars($t('TEXT_NAV_CR_REPARSE_FAILED')) ?>"
+     data-i18n-reparse-unmapped="<?= htmlspecialchars($t('TEXT_NAV_CR_REPARSE_UNMAPPED')) ?>"
+     data-i18n-reparse-unmapped-done="<?= htmlspecialchars($t('TEXT_NAV_CR_REPARSE_UNMAPPED_DONE')) ?>"
      data-i18n-unsynced="<?= htmlspecialchars($t('TEXT_NAV_CR_UNSYNCED')) ?>"
      data-i18n-unmapped="<?= htmlspecialchars($t('TEXT_NAV_CR_UNMAPPED_LINES')) ?>"
      data-i18n-practice="<?= htmlspecialchars($t('TEXT_NAV_CR_PRACTICE')) ?>"
@@ -47,6 +49,7 @@ declare(strict_types=1);
     <div class="nav-sync-toolbar">
         <h3 class="nav-cash-title"><?= htmlspecialchars($t('TEXT_NAV_CR_TITLE')) ?></h3>
         <button type="button" class="nav-sync-btn-sync nav-cash-btn-sync"><?= htmlspecialchars($t('TEXT_NAV_CR_SYNC_NOW')) ?></button>
+        <button type="button" class="nav-pg-btn nav-cash-btn-reparse-unmapped" hidden></button>
     </div>
     <div class="nav-sync-last-sync nav-cash-last-sync" role="status"></div>
 
@@ -123,19 +126,24 @@ declare(strict_types=1);
         </div>
     </div>
 
-    <div class="nav-cash-lines" hidden>
-        <h4 class="nav-cash-heading"><?= htmlspecialchars($t('TEXT_NAV_CR_LINES')) ?>: <span class="nav-cash-lines-title"></span></h4>
-        <table class="nav-sync-table nav-lines-table">
-            <thead>
-                <tr>
-                    <th><?= htmlspecialchars($t('TEXT_NAV_LINE_DESCRIPTION')) ?></th>
-                    <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_LINE_QUANTITY')) ?></th>
-                    <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_LINE_UNIT_PRICE')) ?></th>
-                    <th class="text-center"><?= htmlspecialchars($t('TEXT_NAV_LINE_VAT_RATE')) ?></th>
-                    <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_LINE_GROSS')) ?></th>
-                </tr>
-            </thead>
-            <tbody class="nav-cash-lines-body"></tbody>
-        </table>
-    </div>
+    <dialog class="nav-cash-dialog" aria-labelledby="nav-cash-dialog-title">
+        <div class="nav-cash-dialog-head">
+            <h4 class="nav-cash-heading" id="nav-cash-dialog-title"><?= htmlspecialchars($t('TEXT_NAV_CR_LINES')) ?>: <span class="nav-cash-lines-title"></span></h4>
+            <button type="button" class="nav-pg-btn nav-cash-dialog-close"><?= htmlspecialchars($t('TEXT_NAV_CR_CLOSE')) ?></button>
+        </div>
+        <div class="nav-sync-table-wrap">
+            <table class="nav-sync-table nav-lines-table">
+                <thead>
+                    <tr>
+                        <th><?= htmlspecialchars($t('TEXT_NAV_LINE_DESCRIPTION')) ?></th>
+                        <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_LINE_QUANTITY')) ?></th>
+                        <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_LINE_UNIT_PRICE')) ?></th>
+                        <th class="text-center"><?= htmlspecialchars($t('TEXT_NAV_LINE_VAT_RATE')) ?></th>
+                        <th class="text-right"><?= htmlspecialchars($t('TEXT_NAV_LINE_GROSS')) ?></th>
+                    </tr>
+                </thead>
+                <tbody class="nav-cash-lines-body"></tbody>
+            </table>
+        </div>
+    </dialog>
 </div>

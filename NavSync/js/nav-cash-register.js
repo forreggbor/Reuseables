@@ -22,6 +22,7 @@
     const d         = wrap.dataset;
     const q         = sel => wrap.querySelector(sel);
 
+    const dialog    = q('.nav-cash-dialog');
     const state = { offset: 0, total: 0, selectedReceipt: null, message: '', lastSyncText: '', receiptSeq: 0, linesSeq: 0 };
 
     /** Kind of a receipt (RECEIPT, SIMPLIFIED_INVOICE) to its translated label. */
@@ -121,6 +122,13 @@
         }));
     }
 
+    /** The bulk reprocess button is offered only while parsed files with lines without a VAT rate exist. */
+    function renderUnmappedButton(count) {
+        const btn = q('.nav-cash-btn-reparse-unmapped');
+        btn.hidden = !(count > 0);
+        btn.textContent = fill(d.i18nReparseUnmapped, { count });
+    }
+
     function renderLastSync(log) {
         if (!log) { state.lastSyncText = ''; }
         else {
@@ -136,6 +144,7 @@
                 if (data.error) { failed(data.error); return; }
                 renderRegisters(data.registers);
                 renderProblems(data.problem_files);
+                renderUnmappedButton(data.unmapped_files);
                 renderLastSync(data.last_sync);
             })
             .catch(failed);
@@ -146,9 +155,7 @@
     function loadReceipts() {
         const seq    = ++state.receiptSeq;
         // The lines on show belong to the previous list; drop them with it.
-        state.selectedReceipt = null;
-        state.linesSeq++;
-        q('.nav-cash-lines').hidden = true;
+        closeLines();
         const params = { action: 'nav_cr_list', company_id: companyId, limit, offset: state.offset };
         const ap = q('.nav-cash-filter-ap').value, from = q('.nav-cash-filter-from').value, to = q('.nav-cash-filter-to').value;
         if (ap) params.ap = ap;
@@ -189,11 +196,23 @@
         q('.nav-cash-page-info').textContent = state.total === 0 ? '' : fill(d.i18nPage, { from: state.offset + 1, to: Math.min(state.offset + limit, state.total), total: state.total });
     }
 
+    /** Forgets the receipt on show; a slow answer for it is then ignored. */
+    function resetLines() {
+        state.selectedReceipt = null;
+        state.linesSeq++;
+        wrap.querySelectorAll('.nav-cash-selected').forEach(r => r.classList.remove('nav-cash-selected'));
+    }
+
+    /** Closes the lines dialog (its "close" event resets the state); resets directly when it is not open. */
+    function closeLines() {
+        if (dialog.open) dialog.close(); else resetLines();
+    }
+
     function showLines(receipt, tr) {
         const seq = ++state.linesSeq;
         state.selectedReceipt = receipt.id;
         wrap.querySelectorAll('.nav-cash-receipts-body tr').forEach(r => r.classList.toggle('nav-cash-selected', r === tr));
-        q('.nav-cash-lines').hidden = false;
+        if (!dialog.open) dialog.showModal();
         q('.nav-cash-lines-title').textContent = receipt.receipt_number;
         q('.nav-cash-lines-body').replaceChildren(row(cell(d.i18nLoading)));
 
@@ -217,6 +236,11 @@
             })
             .catch(failed);
     }
+
+    // Esc closes the native dialog by itself; the button and a click on the backdrop (the dialog element itself) do the same.
+    q('.nav-cash-dialog-close').addEventListener('click', closeLines);
+    dialog.addEventListener('click', e => { if (e.target === dialog) closeLines(); });
+    dialog.addEventListener('close', resetLines);
 
     // ---- actions -------------------------------------------------------------------------------------------------
 
@@ -249,9 +273,23 @@
             .catch(failed);   // the button is gone after a reload; on a failed reload it stays disabled so a retry is a conscious reload
     }
 
+    function reparseUnmapped(btn) {
+        btn.disabled = true;
+        request(ajaxUrl, { action: 'nav_cr_reparse_unmapped', company_id: companyId }, 'POST')
+            .then(data => {
+                if (data.error) showMessage(errorText(data.error, d.i18nReparseFailed));
+                else if (!data.success) showMessage(d.i18nReparseFailed);
+                else showMessage(fill(d.i18nReparseUnmappedDone, { count: data.files }) + (data.complete ? '' : ' ' + d.i18nSyncIncomplete));
+                return Promise.all([loadStatus(), loadReceipts()]);
+            })
+            .catch(failed)
+            .finally(() => { btn.disabled = false; });
+    }
+
     // ---- wiring --------------------------------------------------------------------------------------------------
 
     q('.nav-cash-btn-sync').addEventListener('click', triggerSync);
+    q('.nav-cash-btn-reparse-unmapped').addEventListener('click', e => reparseUnmapped(e.currentTarget));
     q('.nav-cash-problems-body').addEventListener('click', e => {
         const btn = e.target.closest('.nav-cash-btn-reparse');
         if (btn) reparse(btn);

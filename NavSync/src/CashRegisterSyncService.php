@@ -367,6 +367,54 @@ class CashRegisterSyncService
     }
 
     /**
+     * Reprocesses, from the stored files, every parsed file that still has lines without a VAT rate (admin bulk "reparse").
+     *
+     * The NAV service is not contacted. The per-company cash register lock is taken without waiting, so this never overlaps
+     * a sync run. Files that still end up without a rate (no readable VAT table) stay listed for the next call.
+     *
+     * @param int      $companyId     nav_companies.id
+     * @param int|null $budgetSeconds Stop cleanly after roughly this many seconds; null = unlimited.
+     * @return array{ok:bool, code:string, message:string, files:int, complete:bool} code: 'ok', 'sync_running' or 'failed'.
+     */
+    public function reprocessUnmapped(int $companyId, ?int $budgetSeconds = null): array
+    {
+        $locked   = false;
+        $deadline = $budgetSeconds === null ? null : ($this->clock)() + $budgetSeconds;
+        try {
+            $locked = $this->invoiceRepo->tryLock($companyId, self::LOCK_SCOPE);
+            if (!$locked) {
+                return ['ok' => false, 'code' => 'sync_running', 'message' => 'a cash register sync of this company is running, try again later', 'files' => 0, 'complete' => false];
+            }
+            $errors   = [];
+            $files    = 0;
+            $complete = true;
+            foreach ($this->repo->filesWithUnmappedLines($companyId) as $file) {
+                if ($deadline !== null && ($this->clock)() >= $deadline) {
+                    $complete = false;
+                    break;
+                }
+                $this->processFile((int)$file['id'], (int)$file['register_id'], $companyId, (string)$file['ap_number'], (int)$file['file_number'], null, $errors);
+                $files++;
+            }
+            return $errors === []
+                ? ['ok' => true, 'code' => 'ok', 'message' => "{$files} files", 'files' => $files, 'complete' => $complete]
+                : ['ok' => false, 'code' => 'failed', 'message' => implode("\n", $errors), 'files' => $files, 'complete' => $complete];
+        } catch (\Throwable $e) {
+            ErrorHandler::logException($e, 'ERROR', ['module' => 'NavSync', 'step' => 'cash_register_reparse', 'company_id' => $companyId]);
+            return ['ok' => false, 'code' => 'failed', 'message' => self::GENERIC_ERROR, 'files' => 0, 'complete' => false];
+        } finally {
+            if ($locked) {
+                try {
+                    $this->invoiceRepo->unlock($companyId, self::LOCK_SCOPE);
+                } catch (\Throwable $e) {
+                    // The already computed result must not be replaced by a failed unlock.
+                    ErrorHandler::logException($e, 'ERROR', ['module' => 'NavSync', 'step' => 'cash_register_unlock', 'company_id' => $companyId]);
+                }
+            }
+        }
+    }
+
+    /**
      * The text of a failure that may be shown to a client: the module's own RuntimeException messages, nothing else.
      *
      * Database errors (PDOException is a RuntimeException), TypeErrors and any other throwable could carry SQL, paths or
@@ -412,6 +460,13 @@ class CashRegisterSyncService
             if ($map === null && $parsed['vat_table_text'] !== '') {
                 ErrorHandler::warning('[NavSync] cash register VAT table could not be read, lines stay without a VAT rate', [
                     'module' => 'NavSync', 'step' => 'cash_register_vat_table', 'company_id' => $companyId, 'ap_number' => $apNumber, 'file_number' => $fileNumber,
+                ]);
+            }
+            if ($parsed['vat_table_count'] > 1) {
+                // Lines are mapped with the first table only; a file with a changed table needs the per-receipt validity (not implemented).
+                ErrorHandler::warning('[NavSync] cash register file holds more than one different VAT table, the first one is applied to all lines', [
+                    'module' => 'NavSync', 'step' => 'cash_register_vat_table', 'company_id' => $companyId, 'ap_number' => $apNumber, 'file_number' => $fileNumber,
+                    'vat_tables' => $parsed['vat_table_count'],
                 ]);
             }
             $saved = $this->repo->saveParsed($fileId, $registerId, $parsed['receipts'], $map);
